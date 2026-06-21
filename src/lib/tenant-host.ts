@@ -82,9 +82,10 @@ export function getCompanyCodeFromHost(host: string | null | undefined): string 
   return null;
 }
 
-/** Deploy bằng IP: link theo path + ?tenant= thay vì subdomain */
+/** Deploy bằng IP hoặc chưa có SSL wildcard — link theo path + ?tenant= */
 export function usesPathBasedTenantUrls(requestHost?: string): boolean {
   const host = requestHost ?? resolveErpBaseHost() ?? "";
+  if (process.env.ERP_USE_TENANT_QUERY === "1") return true;
   return isIpHostname(hostnameFromHost(host));
 }
 
