@@ -228,6 +228,7 @@ CREATE INDEX IF NOT EXISTS idx_project_phases_assignee ON project_phases(assigne
 
 ALTER TABLE project_phases ADD COLUMN IF NOT EXISTS last_progress_at TIMESTAMPTZ;
 ALTER TABLE project_phases ADD COLUMN IF NOT EXISTS last_progress_by INTEGER;
+ALTER TABLE project_phases ADD COLUMN IF NOT EXISTS progress_from_items BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS project_phase_progress_logs (
   id SERIAL PRIMARY KEY,

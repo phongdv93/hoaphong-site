@@ -430,6 +430,7 @@ export function ProjectTaskPanel({
                 projectId={projectId}
                 items={data.items}
                 canEdit={canEdit}
+                linkedPhaseName={data.phases.find((p) => p.progressFromItems)?.name}
                 onChanged={() => load({ silent: true })}
               />
             )}

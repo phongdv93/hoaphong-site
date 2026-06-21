@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarRange, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { CalendarRange, ChevronDown, ChevronUp, Link2, Plus, Trash2, Unlink } from "lucide-react";
 import {
   computePhaseSortOrder,
   type PhaseInsertPosition,
@@ -89,8 +89,10 @@ export function ProjectPhasesTab({
             {fmtDate(projectStart)} → {fmtDate(projectEnd)}
           </span>
           <span className="text-slate-500 block mt-0.5">
-            Lập kế hoạch thời gian từng công đoạn. Cập nhật % ở tab{" "}
-            <strong className="text-slate-400">Tiến độ</strong>.
+            Lập kế hoạch thời gian từng công đoạn. Cập nhật % thủ công ở tab{" "}
+            <strong className="text-slate-400">Tiến độ</strong>, hoặc bấm{" "}
+            <strong className="text-slate-400">Gán theo hạng mục</strong> để % tự tính từ
+            tổng số lượng danh mục.
           </span>
         </div>
       </div>
@@ -178,7 +180,7 @@ export function ProjectPhasesTab({
                 )}
               </div>
               {/* Hàng 2: thời gian — luôn 1 dòng ngang */}
-              <div className="px-2 pb-1.5 pt-0 border-t border-white/5">
+              <div className="px-2 pb-1.5 pt-0 border-t border-white/5 space-y-1">
                 <PhaseScheduleRow
                   phase={p}
                   projectStart={projectStart}
@@ -186,6 +188,45 @@ export function ProjectPhasesTab({
                   canEdit={canEdit}
                   onSave={updatePhase}
                 />
+                {canEdit && (
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    {p.progressFromItems ? (
+                      <>
+                        <span className="text-[10px] text-emerald-300/90 inline-flex items-center gap-1">
+                          <Link2 size={11} />
+                          Tiến độ = tổng SL/Có hạng mục
+                          {p.progressPercent > 0 && (
+                            <span className="tabular-nums text-emerald-200">
+                              ({p.progressPercent}%)
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void updatePhase(p.id, { progressFromItems: false })}
+                          className="text-[10px] text-slate-400 hover:text-rose-300 inline-flex items-center gap-0.5 shrink-0"
+                          title="Chuyển sang cập nhật tiến độ thủ công"
+                        >
+                          <Unlink size={11} /> Bỏ gán
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void updatePhase(p.id, { progressFromItems: true })}
+                        className="text-[10px] text-sky-light hover:text-white inline-flex items-center gap-1 border border-sky/30 rounded px-2 py-0.5 hover:bg-sky/10"
+                        title="100% khi đủ số lượng tất cả hạng mục trong tab Hạng mục"
+                      >
+                        <Link2 size={11} /> Gán theo hạng mục
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!canEdit && p.progressFromItems && (
+                  <p className="text-[10px] text-emerald-300/80">
+                    Tiến độ theo hạng mục · {p.progressPercent}%
+                  </p>
+                )}
               </div>
             </li>
           ))}

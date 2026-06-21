@@ -19,11 +19,14 @@ export function ProjectItemsTab({
   items,
   canEdit,
   onChanged,
+  linkedPhaseName,
 }: {
   projectId: number;
   items: ProjectItem[];
   canEdit: boolean;
   onChanged: () => void;
+  /** Công đoạn đang gán tiến độ theo hạng mục */
+  linkedPhaseName?: string | null;
 }) {
   const [importOpen, setImportOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -163,6 +166,13 @@ export function ProjectItemsTab({
         cột SL/KL/Qty được nhận tự động.
         Cập nhật <strong className="text-slate-300">Có</strong> khi theo dõi.
       </p>
+
+      {linkedPhaseName && (
+        <p className="text-[11px] text-emerald-200/90 bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-2.5 py-2">
+          Công đoạn <strong>{linkedPhaseName}</strong> đang lấy tiến độ từ tổng{" "}
+          <strong>Có / SL</strong> ở đây — đủ số lượng mọi hạng mục thì công đoạn đạt 100%.
+        </p>
+      )}
 
       {canEdit && (
         <div className="flex flex-wrap gap-2 justify-end">

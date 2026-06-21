@@ -110,6 +110,8 @@ export interface ProjectPhase {
   lastProgressAt: string | null;
   lastProgressBy: number | null;
   lastProgressByName?: string;
+  /** true = % tự tính từ tổng SL/Có của hạng mục dự án */
+  progressFromItems: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -74,8 +74,14 @@ export function ProgressTab({
   const overall =
     phases.length > 0
       ? Math.round(
-          phases.reduce((s, ph) => s + (drafts[ph.id]?.progress ?? ph.progressPercent), 0) /
-            phases.length
+          phases.reduce(
+            (s, ph) =>
+              s +
+              (ph.progressFromItems
+                ? ph.progressPercent
+                : (drafts[ph.id]?.progress ?? ph.progressPercent)),
+            0
+          ) / phases.length
         )
       : 0;
 
@@ -248,7 +254,9 @@ export function ProgressTab({
 
       <ul className="space-y-2">
         {phases.map((ph) => {
-          const d = getDraft(ph);
+          const d = ph.progressFromItems
+            ? { status: ph.status, progress: ph.progressPercent }
+            : getDraft(ph);
           const phasePhotos = photos[ph.id] ?? [];
           const phasePreviews = previews[ph.id] ?? [];
           const recentLogs = logsForPhase(ph.id);
@@ -259,7 +267,14 @@ export function ProgressTab({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium text-white text-[13px] truncate">{ph.name}</div>
+                  <div className="font-medium text-white text-[13px] truncate flex items-center gap-1.5">
+                    {ph.name}
+                    {ph.progressFromItems && (
+                      <span className="text-[9px] font-normal px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 shrink-0">
+                        Theo hạng mục
+                      </span>
+                    )}
+                  </div>
                   {ph.deadlineAt && (
                     <div className="text-[10px] text-slate-500">Hạn: {fmtDate(ph.deadlineAt)}</div>
                   )}
@@ -302,7 +317,7 @@ export function ProgressTab({
                   min={0}
                   max={100}
                   value={d.progress}
-                  disabled={!canUpdate}
+                  disabled={!canUpdate || ph.progressFromItems}
                   onChange={(e) => {
                     const progress = Number(e.target.value);
                     let status = d.status;
@@ -311,14 +326,21 @@ export function ProgressTab({
                     else if (status === "pending" || status === "done") status = "in_progress";
                     setDraft(ph.id, { progress, status });
                   }}
-                  className="flex-1 accent-sky h-1.5"
+                  className="flex-1 accent-sky h-1.5 disabled:opacity-70"
                 />
                 <span className="text-[13px] tabular-nums text-sky-light w-9 text-right">
                   {d.progress}%
                 </span>
               </div>
 
-              {canUpdate && (
+              {ph.progressFromItems && (
+                <p className="text-[10px] text-emerald-200/80 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1.5">
+                  Tự tính từ tab <strong>Hạng mục</strong>: tổng cột <strong>Có</strong> ÷{" "}
+                  <strong>SL</strong> của tất cả hạng mục. Đủ 100% → công đoạn hoàn thành.
+                </p>
+              )}
+
+              {canUpdate && !ph.progressFromItems && (
                 <>
                   <div>
                     <label className="text-[10px] text-slate-500 uppercase tracking-wide">

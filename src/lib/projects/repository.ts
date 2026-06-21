@@ -1,4 +1,5 @@
 import { toLocalDateString } from "@/lib/dates";
+import { syncPhasesProgressFromItems } from "./phase-items-progress";
 import { syncTenantUser, syncTenantUsers } from "@/lib/db/sync-tenant-user";
 import { tenantExecute, tenantQuery, tenantQueryOne, tenantWithTransaction, getTenantPool } from "@/lib/db/tenant";
 import { requireTenantCompanyIdFromContext } from "@/lib/db/tenant-context";
@@ -68,6 +69,7 @@ function mapPhase(row: Record<string, unknown>): ProjectPhase {
     lastProgressAt: row.last_progress_at ? String(row.last_progress_at) : null,
     lastProgressBy: (row.last_progress_by as number | null) ?? null,
     lastProgressByName: (row.last_progress_by_name as string | undefined) ?? undefined,
+    progressFromItems: Boolean(row.progress_from_items),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -509,12 +511,23 @@ export async function updatePhase(
   if (newStatus === "done" && !completedAt) completedAt = now;
   if (newStatus === "done" && !startedAt) startedAt = now;
 
+  const progressFromItems =
+    input.progressFromItems === undefined ? prev.progressFromItems : input.progressFromItems;
+
+  if (progressFromItems && !prev.progressFromItems) {
+    await tenantExecute(
+      `UPDATE project_phases SET progress_from_items = FALSE
+       WHERE project_id = $1 AND id != $2`,
+      [prev.projectId, id]
+    );
+  }
+
   await tenantExecute(
     `UPDATE project_phases SET
        kind=$1, name=$2, sort_order=$3, deadline_at=$4, started_at=$5,
        completed_at=$6, status=$7, assignee_user_id=$8, progress_percent=$9,
-       notes=$10, updated_at=NOW()
-     WHERE id=$11`,
+       notes=$10, progress_from_items=$11, updated_at=NOW()
+     WHERE id=$12`,
     [
       input.kind ?? prev.kind,
       input.name ?? prev.name,
@@ -526,9 +539,14 @@ export async function updatePhase(
       input.assigneeUserId === undefined ? prev.assigneeUserId : input.assigneeUserId,
       input.progressPercent ?? prev.progressPercent,
       input.notes ?? prev.notes,
+      progressFromItems,
       id,
     ]
   );
+
+  if (progressFromItems) {
+    await syncPhasesProgressFromItems(prev.projectId);
+  }
 }
 
 export async function deletePhase(id: number): Promise<void> {
@@ -596,12 +614,14 @@ export async function createProjectItem(input: {
     );
   try {
     const row = await insert();
+    await syncPhasesProgressFromItems(input.projectId);
     return row!.id;
   } catch (err) {
     if (!isPgUniqueViolation(err)) throw err;
     const companyId = requireTenantCompanyIdFromContext();
     await repairTenantSerialSequences(await getTenantPool(companyId));
     const row = await insert();
+    await syncPhasesProgressFromItems(input.projectId);
     return row!.id;
   }
 }
@@ -644,10 +664,16 @@ export async function updateProjectItem(
       id,
     ]
   );
+  await syncPhasesProgressFromItems(Number(cur.project_id));
 }
 
 export async function deleteProjectItem(id: number): Promise<void> {
+  const cur = await tenantQueryOne<{ project_id: number }>(
+    `SELECT project_id FROM project_items WHERE id = $1`,
+    [id]
+  );
   await tenantExecute("DELETE FROM project_items WHERE id = $1", [id]);
+  if (cur) await syncPhasesProgressFromItems(cur.project_id);
 }
 
 export async function deleteAllProjectItems(projectId: number): Promise<number> {
@@ -655,6 +681,7 @@ export async function deleteAllProjectItems(projectId: number): Promise<number> 
     "DELETE FROM project_items WHERE project_id = $1",
     [projectId]
   );
+  await syncPhasesProgressFromItems(projectId);
   return res.rowCount;
 }
 
