@@ -1,0 +1,16 @@
+{
+  "name": "hoaphong-customs-portal-rpa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "submit-ida": "tsx submit-ida.ts",
+    "install-browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.51.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

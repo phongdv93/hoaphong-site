@@ -1,0 +1,30 @@
+{
+  "version": "hq-2026-06",
+  "source": "hq-reorg-2025",
+  "items": [
+    {
+      "types": ["customs_office"],
+      "code": "06DS",
+      "name": "Chi cục HQ Chuyển phát nhanh (mã mới)",
+      "extra": "Thay 02DS · HQCPNHCM · HCM"
+    },
+    {
+      "types": ["warehouse", "customs_office"],
+      "code": "06DSEDA",
+      "name": "CPN FEDEX EXPRESS VN",
+      "extra": "Địa điểm lưu kho CPN · thay 02DSEDA"
+    },
+    {
+      "types": ["import_port", "border_gate"],
+      "code": "SGN",
+      "name": "Sân bay Tân Sơn Nhất",
+      "extra": "Địa điểm dỡ hàng · HCM airport VN"
+    },
+    {
+      "types": ["export_port"],
+      "code": "CNPVG",
+      "name": "Sân bay Pudong Shanghai",
+      "extra": "Địa điểm xếp hàng · Shanghai CN"
+    }
+  ]
+}

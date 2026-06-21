@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Hoa Phong">
+  <defs>
+    <linearGradient id="hp-grad-light" x1="8" y1="42" x2="42" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6BB8F0"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 38 C18 28, 28 18, 40 10" stroke="url(#hp-grad-light)" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M10 38 C20 30, 32 22, 42 16" stroke="url(#hp-grad-light)" stroke-width="2.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M10 38 C22 32, 34 28, 44 24" stroke="url(#hp-grad-light)" stroke-width="2.4" stroke-linecap="round" opacity="0.7"/>
+  <path d="M10 38 C24 36, 36 34, 46 32" stroke="url(#hp-grad-light)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+</svg>

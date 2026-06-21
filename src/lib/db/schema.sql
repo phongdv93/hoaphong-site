@@ -1,0 +1,2 @@
+-- DEPRECATED: dùng schema-platform.sql (DATABASE_URL) + schema-tenant.sql (mỗi công ty).
+-- initDb() chỉ áp schema-platform. Tenant: provision / db:migrate-tenant-b

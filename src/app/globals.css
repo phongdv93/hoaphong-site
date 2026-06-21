@@ -1,0 +1,506 @@
+@import "tailwindcss";
+
+/* Hoa Phong brand palette — từ logo chính thức */
+@theme {
+  --color-navy: #0a1120;
+  --color-navy-light: #141e32;
+  --color-royal: #1e5a9e;
+  --color-sky: #3b9fe8;
+  --color-sky-light: #6bb8f0;
+  --color-mist: #f0f4f8;
+  --color-mist-dark: #e2e8f0;
+  --color-slate-muted: #8b9cb5;
+
+  /* Alias giữ tên class cũ, map sang màu brand */
+  --color-midnight: #0a1120;
+  --color-midnight-light: #141e32;
+  --color-emerald: #3b9fe8;
+  --color-emerald-light: #6bb8f0;
+  --color-gold: #1e5a9e;
+  --color-gold-light: #4a8fd4;
+  --color-cream: #f0f4f8;
+
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-navy text-slate-200 antialiased;
+    font-family: var(--font-body);
+  }
+
+  /* Scrollbar thống nhất — ERP & site */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 159, 232, 0.45) rgba(255, 255, 255, 0.06);
+  }
+
+  *::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(59, 159, 232, 0.38);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 184, 240, 0.55);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--color-sky) 0%, var(--color-royal) 100%);
+  }
+
+  .bg-mesh {
+    background-image:
+      radial-gradient(at 20% 30%, rgba(59, 159, 232, 0.18) 0px, transparent 50%),
+      radial-gradient(at 80% 20%, rgba(30, 90, 158, 0.12) 0px, transparent 50%),
+      radial-gradient(at 50% 80%, rgba(59, 159, 232, 0.08) 0px, transparent 50%);
+  }
+
+  .glass {
+    @apply backdrop-blur-xl bg-navy-light/90 border border-white/10 shadow-lg shadow-black/20;
+  }
+
+  .glass-dark {
+    @apply backdrop-blur-xl bg-navy/80 border border-white/10 shadow-lg shadow-black/20;
+  }
+
+  @keyframes pulse-subtle {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1px rgba(239, 68, 68, 0.45),
+        0 0 10px rgba(239, 68, 68, 0.2);
+    }
+    50% {
+      box-shadow:
+        0 0 0 2px rgba(239, 68, 68, 0.75),
+        0 0 14px rgba(239, 68, 68, 0.35);
+    }
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2.5s ease-in-out infinite;
+  }
+
+  .home-bento-card,
+  .public-card {
+    @apply rounded-2xl border border-white/10 bg-white/[0.04] p-5
+      hover:bg-white/[0.08] hover:border-sky/35 transition-all duration-300;
+  }
+
+  .home-bento-card-accent {
+    @apply border-sky/35 bg-gradient-to-br from-sky/[0.08] to-transparent
+      hover:border-sky/50;
+  }
+
+  .public-page {
+    @apply text-white;
+  }
+
+  .public-card-compact {
+    @apply rounded-xl border border-white/10 bg-white/[0.04] p-3 md:p-4
+      hover:bg-white/[0.07] hover:border-sky/30 transition-all duration-300;
+  }
+
+  .about-content-stage {
+    @apply will-change-[opacity,transform];
+  }
+
+  .quote-tool-btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/15
+      bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/90
+      hover:bg-white/[0.08] hover:border-sky/35 transition-colors disabled:opacity-50;
+  }
+
+  .quote-tool-btn-primary {
+    @apply border-sky/40 bg-sky/20 text-white hover:bg-sky/30;
+  }
+
+  .quote-cell-input {
+    field-sizing: content;
+  }
+
+  .quote-sheet {
+    --quote-primary: #1e5a9e;
+    --quote-primary-light: #eef4fa;
+    --quote-primary-soft: #dceaf7;
+  }
+
+  .quote-sidebar {
+    @apply rounded-xl border border-white/10 bg-white/[0.04] p-3.5 space-y-3 lg:sticky lg:top-24 self-start;
+  }
+
+  .quote-party-pill {
+    @apply rounded-[1.25rem] border border-gray-200/90 px-4 py-3 bg-transparent;
+  }
+
+  .quote-party-title {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2;
+  }
+
+  .quote-party-line {
+    @apply w-full bg-transparent border-0 border-b border-gray-200/70 px-0 py-1.5 text-sm text-gray-800
+      placeholder:text-gray-300 focus:outline-none focus:border-[var(--quote-primary)];
+  }
+
+  .quote-party-line-bold {
+    @apply font-semibold text-[15px] text-gray-900;
+  }
+
+  .quote-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--quote-primary);
+  }
+
+  .quote-field-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    font-style: italic;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: #1f2937;
+  }
+
+  .quote-field-input {
+    @apply mt-1 w-full rounded-md border border-gray-200 bg-white px-2.5 py-2 text-sm text-gray-800
+      placeholder:text-gray-300 focus:outline-none;
+  }
+
+  .quote-field-input:focus {
+    border-color: var(--quote-primary);
+    box-shadow: 0 0 0 1px var(--quote-primary);
+  }
+
+  .quote-doc-title {
+    @apply w-full bg-transparent text-center uppercase tracking-tight border-0 outline-none;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #111827;
+    text-transform: uppercase;
+  }
+
+  .quote-meta-label {
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .quote-meta-value {
+    @apply border border-gray-200 rounded px-2 py-1 text-sm font-medium text-gray-800 outline-none;
+  }
+
+  .quote-meta-value:focus {
+    border-color: var(--quote-primary);
+  }
+
+  .quote-th {
+    background: var(--quote-primary-light);
+    color: var(--quote-primary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .quote-th input {
+    color: inherit;
+    font-weight: inherit;
+  }
+
+  .quote-table {
+    table-layout: auto;
+    width: 100%;
+  }
+
+  .quote-col-tight {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    max-width: 2.75rem;
+    white-space: nowrap;
+  }
+
+  .quote-col-narrow {
+    width: 3rem;
+    min-width: 2.75rem;
+    max-width: 3.75rem;
+    white-space: nowrap;
+  }
+
+  .quote-col-money {
+    width: 5.75rem;
+    min-width: 5rem;
+    max-width: 7rem;
+    white-space: nowrap;
+  }
+
+  .quote-col-custom {
+    width: 5rem;
+    min-width: 4rem;
+    max-width: 8rem;
+  }
+
+  .quote-col-wide {
+    width: auto;
+    min-width: 11rem;
+  }
+
+  .quote-tfoot {
+    background: var(--quote-primary-soft);
+    font-weight: 600;
+  }
+
+  .quote-sig-box {
+    @apply min-h-[3.5rem] flex items-end justify-center mb-1;
+  }
+
+  .public-section {
+    @apply py-12 md:py-16 px-4 md:px-8 text-white;
+  }
+
+  .public-section-alt {
+    @apply py-12 md:py-16 px-4 md:px-8 text-white bg-white/[0.03] border-y border-white/5;
+  }
+
+  .public-label {
+    @apply text-sky text-sm font-semibold uppercase tracking-wider;
+  }
+
+  .public-heading {
+    @apply font-display text-3xl md:text-4xl font-bold text-white mt-2;
+  }
+
+  .public-body {
+    @apply text-slate-muted leading-relaxed;
+  }
+
+  .public-link {
+    @apply text-sky-light font-medium text-sm hover:text-white transition-colors;
+  }
+
+  .input-field-dark {
+    @apply w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white
+      placeholder:text-slate-muted/60
+      focus:outline-none focus:ring-2 focus:ring-sky/30 focus:border-sky;
+  }
+
+  .prose-public {
+    @apply max-w-none text-slate-muted leading-relaxed;
+  }
+
+  .prose-public h2,
+  .prose-public h3 {
+    font-family: var(--font-display);
+    @apply text-white font-semibold tracking-tight mt-8 mb-3;
+  }
+
+  .prose-public h2 {
+    @apply text-2xl;
+  }
+
+  .prose-public h3 {
+    @apply text-xl;
+  }
+
+  .prose-public p {
+    @apply mb-4;
+  }
+
+  .prose-public ul {
+    @apply list-disc pl-5 mb-4 space-y-1;
+  }
+
+  .prose-public a {
+    @apply text-sky-light hover:text-white underline-offset-2 hover:underline;
+  }
+
+  .prose-public strong {
+    @apply text-white font-semibold;
+  }
+
+  .btn-outline-light {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full
+      border border-white/25 text-white font-medium
+      hover:border-sky-light hover:text-sky-light transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full
+      bg-gradient-to-r from-sky to-royal text-white font-medium
+      shadow-lg shadow-sky/30 hover:shadow-sky/50 hover:scale-[1.02]
+      transition-all duration-300;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full
+      border-2 border-white/25 text-slate-200 font-medium
+      hover:border-sky hover:text-sky-light transition-all duration-300;
+  }
+
+  .section-padding {
+    @apply py-20 md:py-28 px-4 md:px-8;
+  }
+
+  .container-narrow {
+    @apply max-w-6xl mx-auto;
+  }
+
+  .container-wide {
+    @apply max-w-7xl mx-auto;
+  }
+
+  /** Form ERP / admin — dark theme */
+  .input-field {
+    @apply w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white
+      placeholder:text-slate-muted/60
+      focus:outline-none focus:ring-2 focus:ring-sky/30 focus:border-sky;
+  }
+
+  /** Dropdown thay select — đồng bộ với input-field */
+  .app-select-trigger {
+    @apply w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white
+      flex items-center justify-between gap-2 text-left min-h-[2.5rem]
+      transition-[border-color,box-shadow,background-color] duration-150
+      hover:border-white/25 hover:bg-white/[0.07]
+      focus:outline-none focus:ring-2 focus:ring-sky/30 focus:border-sky
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-white/15;
+  }
+
+  .app-select-trigger-sm {
+    @apply px-2 py-1 text-xs min-h-[2rem];
+  }
+
+  .app-select-trigger-light {
+    @apply border-gray-200 bg-white text-midnight shadow-sm
+      hover:border-gray-300 hover:bg-gray-50
+      focus:ring-sky/25 focus:border-sky;
+  }
+
+  .app-select-menu {
+    @apply absolute z-50 mt-1.5 w-full min-w-[10rem] rounded-xl border border-white/15
+      bg-[#0f1f42] py-1 shadow-xl shadow-black/50 ring-1 ring-white/5
+      max-h-64 overflow-y-auto overscroll-contain;
+  }
+
+  .app-select-menu-light {
+    @apply border-gray-200 bg-white shadow-lg ring-gray-100;
+  }
+
+  .app-select-option {
+    @apply w-full text-left px-3 py-2 text-sm text-slate-200
+      transition-colors duration-100 hover:bg-white/10;
+  }
+
+  .app-select-option-light {
+    @apply text-midnight hover:bg-sky/10;
+  }
+
+  .app-select-option-active {
+    @apply text-sky-light bg-sky/15 font-medium;
+  }
+
+  .app-select-option-light.app-select-option-active {
+    @apply text-sky bg-sky/10;
+  }
+
+  .erp-card {
+    @apply rounded-xl border border-white/10 bg-navy-light text-slate-200;
+  }
+
+  .erp-card-hover {
+    @apply rounded-xl border border-white/10 bg-navy-light p-5
+      hover:border-sky/40 hover:bg-white/[0.06] transition-all;
+  }
+
+  .erp-table-wrap {
+    @apply rounded-xl border border-white/10 bg-navy-light overflow-hidden;
+  }
+
+  .erp-table-head {
+    @apply bg-white/5 text-left text-slate-400 text-sm;
+  }
+
+  .erp-table-row {
+    @apply border-t border-white/10 hover:bg-white/5 text-slate-200;
+  }
+
+  .erp-muted {
+    @apply text-slate-400;
+  }
+
+  /** Legacy class names on dark ERP pages → readable text */
+  .erp-theme-scope .text-navy {
+    @apply text-slate-200;
+  }
+
+  .erp-theme-scope [class*="text-midnight"] {
+    @apply text-slate-400;
+  }
+
+  .erp-theme-scope .border-navy\/10,
+  .erp-theme-scope .border-navy\/5 {
+    @apply border-white/10;
+  }
+
+  .erp-theme-scope .bg-navy\/5 {
+    @apply bg-white/5;
+  }
+
+  .erp-theme-scope .bg-navy\/10 {
+    @apply bg-white/10;
+  }
+
+  .erp-heading {
+    @apply text-white font-semibold;
+  }
+
+  .erp-theme-scope input[type="date"].erp-date-input {
+    color-scheme: dark;
+    color: #e2e8f0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .erp-theme-scope input[type="date"].erp-date-input::-webkit-calendar-picker-indicator {
+    filter: brightness(0) invert(1);
+    opacity: 1;
+    cursor: pointer;
+  }
+}
+
+.prose-admin textarea,
+.prose-admin input {
+  font-family: var(--font-body);
+}
