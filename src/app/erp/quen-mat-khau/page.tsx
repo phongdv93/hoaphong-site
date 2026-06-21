@@ -12,6 +12,7 @@ export default function ForgotPasswordPage() {
   const [done, setDone] = useState(false);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
   const [mailSent, setMailSent] = useState(false);
+  const [mailError, setMailError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +35,7 @@ export default function ForgotPasswordPage() {
 
       setDone(true);
       setMailSent(Boolean(json.mailSent));
+      setMailError(json.mailError ?? null);
       if (json.resetUrl) setResetUrl(json.resetUrl);
     } catch {
       setError("Không kết nối được server");
@@ -62,13 +64,15 @@ export default function ForgotPasswordPage() {
               <div className="bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 rounded-lg p-3">
                 {mailSent
                   ? "Đã gửi email hướng dẫn (kiểm tra hộp thư và spam)."
-                  : "Nếu email có trong hệ thống, yêu cầu đã được ghi nhận."}
+                  : resetUrl
+                    ? "Không gửi được email — dùng link bên dưới (hiệu lực 1 giờ)."
+                    : "Nếu email có trong hệ thống, yêu cầu đã được ghi nhận."}
               </div>
               {!mailSent && resetUrl && (
                 <div className="bg-amber-500/10 border border-amber-400/30 rounded-lg p-3 space-y-2">
-                  <p className="text-amber-200/90 text-xs">
-                    SMTP chưa cấu hình — dùng link tạm (1 giờ):
-                  </p>
+                  {mailError && (
+                    <p className="text-amber-200/80 text-xs">Lỗi gửi mail: {mailError}</p>
+                  )}
                   <a
                     href={resetUrl}
                     className="block font-mono text-xs text-sky-light break-all hover:underline"

@@ -1,47 +1,53 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
-import { LogIn } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 import { ERP } from "@/lib/paths";
-import { companyErpRegisterUrl, tenantAwareErpPath } from "@/lib/tenant-host";
 
-export default function AdminLoginPage() {
+type Phase = "form" | "redirecting";
+
+export default function ErpLoginPage() {
   const router = useRouter();
+  const [phase, setPhase] = useState<Phase>("form");
+  const [redirectLabel, setRedirectLabel] = useState("Đang xác định quyền truy cập…");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [tenant, setTenant] = useState<{
-    code: string;
-    name: string;
-    subdomain: string;
-  } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/tenant")
+    fetch("/api/auth/session")
       .then((r) => r.json())
-      .then((j) => {
-        if (j.company) {
-          setTenant({
-            code: j.company.code,
-            name: j.company.name,
-            subdomain: j.company.subdomain ?? j.company.code,
-          });
+      .then((session) => {
+        if (session.user) {
+          void runRedirect();
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const tenantLinks = useMemo(() => {
-    if (!tenant) return null;
-    const host = typeof window !== "undefined" ? window.location.host : undefined;
-    const key = tenant.subdomain || tenant.code;
-    return {
-      register: companyErpRegisterUrl(key, host),
-      forgot: tenantAwareErpPath(ERP.forgotPassword, key, host),
-    };
-  }, [tenant]);
+  async function runRedirect() {
+    setPhase("redirecting");
+    await new Promise((r) => setTimeout(r, 3000));
+
+    try {
+      const res = await fetch("/api/auth/redirect");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        setRedirectLabel(data.label || "Đang chuyển hướng…");
+        router.push(data.url);
+        router.refresh();
+        return;
+      }
+      router.push(ERP.base);
+      router.refresh();
+    } catch {
+      router.push(ERP.base);
+      router.refresh();
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,22 +59,14 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          email: String(data.email ?? "").trim(),
+          password: String(data.password ?? ""),
+        }),
       });
 
       if (res.ok) {
-        const session = await fetch("/api/auth/session").then((r) => r.json()).catch(() => ({}));
-        const companyCode = tenant?.code ?? session.tenant?.code;
-        if (session.membership?.status === "pending") {
-          router.push(
-            tenantAwareErpPath("/erp/cho-duyet", tenant?.subdomain ?? tenant?.code, window.location.host)
-          );
-        } else if (companyCode) {
-          router.push(`/erp/c/${companyCode}`);
-        } else {
-          router.push(ERP.base);
-        }
-        router.refresh();
+        await runRedirect();
       } else {
         const json = await res.json().catch(() => ({}));
         setError(json.error || `Đăng nhập thất bại (${res.status})`);
@@ -80,6 +78,19 @@ export default function AdminLoginPage() {
     }
   }
 
+  if (phase === "redirecting") {
+    return (
+      <div className="min-h-screen bg-midnight flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-mesh opacity-30" />
+        <div className="relative text-center space-y-4">
+          <Loader2 className="w-10 h-10 text-sky-light animate-spin mx-auto" />
+          <p className="text-white font-medium">{redirectLabel}</p>
+          <p className="text-sm text-slate-400">Hệ thống đang chọn không gian làm việc phù hợp…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-midnight flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-mesh opacity-30" />
@@ -87,17 +98,9 @@ export default function AdminLoginPage() {
         <div className="glass-dark rounded-2xl p-8 md:p-10 shadow-2xl">
           <div className="flex flex-col items-center mb-8">
             <Logo light />
-            <h1 className="font-display text-2xl font-bold text-white mt-4">
-              {tenant ? tenant.name : "Admin Dashboard"}
-            </h1>
-            <p className="text-sm text-slate-400">
-              {tenant ? (
-                <>
-                  Đăng nhập ERP · <span className="font-mono">{tenant.code}</span>
-                </>
-              ) : (
-                "Hoa Phong — Quản trị website"
-              )}
+            <h1 className="font-display text-2xl font-bold text-white mt-4">Đăng nhập ERP</h1>
+            <p className="text-sm text-slate-400 text-center mt-1">
+              Một cửa cho admin Hoa Phong, quản trị công ty và nhân viên
             </p>
           </div>
 
@@ -108,17 +111,15 @@ export default function AdminLoginPage() {
                 name="email"
                 type="email"
                 required
-                defaultValue="admin@hoaphong.vn"
+                autoComplete="email"
+                placeholder="email@congty.com"
                 className="input-field-dark"
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-slate-300">Mật khẩu</label>
-                <Link
-                  href={tenantLinks?.forgot ?? ERP.forgotPassword}
-                  className="text-xs text-sky-light hover:underline"
-                >
+                <Link href={ERP.forgotPassword} className="text-xs text-sky-light hover:underline">
                   Quên mật khẩu?
                 </Link>
               </div>
@@ -126,6 +127,7 @@ export default function AdminLoginPage() {
                 name="password"
                 type="password"
                 required
+                autoComplete="current-password"
                 className="input-field-dark"
               />
             </div>
@@ -135,24 +137,10 @@ export default function AdminLoginPage() {
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
             <p className="text-xs text-slate-400 text-center pt-2">
-              {tenant ? (
-                <>
-                  Chưa có tài khoản?{" "}
-                  <Link
-                    href={tenantLinks?.register ?? "/erp/dang-ky"}
-                    className="text-emerald font-medium hover:underline"
-                  >
-                    Đăng ký nhân viên
-                  </Link>
-                </>
-              ) : (
-                <>
-                  Doanh nghiệp mới?{" "}
-                  <Link href="/erp/register" className="text-emerald font-medium hover:underline">
-                    Đăng ký tài khoản công ty
-                  </Link>
-                </>
-              )}
+              Doanh nghiệp mới?{" "}
+              <Link href="/erp/register" className="text-emerald font-medium hover:underline">
+                Đăng ký công ty
+              </Link>
             </p>
           </form>
         </div>

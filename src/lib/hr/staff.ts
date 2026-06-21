@@ -182,9 +182,9 @@ export async function createStaffForCompany(
 
     const adminSetPassword = (input.password?.trim().length ?? 0) >= 6;
 
-    /** User chưa thuộc công ty nào / admin nhập mật khẩu mới → gửi mật khẩu */
-
-    const issueCredentials = !hasElsewhere || adminSetPassword;
+    /** Admin công ty hoặc user chưa thuộc cty nào / admin nhập mật khẩu mới → gửi mật khẩu */
+    const issueCredentials =
+      role === "admin" || !hasElsewhere || adminSetPassword;
 
 
 

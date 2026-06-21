@@ -28,7 +28,7 @@ export function buildPasswordResetUrl(token: string, request?: Request): string 
 export async function requestPasswordReset(
   email: string,
   request?: Request
-): Promise<{ resetUrl?: string; mailSent: boolean }> {
+): Promise<{ resetUrl?: string; mailSent: boolean; mailError?: string }> {
   const normalized = email.trim().toLowerCase();
   if (!normalized) return { mailSent: false };
 
@@ -68,6 +68,7 @@ export async function requestPasswordReset(
   return {
     mailSent: mail.sent,
     resetUrl: mail.sent ? undefined : resetUrl,
+    mailError: mail.sent ? undefined : ("error" in mail ? mail.error : mail.reason),
   };
 }
 

@@ -116,12 +116,8 @@ export function companyErpOrigin(subdomainOrCode: string, requestHost?: string):
   return `${protocol}://${subdomainOrCode}.${suffix}`;
 }
 
-export function companyErpLoginUrl(subdomainOrCode: string, requestHost?: string): string {
-  const base = companyErpOrigin(subdomainOrCode, requestHost);
-  if (usesPathBasedTenantUrls(requestHost ?? resolveErpBaseHost())) {
-    return `${base}/erp/login?${TENANT_QUERY_PARAM}=${encodeURIComponent(subdomainOrCode)}`;
-  }
-  return `${base}/erp/login`;
+export function companyErpLoginUrl(_subdomainOrCode: string, requestHost?: string): string {
+  return `${appBaseOrigin(requestHost)}/erp/login`;
 }
 
 export function companyErpRegisterUrl(subdomainOrCode: string, requestHost?: string): string {

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
         "Nếu email có trong hệ thống, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu.",
       mailSent: result.mailSent,
       resetUrl: result.resetUrl,
+      mailError: result.mailError,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

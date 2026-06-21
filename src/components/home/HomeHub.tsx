@@ -164,13 +164,6 @@ export function HomeHub({ settings }: { settings: SiteSettings }) {
             </Link>
           ))}
         </div>
-
-        <p className="mt-6 md:mt-8 text-center text-[11px] text-slate-muted/80">
-          {settings.companyName} · {settings.phone} ·{" "}
-          <a href={`mailto:${settings.email}`} className="hover:text-sky-light transition-colors">
-            {settings.email}
-          </a>
-        </p>
       </div>
     </section>
   );

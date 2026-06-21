@@ -14,7 +14,8 @@ export function getMailConfig(): MailConfig {
   const host = process.env.SMTP_HOST?.trim() ?? "";
   const user = process.env.SMTP_USER?.trim() ?? "";
   const pass = process.env.SMTP_PASS?.trim() ?? "";
-  const from = process.env.MAIL_FROM?.trim() || user || "noreply@hoaphong.com.vn";
+  const fromRaw = process.env.MAIL_FROM?.trim() ?? "";
+  const from = fromRaw.replace(/^["']|["']$/g, "") || user || "noreply@hoaphong.com.vn";
   const port = Number(process.env.SMTP_PORT ?? "587");
   const secure = process.env.SMTP_SECURE === "1" || port === 465;
   return {
@@ -42,6 +43,7 @@ async function sendMail(opts: { to: string; subject: string; text: string; html?
       port: cfg.port,
       secure: cfg.secure,
       auth: { user: cfg.user, pass: cfg.pass },
+      ...(cfg.port === 587 && !cfg.secure ? { requireTLS: true } : {}),
     });
 
     await transport.sendMail({

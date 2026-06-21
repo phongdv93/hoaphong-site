@@ -106,16 +106,6 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === ERP.login) {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
-    if (token) {
-      try {
-        await jwtVerify(token, getSecret());
-        const dest = companyCode ? `/erp/c/${companyCode}` : ERP.base;
-        return NextResponse.redirect(new URL(dest, request.url));
-      } catch {
-        /* invalid */
-      }
-    }
     return response;
   }
 
