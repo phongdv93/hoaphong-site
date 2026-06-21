@@ -14,6 +14,7 @@ import {
   type ScheduleAnalysis,
 } from "@/lib/projects/schedule-health";
 import { getPhaseTimeRanges, type PhaseTimeRange } from "@/lib/projects/phase-timeline";
+import { formatDateVi } from "@/lib/dates";
 
 export const DEFAULT_DAY_WIDTH = 28;
 export const MIN_GANTT_DAY_WIDTH = 8;
@@ -1042,5 +1043,5 @@ function todayIso(): string {
 }
 
 function fmtVN(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("vi-VN");
+  return formatDateVi(iso);
 }

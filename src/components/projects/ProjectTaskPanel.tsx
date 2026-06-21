@@ -40,6 +40,7 @@ import {
   analyzeProjectSchedule,
   scheduleHealthColors,
 } from "@/lib/projects/schedule-health";
+import { formatDateVi } from "@/lib/dates";
 import type {
   Project,
   ProjectPhase,
@@ -696,8 +697,7 @@ function Info({
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("vi-VN");
+  return formatDateVi(iso);
 }
 
 function fmtDateTime(iso: string): string {

@@ -10,8 +10,10 @@ import { ErpSelect } from "@/components/erp/ErpSelect";
 import {
   inclusiveDayCount,
   resolvePhaseSchedule,
+  formatDateVi,
   type ScheduleEditField,
 } from "@/lib/dates";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import type { Project, ProjectMember, ProjectPhase } from "@/lib/projects/types";
 
 /** Lập kế hoạch công đoạn / giai đoạn — thời gian & phụ trách (không cập nhật %). */
@@ -264,13 +266,12 @@ export function ProjectPhasesTab({
 }
 
 function fmtDate(iso: string | null | undefined) {
-  if (!iso) return "—";
-  return new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("vi-VN");
+  return formatDateVi(iso);
 }
 
 const SCHEDULE_LABEL = "block text-[9px] text-slate-500 leading-tight mb-0.5";
 const SCHEDULE_DATE_CLS =
-  "erp-date-input input-field text-[9px] leading-tight py-0 px-0.5 h-[22px] w-full min-w-0";
+  "text-[9px] leading-tight py-0 px-0.5 h-[22px] w-full min-w-0";
 const SCHEDULE_DAYS_CLS =
   "input-field text-[9px] py-0 px-0.5 w-full h-[22px] text-center tabular-nums";
 const SCHEDULE_GRID =
@@ -372,18 +373,19 @@ function PhaseScheduleRow({
     <div className={SCHEDULE_GRID} title={hint || undefined}>
       <label className="flex flex-col min-w-0">
         <span className={SCHEDULE_LABEL}>Bắt đầu</span>
-        <input
-          type="date"
+        <ErpDateInput
           value={startedAt}
           disabled={saving}
-          onChange={(e) => {
-            const r = apply("start", { start: e.target.value });
-            schedulePersist(r.startedAt, r.deadlineAt);
-          }}
-          onBlur={() => void persist(startedAt, deadlineAt)}
           min={projectStart ?? undefined}
           max={projectEnd ?? undefined}
           className={SCHEDULE_DATE_CLS}
+          onChange={(iso) => {
+            apply("start", { start: iso });
+          }}
+          onCommit={(iso) => {
+            const r = apply("start", { start: iso });
+            schedulePersist(r.startedAt, r.deadlineAt);
+          }}
         />
       </label>
       <label className="flex flex-col w-[60px] shrink-0">
@@ -403,18 +405,19 @@ function PhaseScheduleRow({
       </label>
       <label className="flex flex-col min-w-0">
         <span className={SCHEDULE_LABEL}>Kết thúc</span>
-        <input
-          type="date"
+        <ErpDateInput
           value={deadlineAt}
           disabled={saving}
-          onChange={(e) => {
-            const r = apply("end", { end: e.target.value });
-            schedulePersist(r.startedAt, r.deadlineAt);
-          }}
-          onBlur={() => void persist(startedAt, deadlineAt)}
           min={startedAt || projectStart || undefined}
           max={projectEnd ?? undefined}
           className={SCHEDULE_DATE_CLS}
+          onChange={(iso) => {
+            apply("end", { end: iso });
+          }}
+          onCommit={(iso) => {
+            const r = apply("end", { end: iso });
+            schedulePersist(r.startedAt, r.deadlineAt);
+          }}
         />
       </label>
     </div>
@@ -567,11 +570,10 @@ function AddPhaseForm({
       <div className={SCHEDULE_GRID}>
         <label className="flex flex-col min-w-0">
           <span className={SCHEDULE_LABEL}>Bắt đầu</span>
-          <input
-            type="date"
+          <ErpDateInput
             value={startedAt}
-            onChange={(e) => applySchedule({ start: e.target.value }, "start")}
             className={SCHEDULE_DATE_CLS}
+            onChange={(iso) => applySchedule({ start: iso }, "start")}
           />
         </label>
         <label className="flex flex-col w-[60px] shrink-0">
@@ -587,11 +589,10 @@ function AddPhaseForm({
         </label>
         <label className="flex flex-col min-w-0">
           <span className={SCHEDULE_LABEL}>Kết thúc</span>
-          <input
-            type="date"
+          <ErpDateInput
             value={deadlineAt}
-            onChange={(e) => applySchedule({ end: e.target.value }, "end")}
             className={SCHEDULE_DATE_CLS}
+            onChange={(iso) => applySchedule({ end: iso }, "end")}
           />
         </label>
       </div>

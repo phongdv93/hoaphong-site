@@ -13,6 +13,7 @@ import {
   TRANSPORT_MODE_OPTIONS,
 } from "@/lib/customs/constants";
 import type { ImportDeclaration, ImportDeclarationLine } from "@/lib/customs/types";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { MasterDataHints } from "./MasterDataHints";
 import { useCustomsMasterHints } from "./useCustomsMasterHints";
@@ -178,7 +179,15 @@ export function ImportDeclarationEditor({ id }: { id: number }) {
           <Sel label="PT vận chuyển" value={decl.transportModeCode} disabled={!editable} options={TRANSPORT_MODE_OPTIONS} onChange={(v) => patchDecl({ transportModeCode: v })} />
           <Inp label="Số vận đơn" value={decl.billOfLadingNo} disabled={!editable} onChange={(v) => patchDecl({ billOfLadingNo: v })} />
           <Inp label="Số HĐ" value={decl.invoiceNo} disabled={!editable} onChange={(v) => patchDecl({ invoiceNo: v })} />
-          <Inp label="Ngày HĐ" type="date" value={decl.invoiceDate ?? ""} disabled={!editable} onChange={(v) => patchDecl({ invoiceDate: v || null })} />
+          <label className="block">
+            <span className="text-[10px] text-slate-500">Ngày HĐ</span>
+            <ErpDateInput
+              value={decl.invoiceDate ?? ""}
+              disabled={!editable}
+              className="text-xs py-1 mt-0.5"
+              onChange={(v) => patchDecl({ invoiceDate: v || null })}
+            />
+          </label>
           <Inp label="Số HĐ mua bán" value={decl.contractNo} disabled={!editable} onChange={(v) => patchDecl({ contractNo: v })} />
           <Sel label="Incoterms" value={decl.incoterms} disabled={!editable} options={INCOTERMS_OPTIONS.map((x) => ({ value: x, label: x }))} onChange={(v) => patchDecl({ incoterms: v })} />
           <Inp label="Tiền tệ" value={decl.currency} disabled={!editable} onChange={(v) => patchDecl({ currency: v })} />

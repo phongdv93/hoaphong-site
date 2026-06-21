@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Customer } from "@/lib/marketing/customer-types";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 
 export function ProjectCreateForm({
   customers,
@@ -131,27 +132,20 @@ export function ProjectCreateForm({
       </div>
       <div className="grid grid-cols-3 gap-4">
         <Row label="Ngày ký HĐ">
-          <input
-            type="date"
+          <ErpDateInput
             value={contractSignedAt}
-            onChange={(e) => setContractSignedAt(e.target.value)}
-            className="input-field erp-date-input"
+            onChange={setContractSignedAt}
+            className="text-sm"
           />
         </Row>
         <Row label="Ngày khởi công">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="input-field erp-date-input"
-          />
+          <ErpDateInput value={startDate} onChange={setStartDate} className="text-sm" />
         </Row>
         <Row label="Dự kiến hoàn thành">
-          <input
-            type="date"
+          <ErpDateInput
             value={expectedEndDate}
-            onChange={(e) => setExpectedEndDate(e.target.value)}
-            className="input-field erp-date-input"
+            onChange={setExpectedEndDate}
+            className="text-sm"
           />
         </Row>
       </div>

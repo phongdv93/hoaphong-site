@@ -27,6 +27,7 @@ import type {
   ProjectSubmissionKind,
 } from "@/lib/projects/types";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { formatDateVi } from "@/lib/dates";
 
 const SUBMISSION_KINDS: ProjectSubmissionKind[] = ["request", "report", "proposal"];
 
@@ -811,8 +812,7 @@ export function roleCanReview(role: ProjectMemberRole | null | undefined): boole
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("vi-VN");
+  return formatDateVi(iso);
 }
 
 function fmtDateTime(iso: string): string {

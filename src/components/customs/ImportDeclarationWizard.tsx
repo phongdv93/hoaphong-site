@@ -33,6 +33,7 @@ import type {
   ImportDeclarationPreflightReport,
 } from "@/lib/customs/types";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { CustomsSetupGate } from "./CustomsSetupGate";
 import { MasterCodePicker, verifyMasterCode } from "./MasterCodePicker";
 
@@ -403,12 +404,11 @@ function ImportDeclarationWizardInner({ id }: { id: number }) {
               />
             </Field>
             <Field label="Ngày hàng đến (dự kiến)">
-              <input
-                type="date"
-                className="input-field text-sm w-full"
+              <ErpDateInput
                 value={decl.expectedArrivalDate ?? ""}
                 disabled={!editable}
-                onChange={(e) => patch({ expectedArrivalDate: e.target.value || null })}
+                className="text-sm"
+                onChange={(v) => patch({ expectedArrivalDate: v || null })}
               />
             </Field>
             <Field label="Số tham chiếu nội bộ">

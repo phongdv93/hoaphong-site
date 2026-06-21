@@ -5,6 +5,7 @@ import type {
   ProjectMember,
   ProjectPhase,
 } from "@/lib/projects/types";
+import { formatDateVi } from "@/lib/dates";
 
 export function ProjectOverviewTab({
   project,
@@ -149,6 +150,5 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: stri
 }
 
 function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("vi-VN");
+  return formatDateVi(iso);
 }

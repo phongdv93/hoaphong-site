@@ -19,6 +19,7 @@ import {
   createRow,
   syncRowsWithColumns,
 } from "@/lib/quote/defaults";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import {
   calcGrandTotal,
   calcTotalVat,
@@ -563,8 +564,11 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
               </label>
               <label className="block">
                 <span className="quote-meta-label">Ngày</span>
-                <input type="date" value={doc.quoteDate} onChange={(e) => patch({ quoteDate: e.target.value })}
-                  className="quote-meta-value mt-0.5 w-full sm:w-40 sm:ml-auto block" />
+                <ErpDateInput
+                  value={doc.quoteDate}
+                  onChange={(v) => patch({ quoteDate: v })}
+                  className="quote-meta-value mt-0.5 w-full sm:w-40 sm:ml-auto"
+                />
               </label>
             </div>
           </div>

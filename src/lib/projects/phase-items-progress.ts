@@ -1,4 +1,5 @@
 import { tenantExecute, tenantQuery, tenantQueryOne } from "@/lib/db/tenant";
+import { toLocalDateString } from "@/lib/dates";
 import type { PhaseStatus, ProjectItem } from "./types";
 
 /** % hoàn thành = tổng quantity_done / tổng quantity (bỏ hạng mục cancelled). */
@@ -72,8 +73,8 @@ export async function syncPhasesProgressFromItems(projectId: number): Promise<vo
       `SELECT started_at, completed_at FROM project_phases WHERE id = $1`,
       [ph.id]
     );
-    let startedAt = row?.started_at ? String(row.started_at).slice(0, 10) : null;
-    let completedAt = row?.completed_at ? String(row.completed_at).slice(0, 10) : null;
+    let startedAt = row?.started_at ? toLocalDateString(row.started_at) : null;
+    let completedAt = row?.completed_at ? toLocalDateString(row.completed_at) : null;
 
     if (status === "in_progress" && !startedAt) startedAt = today;
     if (status === "done") {

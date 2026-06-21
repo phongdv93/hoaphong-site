@@ -20,6 +20,42 @@ export function toLocalDateString(value: unknown): string | null {
   return null;
 }
 
+/** ISO → hiển thị dd/mm/yyyy */
+export function isoToVnDate(iso: string | null | undefined): string {
+  const s = iso ? toLocalDateString(iso) : null;
+  if (!s) return "";
+  const [y, m, d] = s.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/** dd/mm/yyyy → ISO YYYY-MM-DD (null nếu không hợp lệ) */
+export function vnDateToIso(vn: string): string | null {
+  const t = vn.trim();
+  if (!t) return null;
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const dt = new Date(`${iso}T12:00:00`);
+  if (
+    dt.getFullYear() !== year ||
+    dt.getMonth() + 1 !== month ||
+    dt.getDate() !== day
+  ) {
+    return null;
+  }
+  return iso;
+}
+
+/** Định dạng ngày tiếng Việt cho hiển thị */
+export function formatDateVi(iso: string | null | undefined): string {
+  const v = isoToVnDate(iso);
+  return v || "—";
+}
+
 /** Số ngày lịch (bao gồm cả ngày bắt đầu và kết thúc). */
 export function inclusiveDayCount(startIso: string, endIso: string): number {
   if (!startIso || !endIso || endIso < startIso) return 0;

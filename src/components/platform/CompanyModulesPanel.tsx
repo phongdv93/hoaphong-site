@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { PlatformModule } from "@/lib/platform/catalog";
 import type { CompanyModuleRow } from "@/lib/platform/access";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { isCompanyModuleActive } from "@/lib/platform/module-status";
 import { dispatchCompanyModulesChanged } from "@/lib/erp/events";
 
@@ -304,22 +305,16 @@ export function CompanyModulesPanel({ companyId }: { companyId: number }) {
                 <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Bắt đầu">
-                      <input
-                        type="date"
+                      <ErpDateInput
                         value={r.draftStartedAt}
-                        onChange={(e) =>
-                          patchDraft(i, { draftStartedAt: e.target.value })
-                        }
+                        onChange={(iso) => patchDraft(i, { draftStartedAt: iso })}
                         className={inputCls}
                       />
                     </Field>
                     <Field label="Hết hạn (trống = vô thời hạn)">
-                      <input
-                        type="date"
+                      <ErpDateInput
                         value={r.draftExpiresAt}
-                        onChange={(e) =>
-                          patchDraft(i, { draftExpiresAt: e.target.value })
-                        }
+                        onChange={(iso) => patchDraft(i, { draftExpiresAt: iso })}
                         className={inputCls}
                       />
                     </Field>
