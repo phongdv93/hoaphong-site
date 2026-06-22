@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ClipboardPaste, Plus, Trash2 } from "lucide-react";
+import { ClipboardPaste, Plus, Search, Trash2 } from "lucide-react";
 import type { ProjectItem } from "@/lib/projects/types";
 import {
   getPasteImportStats,
@@ -12,6 +12,19 @@ import {
 
 const ITEM_IN =
   "block w-full max-w-full box-border rounded-md border border-white/15 bg-[#0f1a2e] px-2 py-1 text-white focus:outline-none focus:ring-1 focus:ring-sky/40 focus:border-sky/50";
+
+function normSearch(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+function itemMatchesSearch(it: ProjectItem, query: string): boolean {
+  const q = normSearch(query.trim());
+  if (!q) return true;
+  return normSearch(it.name).includes(q) || normSearch(it.description).includes(q);
+}
 
 /** Hạng mục — layout 2 cột: tên+mô tả | SL kế hoạch / đã có */
 export function ProjectItemsTab({
@@ -34,6 +47,7 @@ export function ProjectItemsTab({
   const [pasteHtml, setPasteHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   async function createItem(payload: {
     name: string;
@@ -106,6 +120,11 @@ export function ProjectItemsTab({
         : null,
     [importOpen, pasteText, pasteHtml]
   );
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    return items.filter((it) => itemMatchesSearch(it, searchQuery));
+  }, [items, searchQuery]);
 
   async function runImport() {
     const rows = parseProjectItemPaste(pasteText, pasteHtml);
@@ -321,8 +340,29 @@ export function ProjectItemsTab({
       {items.length === 0 ? (
         <p className="text-center text-slate-500 text-xs py-4">Chưa có hạng mục.</p>
       ) : (
+        <>
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
+            <Search size={13} className="text-slate-500 shrink-0" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên hoặc mô tả…"
+              className="flex-1 min-w-0 text-xs outline-none bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
+            />
+            {searchQuery.trim() ? (
+              <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                {filteredItems.length}/{items.length}
+              </span>
+            ) : null}
+          </div>
+
+          {filteredItems.length === 0 ? (
+            <p className="text-center text-slate-500 text-xs py-4">
+              Không có hạng mục khớp &ldquo;{searchQuery.trim()}&rdquo;.
+            </p>
+          ) : (
         <ul className="space-y-2 w-full min-w-0 list-none p-0 m-0">
-          {items.map((it) => {
+          {filteredItems.map((it) => {
             const pct = pctDone(it);
             const done = it.quantity > 0 && it.quantityDone >= it.quantity;
             return (
@@ -441,6 +481,8 @@ export function ProjectItemsTab({
             );
           })}
         </ul>
+          )}
+        </>
       )}
     </div>
   );
