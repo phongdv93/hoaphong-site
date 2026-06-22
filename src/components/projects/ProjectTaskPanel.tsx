@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
 import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
-import { ProjectItemsTab } from "./tabs/ProjectItemsTab";
+import { ProjectItemsTab, ProjectItemsSearch, filterProjectItems } from "./tabs/ProjectItemsTab";
 import {
   ProgressTab,
   SubmissionsTab,
@@ -116,6 +116,7 @@ export function ProjectTaskPanel({
   const [detailSubmission, setDetailSubmission] = useState<ProjectSubmission | null>(
     null
   );
+  const [itemsSearch, setItemsSearch] = useState("");
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -385,8 +386,18 @@ export function ProjectTaskPanel({
           </div>
 
           {/* Tab label */}
-          <div className="shrink-0 px-3 py-1.5 text-xs font-medium text-slate-300 border-b border-white/5">
-            {TABS.find((t) => t.id === tab)?.label}
+          <div className="shrink-0 px-3 py-1.5 text-xs font-medium text-slate-300 border-b border-white/5 flex items-center justify-between gap-2 min-h-[30px]">
+            <span className="shrink-0 uppercase tracking-wide">
+              {TABS.find((t) => t.id === tab)?.label}
+            </span>
+            {tab === "items" && data && data.items.length > 0 && (
+              <ProjectItemsSearch
+                value={itemsSearch}
+                onChange={setItemsSearch}
+                total={data.items.length}
+                filtered={filterProjectItems(data.items, itemsSearch).length}
+              />
+            )}
           </div>
 
           {/* Body */}
@@ -431,6 +442,7 @@ export function ProjectTaskPanel({
                 projectId={projectId}
                 items={data.items}
                 canEdit={canEdit}
+                searchQuery={itemsSearch}
                 linkedPhaseName={data.phases.find((p) => p.progressFromItems)?.name}
                 onChanged={() => load({ silent: true })}
               />

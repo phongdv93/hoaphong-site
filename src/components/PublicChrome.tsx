@@ -8,13 +8,16 @@ import { PublicTopBar } from "./public/PublicTopBar";
 import { PageTransition } from "./public/PageTransition";
 import { getPublicPageLabel } from "@/lib/public-pages";
 import type { SiteSettings } from "@/lib/types";
+import type { NavLink } from "@/lib/nav-menu";
 
 export function PublicChrome({
   children,
   settings,
+  navLinks,
 }: {
   children: React.ReactNode;
   settings: SiteSettings;
+  navLinks: NavLink[];
 }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
@@ -22,7 +25,11 @@ export function PublicChrome({
 
   return (
     <div className="min-h-dvh bg-navy flex flex-col">
-      {isHome ? <Header dark /> : pageLabel && <PublicTopBar page={pageLabel} />}
+      {isHome ? (
+        <Header dark navLinks={navLinks} />
+      ) : (
+        pageLabel && <PublicTopBar page={pageLabel} navLinks={navLinks} />
+      )}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <PageTransition>{children}</PageTransition>
       </main>
@@ -36,7 +43,7 @@ export function PublicChrome({
           </p>
         </footer>
       ) : (
-        <Footer settings={settings} />
+        <Footer settings={settings} navLinks={navLinks.filter((l) => l.href !== "/")} />
       )}
     </div>
   );

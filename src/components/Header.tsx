@@ -5,18 +5,15 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "./Logo";
+import type { NavLink } from "@/lib/nav-menu";
 
-const navLinks = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/ve-chung-toi", label: "Về chúng tôi" },
-  { href: "/dich-vu", label: "Dịch vụ" },
-  { href: "/san-pham", label: "Sản phẩm" },
-  { href: "/blog", label: "Blog" },
-  { href: "/bao-gia", label: "Báo giá" },
-  { href: "/lien-he", label: "Liên hệ" },
-];
-
-export function Header({ dark = false }: { dark?: boolean }) {
+export function Header({
+  dark = false,
+  navLinks,
+}: {
+  dark?: boolean;
+  navLinks: NavLink[];
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 

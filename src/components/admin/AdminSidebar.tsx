@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Grid3X3,
   Trees,
+  Menu,
 } from "lucide-react";
 import { Logo } from "../Logo";
 import { ERP } from "@/lib/paths";
@@ -20,6 +21,7 @@ import { ERP } from "@/lib/paths";
 const links = [
   { href: ERP.admin, label: "Tổng quan", icon: LayoutDashboard },
   { href: `${ERP.admin}/cai-dat`, label: "Cài đặt web", icon: Settings },
+  { href: `${ERP.admin}/menu`, label: "Menu website", icon: Menu },
   { href: `${ERP.admin}/blog`, label: "Blog", icon: FileText },
   { href: `${ERP.admin}/san-pham`, label: "Sản phẩm", icon: Package },
   { href: `${ERP.admin}/dich-vu`, label: "Dịch vụ", icon: Briefcase },

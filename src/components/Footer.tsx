@@ -2,8 +2,15 @@ import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { Logo } from "./Logo";
 import type { SiteSettings } from "@/lib/types";
+import type { NavLink } from "@/lib/nav-menu";
 
-export function Footer({ settings }: { settings: SiteSettings }) {
+export function Footer({
+  settings,
+  navLinks,
+}: {
+  settings: SiteSettings;
+  navLinks: NavLink[];
+}) {
   return (
     <footer className="bg-navy text-white border-t border-white/5 shrink-0">
       <div className="py-10 md:py-12 px-4 md:px-8 container-wide max-w-7xl mx-auto">
@@ -18,11 +25,13 @@ export function Footer({ settings }: { settings: SiteSettings }) {
           <div>
             <h4 className="font-display text-lg mb-4 text-sky-light">Liên kết</h4>
             <ul className="space-y-2 text-sm text-slate-muted">
-              <li><Link href="/ve-chung-toi" className="hover:text-sky-light transition-colors">Về chúng tôi</Link></li>
-              <li><Link href="/dich-vu" className="hover:text-sky-light transition-colors">Dịch vụ</Link></li>
-              <li><Link href="/san-pham" className="hover:text-sky-light transition-colors">Sản phẩm</Link></li>
-              <li><Link href="/blog" className="hover:text-sky-light transition-colors">Blog</Link></li>
-              <li><Link href="/lien-he" className="hover:text-sky-light transition-colors">Liên hệ</Link></li>
+              {navLinks.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="hover:text-sky-light transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

@@ -4,18 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import type { NavLink } from "@/lib/nav-menu";
 
-const navLinks = [
-  { href: "/", label: "Trang chủ" },
-  { href: "/ve-chung-toi", label: "Về chúng tôi" },
-  { href: "/dich-vu", label: "Dịch vụ" },
-  { href: "/san-pham", label: "Sản phẩm" },
-  { href: "/blog", label: "Blog" },
-  { href: "/bao-gia", label: "Báo giá" },
-  { href: "/lien-he", label: "Liên hệ" },
-];
-
-export function PublicTopBar({ page }: { page: string }) {
+export function PublicTopBar({ page, navLinks }: { page: string; navLinks: NavLink[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 

@@ -26,6 +26,40 @@ function itemMatchesSearch(it: ProjectItem, query: string): boolean {
   return normSearch(it.name).includes(q) || normSearch(it.description).includes(q);
 }
 
+export function filterProjectItems(items: ProjectItem[], query: string): ProjectItem[] {
+  if (!query.trim()) return items;
+  return items.filter((it) => itemMatchesSearch(it, query));
+}
+
+export function ProjectItemsSearch({
+  value,
+  onChange,
+  total,
+  filtered,
+}: {
+  value: string;
+  onChange: (q: string) => void;
+  total: number;
+  filtered: number;
+}) {
+  return (
+    <div className="flex items-center gap-1 min-w-0 flex-1 max-w-[14rem] h-6 bg-white/5 border border-white/15 rounded-md px-1.5">
+      <Search size={12} className="text-slate-500 shrink-0" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Tìm tên / mô tả…"
+        className="flex-1 min-w-0 text-[10px] outline-none bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
+      />
+      {value.trim() ? (
+        <span className="text-[9px] text-slate-500 shrink-0 tabular-nums">
+          {filtered}/{total}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** Hạng mục — layout 2 cột: tên+mô tả | SL kế hoạch / đã có */
 export function ProjectItemsTab({
   projectId,
@@ -33,6 +67,7 @@ export function ProjectItemsTab({
   canEdit,
   onChanged,
   linkedPhaseName,
+  searchQuery,
 }: {
   projectId: number;
   items: ProjectItem[];
@@ -40,6 +75,7 @@ export function ProjectItemsTab({
   onChanged: () => void;
   /** Công đoạn đang gán tiến độ theo hạng mục */
   linkedPhaseName?: string | null;
+  searchQuery: string;
 }) {
   const [importOpen, setImportOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -47,7 +83,6 @@ export function ProjectItemsTab({
   const [pasteHtml, setPasteHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
 
   async function createItem(payload: {
     name: string;
@@ -121,10 +156,10 @@ export function ProjectItemsTab({
     [importOpen, pasteText, pasteHtml]
   );
 
-  const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return items;
-    return items.filter((it) => itemMatchesSearch(it, searchQuery));
-  }, [items, searchQuery]);
+  const filteredItems = useMemo(
+    () => filterProjectItems(items, searchQuery),
+    [items, searchQuery]
+  );
 
   async function runImport() {
     const rows = parseProjectItemPaste(pasteText, pasteHtml);
@@ -339,28 +374,11 @@ export function ProjectItemsTab({
 
       {items.length === 0 ? (
         <p className="text-center text-slate-500 text-xs py-4">Chưa có hạng mục.</p>
+      ) : filteredItems.length === 0 ? (
+        <p className="text-center text-slate-500 text-xs py-4">
+          Không có hạng mục khớp &ldquo;{searchQuery.trim()}&rdquo;.
+        </p>
       ) : (
-        <>
-          <div className="flex items-center gap-1.5 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
-            <Search size={13} className="text-slate-500 shrink-0" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tên hoặc mô tả…"
-              className="flex-1 min-w-0 text-xs outline-none bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
-            />
-            {searchQuery.trim() ? (
-              <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                {filteredItems.length}/{items.length}
-              </span>
-            ) : null}
-          </div>
-
-          {filteredItems.length === 0 ? (
-            <p className="text-center text-slate-500 text-xs py-4">
-              Không có hạng mục khớp &ldquo;{searchQuery.trim()}&rdquo;.
-            </p>
-          ) : (
         <ul className="space-y-2 w-full min-w-0 list-none p-0 m-0">
           {filteredItems.map((it) => {
             const pct = pctDone(it);
@@ -481,8 +499,6 @@ export function ProjectItemsTab({
             );
           })}
         </ul>
-          )}
-        </>
       )}
     </div>
   );
