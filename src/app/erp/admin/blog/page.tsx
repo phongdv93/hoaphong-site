@@ -3,7 +3,10 @@ import { CrudManager } from "@/components/admin/CrudManager";
 
 export default function AdminBlogPage() {
   return (
-    <AdminShell title="Quản lý Blog">
+    <AdminShell title="Blog website">
+      <p className="text-sm text-slate-400 mb-6">
+        Bài viết tin tức / kiến thức trên website công khai.
+      </p>
       <CrudManager
         apiPath="/api/blog"
         title="bài viết"

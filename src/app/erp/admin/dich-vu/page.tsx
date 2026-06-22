@@ -3,10 +3,13 @@ import { CrudManager } from "@/components/admin/CrudManager";
 
 export default function AdminServicesPage() {
   return (
-    <AdminShell title="Quản lý Dịch vụ">
+    <AdminShell title="Dịch vụ website">
+      <p className="text-sm text-slate-400 mb-6">
+        Nội dung dịch vụ hiển thị trên trang công khai — không liên quan module ERP nội bộ.
+      </p>
       <CrudManager
         apiPath="/api/services"
-        title="dịch vụ"
+        title="dịch vụ website"
         defaultItem={{
           name: "",
           slug: "",
