@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardPaste, Plus, Search, Trash2 } from "lucide-react";
-import { ErpDateInput } from "@/components/erp/ErpDateInput";
+import { ClipboardPaste, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
 import type { ProjectItem, ProjectPhase } from "@/lib/projects/types";
 import {
   getPasteImportStats,
@@ -106,9 +106,6 @@ export function ProjectItemsTab({
       description: string;
       quantity: number;
       quantityDone: number;
-      unitPrice: number;
-      supplier: string;
-      orderedAt: string | null;
       phaseProgress: { phaseId: number; quantityDone: number };
     }>
   ) {
@@ -121,7 +118,7 @@ export function ProjectItemsTab({
   }
 
   async function deleteItem(id: number) {
-    if (!confirm("Xóa hạng mục này?")) return;
+    if (!confirm("Xóa hạng mục khỏi dự án này? Sản phẩm vẫn giữ trong danh mục ERP.")) return;
     const res = await fetch(`/api/projects/${projectId}/items/${id}`, {
       method: "DELETE",
     });
@@ -238,7 +235,11 @@ export function ProjectItemsTab({
         rồi dán vào ô <strong className="text-slate-300">Dán nhiều hàng</strong> (không sửa tay sau
         khi dán). Hỗ trợ tới <strong className="text-slate-300">{MAX_PASTE_COLUMNS} cột</strong>;
         cột SL/KL/Qty được nhận tự động.
-        Mỗi hạng mục là <strong className="text-slate-300">sản phẩm</strong> (SL mặc định 1) — lưu NCC, giá, ngày đặt hàng.
+        Mỗi hàng tự tạo <strong className="text-slate-300">sản phẩm</strong> trong{" "}
+        <Link href="/erp/san-pham/san-pham" className="text-sky hover:underline">
+          danh mục sản phẩm
+        </Link>{" "}
+        (giá, NCC, ngày đặt hàng sửa ở đó). Tab này chỉ theo dõi <strong className="text-slate-300">tiến độ</strong>.
         {hasPhaseCols
           ? " Nhập SL theo từng công đoạn đã gán."
           : " Cập nhật Có khi theo dõi chung."}
@@ -452,43 +453,16 @@ export function ProjectItemsTab({
                           className={`${ITEM_IN} text-[10px] text-slate-300`}
                           placeholder="Mô tả (tuỳ chọn)"
                         />
-                        <div className="grid grid-cols-1 gap-1 mt-0.5">
-                          <input
-                            key={`${it.id}-sup`}
-                            defaultValue={it.supplier}
-                            onBlur={(e) => {
-                              const v = e.target.value.trim();
-                              if (v !== it.supplier) void patchItem(it.id, { supplier: v });
-                            }}
-                            className={`${ITEM_IN} text-[10px]`}
-                            placeholder="Mua từ đâu (NCC)"
-                          />
-                          <div className="grid grid-cols-2 gap-1">
-                            <input
-                              key={`${it.id}-price`}
-                              type="text"
-                              inputMode="decimal"
-                              defaultValue={it.unitPrice ? String(it.unitPrice) : ""}
-                              onBlur={(e) => {
-                                const raw = e.target.value.replace(/[^\d.,]/g, "").replace(",", ".");
-                                const n = raw ? Number(raw) : 0;
-                                if (n !== it.unitPrice) void patchItem(it.id, { unitPrice: n });
-                              }}
-                              className={`${ITEM_IN} text-[10px] tabular-nums`}
-                              placeholder="Giá"
-                            />
-                            <ErpDateInput
-                              value={it.orderedAt ?? ""}
-                              onChange={() => {}}
-                              onCommit={(v) => {
-                                const iso = v || null;
-                                if (iso !== it.orderedAt) void patchItem(it.id, { orderedAt: iso });
-                              }}
-                              className="text-[10px] min-h-[26px]"
-                              placeholder="Ngày đặt"
-                            />
-                          </div>
-                        </div>
+                        {it.factoryProductId ? (
+                          <Link
+                            href={`/erp/san-pham/san-pham/${it.factoryProductId}`}
+                            className="inline-flex items-center gap-1 text-[10px] text-sky hover:underline w-fit"
+                            title="Giá, NCC, ngày đặt hàng — sửa trong sản phẩm"
+                          >
+                            <ExternalLink size={11} />
+                            Sản phẩm #{it.factoryProductId}
+                          </Link>
+                        ) : null}
                       </>
                     ) : (
                       <>
@@ -500,17 +474,15 @@ export function ProjectItemsTab({
                             {it.description}
                           </div>
                         ) : null}
-                        {(it.supplier || it.unitPrice || it.orderedAt) && (
-                          <div className="text-[10px] text-slate-400 flex flex-wrap gap-x-2 gap-y-0.5">
-                            {it.supplier && <span>NCC: {it.supplier}</span>}
-                            {it.unitPrice > 0 && (
-                              <span>
-                                Giá: {it.unitPrice.toLocaleString("vi-VN")} ₫
-                              </span>
-                            )}
-                            {it.orderedAt && <span>Đặt: {it.orderedAt}</span>}
-                          </div>
-                        )}
+                        {it.factoryProductId ? (
+                          <Link
+                            href={`/erp/san-pham/san-pham/${it.factoryProductId}`}
+                            className="inline-flex items-center gap-1 text-[10px] text-sky hover:underline"
+                          >
+                            <ExternalLink size={11} />
+                            Xem sản phẩm
+                          </Link>
+                        ) : null}
                       </>
                     )}
                   </div>

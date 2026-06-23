@@ -1,3 +1,4 @@
+import { toLocalDateString } from "@/lib/dates";
 import { randomUUID } from "crypto";
 import type { PoolClient } from "pg";
 import { tenantExecute, tenantQuery, tenantQueryOne, tenantWithTransaction } from "@/lib/db/tenant";
@@ -14,6 +15,7 @@ function mapProduct(row: Record<string, unknown>): FactoryProduct {
   return {
     id: row.id as number,
     name: row.name as string,
+    description: (row.description as string) ?? "",
     rangeCode: row.range_code as string,
     woodCode: row.wood_code as string,
     paintCode: row.paint_code as string,
@@ -22,6 +24,10 @@ function mapProduct(row: Record<string, unknown>): FactoryProduct {
     depthMm: Number(row.depth_mm),
     heightMm: Number(row.height_mm),
     price: row.price as string,
+    supplier: (row.supplier as string) ?? "",
+    orderedAt: row.ordered_at ? toLocalDateString(row.ordered_at) : null,
+    sourceProjectId:
+      row.source_project_id != null ? Number(row.source_project_id) : null,
     cbmM3: Number(row.cbm_m3),
     weightKg: Number(row.weight_kg),
     imageUrl: (row.image_url as string) ?? "",
@@ -221,17 +227,81 @@ async function saveBomLines(client: PoolClient, productId: number, payload: Fact
   }
 }
 
+export async function createCatalogProduct(input: {
+  name: string;
+  description?: string;
+  supplier?: string;
+  orderedAt?: string | null;
+  price?: string;
+  sourceProjectId?: number;
+}): Promise<number> {
+  if (!input.name?.trim()) throw new Error("Tên sản phẩm bắt buộc");
+  const row = await tenantQueryOne<{ id: number }>(
+    `INSERT INTO factory_products (
+       name, description, supplier, ordered_at, price, status, source_project_id
+     ) VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING id`,
+    [
+      input.name.trim(),
+      input.description?.trim() ?? "",
+      input.supplier?.trim() ?? "",
+      input.orderedAt ?? null,
+      input.price?.trim() ?? "",
+      input.sourceProjectId ?? null,
+    ]
+  );
+  return row!.id;
+}
+
+export async function updateCatalogProductMeta(
+  id: number,
+  input: Partial<{
+    name: string;
+    description: string;
+    supplier: string;
+    orderedAt: string | null;
+    price: string;
+  }>
+): Promise<void> {
+  const cur = await tenantQueryOne<Record<string, unknown>>(
+    "SELECT * FROM factory_products WHERE id = $1",
+    [id]
+  );
+  if (!cur) throw new Error("Không tìm thấy sản phẩm");
+  await tenantExecute(
+    `UPDATE factory_products SET
+       name = $1, description = $2, supplier = $3, ordered_at = $4, price = $5, updated_at = NOW()
+     WHERE id = $6`,
+    [
+      input.name ?? String(cur.name),
+      input.description ?? String(cur.description ?? ""),
+      input.supplier ?? String(cur.supplier ?? ""),
+      input.orderedAt === undefined
+        ? cur.ordered_at
+          ? toLocalDateString(cur.ordered_at)
+          : null
+        : input.orderedAt,
+      input.price ?? String(cur.price ?? ""),
+      id,
+    ]
+  );
+}
+
 export async function createFactoryProduct(payload: FactoryProductPayload): Promise<number> {
   if (!payload.name?.trim()) throw new Error("Tên sản phẩm bắt buộc");
 
   return tenantWithTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(
       `INSERT INTO factory_products (
-        name, range_code, wood_code, paint_code, customer_branch_code,
+        name, description, supplier, ordered_at, source_project_id,
+        range_code, wood_code, paint_code, customer_branch_code,
         length_mm, depth_mm, height_mm, price, cbm_m3, weight_kg, image_url, notes, status
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
       [
         payload.name.trim(),
+        payload.description ?? "",
+        payload.supplier ?? "",
+        payload.orderedAt ?? null,
+        payload.sourceProjectId ?? null,
         payload.rangeCode ?? "",
         payload.woodCode ?? "",
         payload.paintCode ?? "",
@@ -262,11 +332,16 @@ export async function updateFactoryProduct(id: number, payload: FactoryProductPa
 
     await client.query(
       `UPDATE factory_products SET
-        name=$1, range_code=$2, wood_code=$3, paint_code=$4, customer_branch_code=$5,
-        length_mm=$6, depth_mm=$7, height_mm=$8, price=$9, cbm_m3=$10, weight_kg=$11, image_url=$12, notes=$13, status=$14, updated_at=NOW()
-      WHERE id=$15`,
+        name=$1, description=$2, supplier=$3, ordered_at=$4, source_project_id=$5,
+        range_code=$6, wood_code=$7, paint_code=$8, customer_branch_code=$9,
+        length_mm=$10, depth_mm=$11, height_mm=$12, price=$13, cbm_m3=$14, weight_kg=$15, image_url=$16, notes=$17, status=$18, updated_at=NOW()
+      WHERE id=$19`,
       [
         payload.name.trim(),
+        payload.description ?? "",
+        payload.supplier ?? "",
+        payload.orderedAt ?? null,
+        payload.sourceProjectId ?? null,
         payload.rangeCode ?? "",
         payload.woodCode ?? "",
         payload.paintCode ?? "",

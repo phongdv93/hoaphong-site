@@ -211,6 +211,8 @@ export type ProjectItemStatus = "open" | "in_progress" | "done" | "cancelled";
 export interface ProjectItem {
   id: number;
   projectId: number;
+  /** Sản phẩm trong danh mục ERP (giá, NCC, đặt hàng…) */
+  factoryProductId: number | null;
   name: string;
   description: string;
   /** Số lượng kế hoạch / cần làm */
@@ -218,11 +220,6 @@ export interface ProjectItem {
   /** Số lượng đã có / đã hoàn thành (theo dõi tiến độ chung khi chưa gán công đoạn) */
   quantityDone: number;
   unit: string;
-  unitPrice: number;
-  /** Nhà cung cấp / mua từ đâu */
-  supplier: string;
-  /** Ngày đặt hàng */
-  orderedAt: string | null;
   /** SL đã làm theo từng công đoạn (phaseId → quantity_done) */
   phaseDone: Record<number, number>;
   status: ProjectItemStatus;

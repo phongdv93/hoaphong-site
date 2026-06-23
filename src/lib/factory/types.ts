@@ -14,6 +14,7 @@ export const BOM_SECTION_LABELS: Record<BomSection, string> = {
 export interface FactoryProduct {
   id: number;
   name: string;
+  description: string;
   rangeCode: string;
   woodCode: string;
   paintCode: string;
@@ -22,6 +23,9 @@ export interface FactoryProduct {
   depthMm: number;
   heightMm: number;
   price: string;
+  supplier: string;
+  orderedAt: string | null;
+  sourceProjectId: number | null;
   cbmM3: number;
   weightKg: number;
   imageUrl: string;
@@ -76,6 +80,10 @@ export interface BomLineInput {
 
 export interface FactoryProductPayload {
   name: string;
+  description?: string;
+  supplier?: string;
+  orderedAt?: string | null;
+  sourceProjectId?: number | null;
   rangeCode?: string;
   woodCode?: string;
   paintCode?: string;

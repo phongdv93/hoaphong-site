@@ -7,6 +7,7 @@ import { Save, Calculator } from "lucide-react";
 import type { BomLineInput, BomSection, FactoryBomLine, FactoryProduct, FactoryProductPayload, FactoryProductStatus } from "@/lib/factory/types";
 import { BomBlock } from "./BomBlock";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 
 const emptyRow = (): BomLineInput => ({
   partCode: "",
@@ -51,6 +52,9 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [orderedAt, setOrderedAt] = useState("");
   const [rangeCode, setRangeCode] = useState("");
   const [woodCode, setWoodCode] = useState("");
   const [paintCode, setPaintCode] = useState("");
@@ -78,6 +82,9 @@ export function ProductEditor({ productId }: { productId: number | null }) {
       const data: { product: FactoryProduct; lines: FactoryBomLine[] } = await res.json();
       const p = data.product;
       setName(p.name);
+      setDescription(p.description || "");
+      setSupplier(p.supplier || "");
+      setOrderedAt(p.orderedAt || "");
       setRangeCode(p.rangeCode);
       setWoodCode(p.woodCode);
       setPaintCode(p.paintCode);
@@ -108,6 +115,9 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   const payload = useMemo((): FactoryProductPayload => {
     return {
       name,
+      description,
+      supplier,
+      orderedAt: orderedAt || null,
       rangeCode,
       woodCode,
       paintCode,
@@ -127,6 +137,9 @@ export function ProductEditor({ productId }: { productId: number | null }) {
     };
   }, [
     name,
+    description,
+    supplier,
+    orderedAt,
     rangeCode,
     woodCode,
     paintCode,
@@ -197,6 +210,33 @@ export function ProductEditor({ productId }: { productId: number | null }) {
           <div className="col-span-2 sm:col-span-3 lg:col-span-6">
             <label className="block font-medium text-midnight/65 mb-0.5">Tên sản phẩm *</label>
             <input className="input-field py-1.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-6">
+            <label className="block font-medium text-midnight/65 mb-0.5">Mô tả</label>
+            <textarea
+              className="input-field py-1.5 text-sm min-h-[52px] resize-y"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div className="col-span-2 sm:col-span-2 lg:col-span-3">
+            <label className="block font-medium text-midnight/65 mb-0.5">Nhà cung cấp</label>
+            <input
+              className="input-field py-1.5"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="Mua từ đâu"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-midnight/65 mb-0.5">Ngày đặt hàng</label>
+            <ErpDateInput
+              value={orderedAt}
+              onChange={setOrderedAt}
+              onCommit={setOrderedAt}
+              className="input-field py-1.5"
+            />
           </div>
           <div>
             <label className="block font-medium text-midnight/65 mb-0.5">Mã range</label>

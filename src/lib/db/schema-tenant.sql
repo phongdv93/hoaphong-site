@@ -81,6 +81,9 @@ CREATE INDEX IF NOT EXISTS idx_factory_bom_product ON factory_product_bom_lines(
 CREATE INDEX IF NOT EXISTS idx_factory_parts_code ON factory_parts(code);
 
 ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS supplier TEXT NOT NULL DEFAULT '';
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS ordered_at DATE;
 ALTER TABLE factory_parts ADD COLUMN IF NOT EXISTS length_mm DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE factory_parts ADD COLUMN IF NOT EXISTS depth_mm DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE factory_parts ADD COLUMN IF NOT EXISTS height_mm DOUBLE PRECISION NOT NULL DEFAULT 0;
@@ -196,6 +199,8 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (company_id, code)
 );
+
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS source_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
 
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS supplier_address TEXT NOT NULL DEFAULT '';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS export_country TEXT NOT NULL DEFAULT '';
@@ -329,8 +334,7 @@ CREATE TABLE IF NOT EXISTS project_items (
 CREATE INDEX IF NOT EXISTS idx_project_items_project ON project_items(project_id, sort_order);
 
 ALTER TABLE project_items ADD COLUMN IF NOT EXISTS quantity_done NUMERIC(18, 4) NOT NULL DEFAULT 0;
-ALTER TABLE project_items ADD COLUMN IF NOT EXISTS supplier TEXT NOT NULL DEFAULT '';
-ALTER TABLE project_items ADD COLUMN IF NOT EXISTS ordered_at DATE;
+ALTER TABLE project_items ADD COLUMN IF NOT EXISTS factory_product_id INTEGER REFERENCES factory_products(id) ON DELETE RESTRICT;
 
 CREATE TABLE IF NOT EXISTS project_item_phase_progress (
   item_id INTEGER NOT NULL REFERENCES project_items(id) ON DELETE CASCADE,

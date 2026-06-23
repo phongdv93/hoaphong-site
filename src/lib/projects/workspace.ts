@@ -59,17 +59,18 @@ function mapFile(row: Record<string, unknown>): ProjectFile {
 }
 
 function mapItem(row: Record<string, unknown>): ProjectItem {
+  const productName = row.product_name as string | undefined;
+  const productDesc = row.product_description as string | undefined;
   return {
     id: row.id as number,
     projectId: row.project_id as number,
-    name: row.name as string,
-    description: (row.description as string) ?? "",
+    factoryProductId:
+      row.factory_product_id != null ? Number(row.factory_product_id) : null,
+    name: productName?.trim() || (row.name as string),
+    description: productDesc?.trim() ?? String(row.description ?? ""),
     quantity: Number(row.quantity ?? 1),
     quantityDone: Number(row.quantity_done ?? 0),
     unit: (row.unit as string) ?? "",
-    unitPrice: Number(row.unit_price ?? 0),
-    supplier: (row.supplier as string) ?? "",
-    orderedAt: row.ordered_at ? String(row.ordered_at).slice(0, 10) : null,
     phaseDone: {},
     status: row.status as ProjectItem["status"],
     sortOrder: Number(row.sort_order ?? 0),

@@ -1,3 +1,4 @@
+import { createCatalogProduct, updateCatalogProductMeta } from "@/lib/factory/products";
 import { toLocalDateString } from "@/lib/dates";
 import { syncPhasesProgressFromItems } from "./phase-items-progress";
 import { syncTenantUser, syncTenantUsers } from "@/lib/db/sync-tenant-user";
@@ -551,17 +552,18 @@ function mapProjectItem(
   row: Record<string, unknown>,
   phaseDone: Record<number, number> = {}
 ): ProjectItem {
+  const productName = row.product_name as string | undefined;
+  const productDesc = row.product_description as string | undefined;
   return {
     id: row.id as number,
     projectId: row.project_id as number,
-    name: row.name as string,
-    description: (row.description as string) ?? "",
+    factoryProductId:
+      row.factory_product_id != null ? Number(row.factory_product_id) : null,
+    name: productName?.trim() || (row.name as string),
+    description: productDesc?.trim() ?? String(row.description ?? ""),
     quantity: Number(row.quantity),
     quantityDone: Number(row.quantity_done ?? 0),
     unit: (row.unit as string) ?? "",
-    unitPrice: Number(row.unit_price),
-    supplier: (row.supplier as string) ?? "",
-    orderedAt: row.ordered_at ? toLocalDateString(row.ordered_at) : null,
     phaseDone,
     status: row.status as ProjectItem["status"],
     sortOrder: row.sort_order as number,
@@ -569,6 +571,31 @@ function mapProjectItem(
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
+}
+
+async function ensureItemFactoryProduct(row: Record<string, unknown>): Promise<number> {
+  const existing = row.factory_product_id != null ? Number(row.factory_product_id) : null;
+  if (existing) return existing;
+
+  const itemId = row.id as number;
+  const projectId = row.project_id as number;
+  const legacySupplier = String(row.supplier ?? "");
+  const legacyPrice = Number(row.unit_price ?? 0);
+  const legacyOrdered = row.ordered_at ? toLocalDateString(row.ordered_at) : null;
+
+  const productId = await createCatalogProduct({
+    name: String(row.name),
+    description: String(row.description ?? ""),
+    supplier: legacySupplier,
+    orderedAt: legacyOrdered,
+    price: legacyPrice > 0 ? String(legacyPrice) : "",
+    sourceProjectId: projectId,
+  });
+  await tenantExecute(
+    `UPDATE project_items SET factory_product_id = $1, updated_at = NOW() WHERE id = $2`,
+    [productId, itemId]
+  );
+  return productId;
 }
 
 async function loadPhaseDoneByProject(projectId: number): Promise<Map<number, Record<number, number>>> {
@@ -595,11 +622,33 @@ async function loadPhaseDoneByProject(projectId: number): Promise<Map<number, Re
 export async function listProjectItems(projectId: number): Promise<ProjectItem[]> {
   const [rows, phaseDoneMap] = await Promise.all([
     tenantQuery<Record<string, unknown>>(
-      `SELECT * FROM project_items WHERE project_id = $1 ORDER BY sort_order, id`,
+      `SELECT i.*,
+              p.name AS product_name,
+              p.description AS product_description
+       FROM project_items i
+       LEFT JOIN factory_products p ON p.id = i.factory_product_id
+       WHERE i.project_id = $1
+       ORDER BY i.sort_order, i.id`,
       [projectId]
     ),
     loadPhaseDoneByProject(projectId),
   ]);
+
+  for (const row of rows) {
+    if (!row.factory_product_id) {
+      const productId = await ensureItemFactoryProduct(row);
+      row.factory_product_id = productId;
+      const prod = await tenantQueryOne<{ name: string; description: string }>(
+        `SELECT name, description FROM factory_products WHERE id = $1`,
+        [productId]
+      );
+      if (prod) {
+        row.product_name = prod.name;
+        row.product_description = prod.description;
+      }
+    }
+  }
+
   return rows.map((r) => mapProjectItem(r, phaseDoneMap.get(r.id as number) ?? {}));
 }
 
@@ -644,9 +693,6 @@ export async function createProjectItem(input: {
   quantity?: number;
   quantityDone?: number;
   unit?: string;
-  unitPrice?: number;
-  supplier?: string;
-  orderedAt?: string | null;
 }): Promise<number> {
   const order =
     input.sortOrder ??
@@ -655,6 +701,13 @@ export async function createProjectItem(input: {
       [input.projectId]
     ))?.next ??
     10;
+
+  const productId = await createCatalogProduct({
+    name: input.name.trim(),
+    description: input.description ?? "",
+    sourceProjectId: input.projectId,
+  });
+
   const params = [
     input.projectId,
     input.name.trim(),
@@ -662,18 +715,16 @@ export async function createProjectItem(input: {
     input.quantity ?? 1,
     input.quantityDone ?? 0,
     input.unit ?? "",
-    input.unitPrice ?? 0,
-    input.supplier ?? "",
-    input.orderedAt ?? null,
+    productId,
     order,
   ];
   const insert = () =>
     tenantQueryOne<{ id: number }>(
       `INSERT INTO project_items (
          project_id, name, description, quantity, quantity_done, unit,
-         unit_price, supplier, ordered_at, sort_order
+         factory_product_id, sort_order
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       params
     );
   try {
@@ -695,16 +746,7 @@ export async function updateProjectItem(
   input: Partial<
     Pick<
       ProjectItem,
-      | "name"
-      | "description"
-      | "quantity"
-      | "quantityDone"
-      | "unit"
-      | "unitPrice"
-      | "supplier"
-      | "orderedAt"
-      | "status"
-      | "notes"
+      "name" | "description" | "quantity" | "quantityDone" | "unit" | "status" | "notes"
     >
   > & { phaseProgress?: { phaseId: number; quantityDone: number } }
 ): Promise<void> {
@@ -723,25 +765,29 @@ export async function updateProjectItem(
     return;
   }
 
+  const productId = await ensureItemFactoryProduct(cur);
+  const nextName = input.name ?? String(cur.name);
+  const nextDesc = input.description ?? String(cur.description ?? "");
+
+  if (input.name !== undefined || input.description !== undefined) {
+    await updateCatalogProductMeta(productId, {
+      name: nextName,
+      description: nextDesc,
+    });
+  }
+
   await tenantExecute(
     `UPDATE project_items SET
        name = $1, description = $2, quantity = $3, quantity_done = $4, unit = $5,
-       unit_price = $6, supplier = $7, ordered_at = $8, status = $9, notes = $10,
-       updated_at = NOW()
-     WHERE id = $11`,
+       factory_product_id = $6, status = $7, notes = $8, updated_at = NOW()
+     WHERE id = $9`,
     [
-      input.name ?? String(cur.name),
-      input.description ?? String(cur.description ?? ""),
+      nextName,
+      nextDesc,
       input.quantity ?? Number(cur.quantity),
       input.quantityDone ?? Number(cur.quantity_done ?? 0),
       input.unit ?? String(cur.unit ?? ""),
-      input.unitPrice ?? Number(cur.unit_price),
-      input.supplier ?? String(cur.supplier ?? ""),
-      input.orderedAt === undefined
-        ? cur.ordered_at
-          ? toLocalDateString(cur.ordered_at)
-          : null
-        : input.orderedAt,
+      productId,
       input.status ?? String(cur.status),
       input.notes ?? String(cur.notes ?? ""),
       id,

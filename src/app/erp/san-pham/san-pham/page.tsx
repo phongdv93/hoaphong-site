@@ -16,11 +16,11 @@ export default async function FactoryProductListPage() {
   return (
     <ErpShell title="Sản phẩm & BOM" groupId="san-pham">
       <p className="text-slate-400 text-sm mb-6 max-w-2xl">
-        Mã range / gỗ / sơn / KH–nhánh, kích thước &amp; ảnh, CBM &amp; giá. BOM 3 phần: gỗ, hardware, bao bì — mỗi dòng có Dài–Sâu–Cao (mm) cho chi tiết tái sử dụng. Lưu đồng bộ vào{" "}
+        Danh mục sản phẩm ERP — giá, NCC, ngày đặt hàng, mô tả. Hạng mục dự án tự thêm vào đây; có thể bổ sung mã range/gỗ/BOM cho sản xuất nội bộ. Chi tiết tái sử dụng:{" "}
         <Link href="/erp/san-pham/chi-tiet" className="text-sky hover:underline">
           danh mục chi tiết
-        </Link>{" "}
-        để tái sử dụng.
+        </Link>
+        .
       </p>
 
       {loadError && (
@@ -44,6 +44,8 @@ export default async function FactoryProductListPage() {
                   <th className="px-2 py-3 w-14">Ảnh</th>
                   <th className="px-4 py-3">ID</th>
                   <th className="px-4 py-3">Tên</th>
+                  <th className="px-4 py-3">NCC</th>
+                  <th className="px-4 py-3">Giá</th>
                   <th className="px-4 py-3">Range</th>
                   <th className="px-4 py-3">Gỗ / Sơn</th>
                   <th className="px-4 py-3">CBM</th>
@@ -54,7 +56,7 @@ export default async function FactoryProductListPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
                       Chưa có sản phẩm. Bấm &quot;Thêm sản phẩm&quot;.
                     </td>
                   </tr>
@@ -71,6 +73,8 @@ export default async function FactoryProductListPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-500">{p.id}</td>
                       <td className="px-4 py-3 font-medium text-white">{p.name}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{p.supplier || "—"}</td>
+                      <td className="px-4 py-3 text-xs tabular-nums">{p.price || "—"}</td>
                       <td className="px-4 py-3 font-mono text-xs">{p.rangeCode || "—"}</td>
                       <td className="px-4 py-3 text-xs">
                         {p.woodCode || "—"} / {p.paintCode || "—"}
