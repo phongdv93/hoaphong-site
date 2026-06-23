@@ -8,6 +8,7 @@ import {
   COMPANY_STATUS_LABELS,
 } from "@/lib/projects/constants";
 import type { CompanySummary } from "@/lib/projects/types";
+import { companyPublicCode, companyWorkspacePath } from "@/lib/projects/company-code";
 import { dispatchCompanyChanged } from "@/lib/erp/events";
 
 /** Card chọn công ty — click sẽ set cookie active company và đi vào dashboard công ty. */
@@ -26,7 +27,7 @@ export function CompanyPickerCard({ company }: { company: CompanySummary }) {
       dispatchCompanyChanged(company.id);
       router.refresh();
     }
-    router.push(`/erp/c/${company.code}`);
+    router.push(companyWorkspacePath(company));
   }
 
   return (
@@ -51,8 +52,8 @@ export function CompanyPickerCard({ company }: { company: CompanySummary }) {
         )}
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-white truncate">{company.name}</div>
-          <div className="text-xs text-slate-400 truncate">
-            {company.code} · {COMPANY_STATUS_LABELS[company.status]}
+          <div className="text-xs text-slate-400 truncate font-mono tabular-nums">
+            MST {companyPublicCode(company)} · {COMPANY_STATUS_LABELS[company.status]}
           </div>
         </div>
         <span className="text-[10px] px-2 py-1 rounded bg-white/10 text-slate-300">

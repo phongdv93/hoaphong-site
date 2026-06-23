@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { CompanyPortalLink } from "@/components/erp/CompanyPortalLink";
+import { companyPublicCode, companyWorkspacePath } from "@/lib/projects/company-code";
 import { CompanyModulesPanel } from "./CompanyModulesPanel";
 
 interface CompanyInfo {
@@ -103,7 +104,9 @@ export function PlatformCompanyHub({ companyId }: { companyId: number }) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">{company.name}</h2>
-              <p className="text-sm text-slate-400 font-mono mt-0.5">{company.code}</p>
+              <p className="text-sm text-slate-400 font-mono mt-0.5">
+                MST {companyPublicCode(company)}
+              </p>
               <div className="mt-2 max-w-md">
                 <CompanyPortalLink
                   subdomain={company.subdomain ?? company.code}
@@ -125,7 +128,7 @@ export function PlatformCompanyHub({ companyId }: { companyId: number }) {
               <Users size={14} /> Thành viên công ty
             </Link>
             <Link
-              href={`/erp/c/${company.code}`}
+              href={companyWorkspacePath(company)}
               className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-white/15 text-slate-200 hover:bg-white/5"
             >
               <ExternalLink size={14} /> Không gian ERP

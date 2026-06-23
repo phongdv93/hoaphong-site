@@ -21,6 +21,7 @@ import { isUltimateAdmin } from "@/lib/access/company-context";
 import { isHoaphongPremium, PREMIUM_ONLY_MESSAGE } from "@/lib/platform/premium";
 
 import { seedDefaultModulesForCompany } from "@/lib/platform/access";
+import { normalizeTaxCode } from "@/lib/company-verify/tax-code";
 
 import type {
 
@@ -203,38 +204,61 @@ export async function getCompany(id: number): Promise<Company | null> {
 
 
 export async function getCompanyByCode(code: string): Promise<Company | null> {
+  const key = code.trim().toLowerCase();
+  const digits = normalizeTaxCode(code);
 
   const row = await platformQueryOne<Record<string, unknown>>(
-
-    `SELECT * FROM companies WHERE code = $1`,
-
-    [code]
-
+    `SELECT * FROM companies
+     WHERE LOWER(code) = $1
+        OR LOWER(subdomain) = $1
+        OR ($2 <> '' AND REGEXP_REPLACE(tax_code, '[^0-9]', '', 'g') = $2)
+     LIMIT 1`,
+    [key, digits]
   );
 
   return row ? mapCompany(row) : null;
-
 }
 
 
 
 export async function getCompanyBySubdomain(subdomain: string): Promise<Company | null> {
-
   const key = subdomain.trim().toLowerCase();
+  const digits = normalizeTaxCode(subdomain);
 
   const row = await platformQueryOne<Record<string, unknown>>(
-
-    `SELECT * FROM companies WHERE LOWER(subdomain) = $1 OR LOWER(code) = $1 LIMIT 1`,
-
-    [key]
-
+    `SELECT * FROM companies
+     WHERE LOWER(subdomain) = $1
+        OR LOWER(code) = $1
+        OR ($2 <> '' AND REGEXP_REPLACE(tax_code, '[^0-9]', '', 'g') = $2)
+     LIMIT 1`,
+    [key, digits]
   );
 
   return row ? mapCompany(row) : null;
-
 }
 
 
+
+async function resolveNewCompanyCode(input: {
+  code?: string;
+  name: string;
+  taxCode?: string;
+}): Promise<string> {
+  if (input.code?.trim()) return input.code.trim();
+
+  const mst = normalizeTaxCode(input.taxCode ?? "");
+  if (mst.length >= 10) {
+    const dup = await platformQueryOne<{ id: number }>(
+      `SELECT id FROM companies
+       WHERE code = $1 OR REGEXP_REPLACE(tax_code, '[^0-9]', '', 'g') = $1`,
+      [mst]
+    );
+    if (dup) throw new Error("Mã số thuế đã được đăng ký cho công ty khác");
+    return mst;
+  }
+
+  return nextCompanyCode(input.name);
+}
 
 async function nextCompanyCode(name: string): Promise<string> {
 
@@ -307,7 +331,7 @@ export async function createCompany(input: {
 
 }): Promise<number> {
 
-  const code = input.code?.trim() || (await nextCompanyCode(input.name));
+  const code = await resolveNewCompanyCode(input);
 
 
 

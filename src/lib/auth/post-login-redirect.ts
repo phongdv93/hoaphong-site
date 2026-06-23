@@ -1,6 +1,7 @@
 import { isPlatformAdmin } from "@/lib/platform/access";
 import { platformQuery } from "@/lib/db/platform";
 import { ERP } from "@/lib/paths";
+import { companyPublicCode } from "@/lib/projects/company-code";
 
 export interface PostLoginRedirect {
   url: string;
@@ -11,6 +12,7 @@ export interface PostLoginRedirect {
 type MembershipRow = {
   company_id: number;
   code: string;
+  tax_code: string;
   name: string;
   role: string;
   status: string;
@@ -18,7 +20,7 @@ type MembershipRow = {
 
 async function loadMemberships(userId: number): Promise<MembershipRow[]> {
   return platformQuery<MembershipRow>(
-    `SELECT cm.company_id, cm.role, cm.status, c.code, c.name
+    `SELECT cm.company_id, cm.role, cm.status, c.code, c.tax_code, c.name
      FROM company_members cm
      JOIN companies c ON c.id = cm.company_id
      WHERE cm.user_id = $1 AND c.status = 'active'
@@ -67,7 +69,7 @@ export async function resolvePostLoginRedirect(userId: number): Promise<PostLogi
       };
     }
     return {
-      url: `/erp/c/${m.code}`,
+      url: `/erp/c/${companyPublicCode({ code: m.code, taxCode: m.tax_code })}`,
       label: m.name,
       activeCompanyId: m.company_id,
     };

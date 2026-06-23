@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getCompanyMembership } from "@/lib/projects/companies";
+import { companyPublicCode } from "@/lib/projects/company-code";
 import { resolveTenantCompany } from "@/lib/tenant-context";
 
 export async function GET() {
@@ -16,7 +17,7 @@ export async function GET() {
     if (m) {
       membership = {
         companyId: tenantCompany.id,
-        companyCode: tenantCompany.code,
+        companyCode: companyPublicCode(tenantCompany),
         companyName: tenantCompany.name,
         ...m,
       };
@@ -26,7 +27,11 @@ export async function GET() {
   return NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email },
     tenant: tenantCompany
-      ? { id: tenantCompany.id, code: tenantCompany.code, name: tenantCompany.name }
+      ? {
+          id: tenantCompany.id,
+          code: companyPublicCode(tenantCompany),
+          name: tenantCompany.name,
+        }
       : null,
     membership,
   });

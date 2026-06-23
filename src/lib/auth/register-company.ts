@@ -8,6 +8,7 @@ import {
   createCompany,
   getCompany,
 } from "@/lib/projects/companies";
+import { companyPublicCode } from "@/lib/projects/company-code";
 
 const schema = z.object({
   companyName: z.string().min(1, "Tên công ty bắt buộc"),
@@ -121,7 +122,7 @@ export async function registerCompanyAccount(
     return {
       userId,
       companyId,
-      companyCode: company.code,
+      companyCode: companyPublicCode(company),
       requestId,
       verifySummary,
       token,

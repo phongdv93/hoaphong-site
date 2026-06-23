@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { companyWorkspacePath } from "@/lib/projects/company-code";
+import type { CompanySummary } from "@/lib/projects/types";
 
 export function CompanyCreateForm() {
   const router = useRouter();
@@ -48,9 +50,9 @@ export function CompanyCreateForm() {
       // Lấy code công ty vừa tạo để chuyển vào workspace
       const myList = await fetch("/api/companies").then((r) => r.json());
       const created = Array.isArray(myList)
-        ? myList.find((c: { id: number; code: string }) => c.id === data.id)
+        ? (myList as CompanySummary[]).find((c) => c.id === data.id)
         : null;
-      router.push(created?.code ? `/erp/c/${created.code}` : "/erp");
+      router.push(created ? companyWorkspacePath(created) : "/erp");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lỗi mạng");

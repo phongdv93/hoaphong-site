@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { registerEmployeeForCompany } from "@/lib/hr/membership";
 import { getCompanyBySubdomain } from "@/lib/projects/companies";
+import { companyPublicCode } from "@/lib/projects/company-code";
 import { TENANT_CODE_COOKIE, getCompanyCodeFromHost } from "@/lib/tenant-host";
 
 const bodySchema = z.object({
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({
       ...created,
-      companyCode: company.code,
+      companyCode: companyPublicCode(company),
       companyName: company.name,
       message:
         "Đăng ký thành công. Đăng nhập và chờ quản trị viên công ty duyệt quyền truy cập.",

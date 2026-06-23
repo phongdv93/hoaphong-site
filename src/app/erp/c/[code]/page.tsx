@@ -11,6 +11,7 @@ import { getActiveModuleIds } from "@/lib/platform/access";
 import { COMPANY_ROLE_LABELS } from "@/lib/projects/constants";
 import { EnsureActiveCompany } from "@/components/erp/EnsureActiveCompany";
 import { platformCompanyUrl } from "@/lib/platform/paths";
+import { companyPublicCode } from "@/lib/projects/company-code";
 
 export default async function CompanySpacePage({
   params,
@@ -76,7 +77,7 @@ export default async function CompanySpacePage({
             <div className="border-l border-white/20 pl-3 ml-1">
               <h1 className="text-xl font-bold">{company.name}</h1>
               <p className="text-slate-muted text-xs mt-0.5">
-                {company.code} · Vai trò của bạn:{" "}
+                MST {companyPublicCode(company)} · Vai trò của bạn:{" "}
                 {ultimate ? "Hoa Phong (Ultimate)" : COMPANY_ROLE_LABELS[role]}
               </p>
             </div>

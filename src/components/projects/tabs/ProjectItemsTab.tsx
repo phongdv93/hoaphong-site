@@ -461,7 +461,6 @@ export function ProjectItemsTab({
                           >
                             <ExternalLink size={11} />
                             #{it.factoryProductId}
-                            {it.name ? ` — ${it.name}` : ""}
                           </Link>
                         ) : null}
                       </>
