@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { runWithTenantCompany } from "@/lib/db/tenant-context";
 import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
-import { canEditProject, canViewProject } from "@/lib/projects/permissions";
+import { canEditProject, canEditProjectMeta, canViewProject } from "@/lib/projects/permissions";
 import {
   deleteProject,
   getProject,
@@ -62,10 +62,33 @@ export async function PUT(req: Request) {
     if (!project) {
       return NextResponse.json({ error: "Không tìm thấy dự án" }, { status: 404 });
     }
+    const body = await req.json();
+    const metaKeys = [
+      "code",
+      "name",
+      "customerId",
+      "contractValue",
+      "contractSignedAt",
+      "startDate",
+      "expectedEndDate",
+      "actualEndDate",
+      "address",
+      "notes",
+      "supplierAddress",
+      "exportCountry",
+      "managerUserId",
+    ] as const;
+    const touchesMeta = metaKeys.some((k) => k in body);
+
+    if (touchesMeta && !(await canEditProjectMeta(project.id, ctx.user.id))) {
+      return NextResponse.json(
+        { error: "Chỉ quản trị công ty mới được sửa thông tin dự án" },
+        { status: 403 }
+      );
+    }
     if (!(await canEditProject(project.id, ctx.user.id))) {
       return NextResponse.json({ error: "Không có quyền sửa" }, { status: 403 });
     }
-    const body = await req.json();
     try {
       await updateProject(project.id, ctx.companyId, body);
       return NextResponse.json({ ok: true });

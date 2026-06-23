@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, FolderKanban, List, Plus, Search } from "lucide-react";
+import { useErpHeaderActionsSlot } from "@/components/erp/ErpPageHeader";
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_TONES,
@@ -39,6 +40,7 @@ export function ProjectListClient() {
 function ProjectListInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const setHeaderActions = useErpHeaderActionsSlot();
   const [rawItems, setRawItems] = useState<ProjectSummary[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [q, setQ] = useState("");
@@ -172,7 +174,7 @@ function ProjectListInner() {
     router.replace(`/erp/du-an?p=${id}`, { scroll: false });
   }
 
-  function openCreatePanel() {
+  const openCreatePanel = useCallback(() => {
     if (!canCreate) {
       alert(createBlockedMsg || "Bạn không có quyền tạo dự án trong công ty này.");
       return;
@@ -180,7 +182,7 @@ function ProjectListInner() {
     setPanelProjectId(null);
     setCreateOpen(true);
     router.replace("/erp/du-an?create=1", { scroll: false });
-  }
+  }, [canCreate, createBlockedMsg, router]);
 
   function closePanel() {
     setPanelProjectId(null);
@@ -199,6 +201,50 @@ function ProjectListInner() {
     if (!rawItems) return null;
     return rawItems.filter((p) => projectMatchesStatusFilter(p, statusFilter));
   }, [rawItems, statusFilter]);
+
+  useEffect(() => {
+    if (!setHeaderActions) return;
+    setHeaderActions(
+      <>
+        <div className="inline-flex rounded-lg border border-white/15 bg-white/5 overflow-hidden h-[30px]">
+          <button
+            type="button"
+            onClick={() => setView("timeline")}
+            className={`px-3 text-xs inline-flex items-center gap-1 h-full ${
+              view === "timeline"
+                ? "bg-sky text-white"
+                : "text-slate-300 hover:bg-white/10"
+            }`}
+            title="Hiển thị dạng trục thời gian"
+          >
+            <CalendarRange size={14} /> Trục thời gian
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`px-3 text-xs inline-flex items-center gap-1 h-full ${
+              view === "list"
+                ? "bg-sky text-white"
+                : "text-slate-300 hover:bg-white/10"
+            }`}
+            title="Hiển thị dạng danh sách"
+          >
+            <List size={14} /> Danh sách
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={openCreatePanel}
+          disabled={!canCreate}
+          title={createBlockedMsg ?? undefined}
+          className="inline-flex items-center gap-2 bg-sky text-white px-4 rounded-lg hover:bg-sky-light text-sm h-[30px] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Plus size={16} /> Dự án mới
+        </button>
+      </>
+    );
+    return () => setHeaderActions(null);
+  }, [setHeaderActions, view, canCreate, createBlockedMsg, openCreatePanel]);
 
   if (items === null) {
     return <div className="text-sm text-slate-400">Đang tải…</div>;
@@ -250,41 +296,6 @@ function ProjectListInner() {
           </label>
         )}
         <div className="flex-1" />
-        <div className="inline-flex rounded-lg border border-white/15 bg-white/5 overflow-hidden h-[30px]">
-          <button
-            type="button"
-            onClick={() => setView("timeline")}
-            className={`px-3 text-xs inline-flex items-center gap-1 h-full ${
-              view === "timeline"
-                ? "bg-sky text-white"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-            title="Hiển thị dạng trục thời gian"
-          >
-            <CalendarRange size={14} /> Trục thời gian
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className={`px-3 text-xs inline-flex items-center gap-1 h-full ${
-              view === "list"
-                ? "bg-sky text-white"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-            title="Hiển thị dạng danh sách"
-          >
-            <List size={14} /> Danh sách
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={openCreatePanel}
-          disabled={!canCreate}
-          title={createBlockedMsg ?? undefined}
-          className="inline-flex items-center gap-2 bg-sky text-white px-4 rounded-lg hover:bg-sky-light text-sm h-[30px] disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Plus size={16} /> Dự án mới
-        </button>
       </div>
 
       {errorBanner && (

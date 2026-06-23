@@ -329,6 +329,18 @@ CREATE TABLE IF NOT EXISTS project_items (
 CREATE INDEX IF NOT EXISTS idx_project_items_project ON project_items(project_id, sort_order);
 
 ALTER TABLE project_items ADD COLUMN IF NOT EXISTS quantity_done NUMERIC(18, 4) NOT NULL DEFAULT 0;
+ALTER TABLE project_items ADD COLUMN IF NOT EXISTS supplier TEXT NOT NULL DEFAULT '';
+ALTER TABLE project_items ADD COLUMN IF NOT EXISTS ordered_at DATE;
+
+CREATE TABLE IF NOT EXISTS project_item_phase_progress (
+  item_id INTEGER NOT NULL REFERENCES project_items(id) ON DELETE CASCADE,
+  phase_id INTEGER NOT NULL REFERENCES project_phases(id) ON DELETE CASCADE,
+  quantity_done NUMERIC(18, 4) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (item_id, phase_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_phase_progress_phase ON project_item_phase_progress(phase_id);
 
 -- ============ XUẤT NHẬP KHẨU / VNACCS ============
 

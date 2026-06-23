@@ -196,7 +196,7 @@ export function ProjectPhasesTab({
                       <>
                         <span className="text-[10px] text-emerald-300/90 inline-flex items-center gap-1">
                           <Link2 size={11} />
-                          Tiến độ = tổng SL/Có hạng mục
+                          Tiến độ = SL hạng mục theo công đoạn này
                           {p.progressPercent > 0 && (
                             <span className="tabular-nums text-emerald-200">
                               ({p.progressPercent}%)

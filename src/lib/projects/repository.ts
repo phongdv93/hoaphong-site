@@ -514,14 +514,6 @@ export async function updatePhase(
   const progressFromItems =
     input.progressFromItems === undefined ? prev.progressFromItems : input.progressFromItems;
 
-  if (progressFromItems && !prev.progressFromItems) {
-    await tenantExecute(
-      `UPDATE project_phases SET progress_from_items = FALSE
-       WHERE project_id = $1 AND id != $2`,
-      [prev.projectId, id]
-    );
-  }
-
   await tenantExecute(
     `UPDATE project_phases SET
        kind=$1, name=$2, sort_order=$3, deadline_at=$4, started_at=$5,
@@ -555,7 +547,10 @@ export async function deletePhase(id: number): Promise<void> {
 
 // ============ PROJECT ITEMS (hạng mục) ============
 
-function mapProjectItem(row: Record<string, unknown>): ProjectItem {
+function mapProjectItem(
+  row: Record<string, unknown>,
+  phaseDone: Record<number, number> = {}
+): ProjectItem {
   return {
     id: row.id as number,
     projectId: row.project_id as number,
@@ -565,6 +560,9 @@ function mapProjectItem(row: Record<string, unknown>): ProjectItem {
     quantityDone: Number(row.quantity_done ?? 0),
     unit: (row.unit as string) ?? "",
     unitPrice: Number(row.unit_price),
+    supplier: (row.supplier as string) ?? "",
+    orderedAt: row.ordered_at ? toLocalDateString(row.ordered_at) : null,
+    phaseDone,
     status: row.status as ProjectItem["status"],
     sortOrder: row.sort_order as number,
     notes: (row.notes as string) ?? "",
@@ -573,12 +571,69 @@ function mapProjectItem(row: Record<string, unknown>): ProjectItem {
   };
 }
 
-export async function listProjectItems(projectId: number): Promise<ProjectItem[]> {
-  const rows = await tenantQuery<Record<string, unknown>>(
-    `SELECT * FROM project_items WHERE project_id = $1 ORDER BY sort_order, id`,
+async function loadPhaseDoneByProject(projectId: number): Promise<Map<number, Record<number, number>>> {
+  const rows = await tenantQuery<{
+    item_id: number;
+    phase_id: number;
+    quantity_done: number;
+  }>(
+    `SELECT pp.item_id, pp.phase_id, pp.quantity_done
+     FROM project_item_phase_progress pp
+     JOIN project_items i ON i.id = pp.item_id
+     WHERE i.project_id = $1`,
     [projectId]
   );
-  return rows.map(mapProjectItem);
+  const map = new Map<number, Record<number, number>>();
+  for (const r of rows) {
+    const itemId = r.item_id;
+    if (!map.has(itemId)) map.set(itemId, {});
+    map.get(itemId)![r.phase_id] = Number(r.quantity_done ?? 0);
+  }
+  return map;
+}
+
+export async function listProjectItems(projectId: number): Promise<ProjectItem[]> {
+  const [rows, phaseDoneMap] = await Promise.all([
+    tenantQuery<Record<string, unknown>>(
+      `SELECT * FROM project_items WHERE project_id = $1 ORDER BY sort_order, id`,
+      [projectId]
+    ),
+    loadPhaseDoneByProject(projectId),
+  ]);
+  return rows.map((r) => mapProjectItem(r, phaseDoneMap.get(r.id as number) ?? {}));
+}
+
+export async function upsertItemPhaseProgress(
+  itemId: number,
+  phaseId: number,
+  quantityDone: number
+): Promise<void> {
+  const item = await tenantQueryOne<{ project_id: number }>(
+    `SELECT project_id FROM project_items WHERE id = $1`,
+    [itemId]
+  );
+  if (!item) throw new Error("Không tìm thấy hạng mục");
+
+  const phase = await tenantQueryOne<{ project_id: number; progress_from_items: boolean }>(
+    `SELECT project_id, progress_from_items FROM project_phases WHERE id = $1`,
+    [phaseId]
+  );
+  if (!phase || phase.project_id !== item.project_id) {
+    throw new Error("Công đoạn không thuộc dự án này");
+  }
+  if (!phase.progress_from_items) {
+    throw new Error("Công đoạn chưa bật theo dõi theo hạng mục");
+  }
+
+  const done = Math.max(0, Number(quantityDone) || 0);
+  await tenantExecute(
+    `INSERT INTO project_item_phase_progress (item_id, phase_id, quantity_done, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (item_id, phase_id)
+     DO UPDATE SET quantity_done = EXCLUDED.quantity_done, updated_at = NOW()`,
+    [itemId, phaseId, done]
+  );
+  await syncPhasesProgressFromItems(item.project_id);
 }
 
 export async function createProjectItem(input: {
@@ -589,6 +644,9 @@ export async function createProjectItem(input: {
   quantity?: number;
   quantityDone?: number;
   unit?: string;
+  unitPrice?: number;
+  supplier?: string;
+  orderedAt?: string | null;
 }): Promise<number> {
   const order =
     input.sortOrder ??
@@ -604,12 +662,18 @@ export async function createProjectItem(input: {
     input.quantity ?? 1,
     input.quantityDone ?? 0,
     input.unit ?? "",
+    input.unitPrice ?? 0,
+    input.supplier ?? "",
+    input.orderedAt ?? null,
     order,
   ];
   const insert = () =>
     tenantQueryOne<{ id: number }>(
-      `INSERT INTO project_items (project_id, name, description, quantity, quantity_done, unit, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      `INSERT INTO project_items (
+         project_id, name, description, quantity, quantity_done, unit,
+         unit_price, supplier, ordered_at, sort_order
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       params
     );
   try {
@@ -637,21 +701,34 @@ export async function updateProjectItem(
       | "quantityDone"
       | "unit"
       | "unitPrice"
+      | "supplier"
+      | "orderedAt"
       | "status"
       | "notes"
     >
-  >
+  > & { phaseProgress?: { phaseId: number; quantityDone: number } }
 ): Promise<void> {
   const cur = await tenantQueryOne<Record<string, unknown>>(
     `SELECT * FROM project_items WHERE id = $1`,
     [id]
   );
   if (!cur) throw new Error("Không tìm thấy hạng mục");
+
+  if (input.phaseProgress) {
+    await upsertItemPhaseProgress(
+      id,
+      input.phaseProgress.phaseId,
+      input.phaseProgress.quantityDone
+    );
+    return;
+  }
+
   await tenantExecute(
     `UPDATE project_items SET
        name = $1, description = $2, quantity = $3, quantity_done = $4, unit = $5,
-       unit_price = $6, status = $7, notes = $8, updated_at = NOW()
-     WHERE id = $9`,
+       unit_price = $6, supplier = $7, ordered_at = $8, status = $9, notes = $10,
+       updated_at = NOW()
+     WHERE id = $11`,
     [
       input.name ?? String(cur.name),
       input.description ?? String(cur.description ?? ""),
@@ -659,6 +736,12 @@ export async function updateProjectItem(
       input.quantityDone ?? Number(cur.quantity_done ?? 0),
       input.unit ?? String(cur.unit ?? ""),
       input.unitPrice ?? Number(cur.unit_price),
+      input.supplier ?? String(cur.supplier ?? ""),
+      input.orderedAt === undefined
+        ? cur.ordered_at
+          ? toLocalDateString(cur.ordered_at)
+          : null
+        : input.orderedAt,
       input.status ?? String(cur.status),
       input.notes ?? String(cur.notes ?? ""),
       id,

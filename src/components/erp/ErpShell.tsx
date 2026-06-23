@@ -20,6 +20,10 @@ import {
   COMPANY_CHANGED_EVENT,
   COMPANY_MODULES_CHANGED_EVENT,
 } from "@/lib/erp/events";
+import {
+  ErpHeaderActionsProvider,
+  ErpHeaderActionsSlot,
+} from "@/components/erp/ErpPageHeader";
 
 const SIDEBAR_EXPANDED = 240;
 const SIDEBAR_COLLAPSED = 56;
@@ -439,21 +443,24 @@ export function ErpShell({
           fillHeight ? "flex flex-col overflow-hidden" : "overflow-auto"
         }`}
       >
-        <header className="px-8 py-4 shrink-0 border-b border-white/10 bg-[#0b1630]">
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
-        </header>
-        <div
-          key={`erp-co-${access?.activeCompanyId ?? "none"}`}
-          className={
-            fillHeight
-              ? contentBleed
-                ? "pt-4 pb-0 px-0 flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0b1630]"
-                : "px-8 pt-4 pb-0 flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0b1630]"
-              : "p-8 bg-[#0b1630]"
-          }
-        >
-          {children}
-        </div>
+        <ErpHeaderActionsProvider>
+          <header className="px-8 py-3 shrink-0 border-b border-white/10 bg-[#0b1630] flex items-center gap-4 min-h-[52px]">
+            <h1 className="text-2xl font-bold text-white shrink-0">{title}</h1>
+            <ErpHeaderActionsSlot />
+          </header>
+          <div
+            key={`erp-co-${access?.activeCompanyId ?? "none"}`}
+            className={
+              fillHeight
+                ? contentBleed
+                  ? "pt-0 pb-0 px-0 flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0b1630]"
+                  : "px-8 pt-4 pb-0 flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0b1630]"
+                : "p-8 bg-[#0b1630]"
+            }
+          >
+            {children}
+          </div>
+        </ErpHeaderActionsProvider>
       </main>
     </div>
   );

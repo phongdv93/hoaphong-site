@@ -215,10 +215,16 @@ export interface ProjectItem {
   description: string;
   /** Số lượng kế hoạch / cần làm */
   quantity: number;
-  /** Số lượng đã có / đã hoàn thành (theo dõi tiến độ) */
+  /** Số lượng đã có / đã hoàn thành (theo dõi tiến độ chung khi chưa gán công đoạn) */
   quantityDone: number;
   unit: string;
   unitPrice: number;
+  /** Nhà cung cấp / mua từ đâu */
+  supplier: string;
+  /** Ngày đặt hàng */
+  orderedAt: string | null;
+  /** SL đã làm theo từng công đoạn (phaseId → quantity_done) */
+  phaseDone: Record<number, number>;
   status: ProjectItemStatus;
   sortOrder: number;
   notes: string;

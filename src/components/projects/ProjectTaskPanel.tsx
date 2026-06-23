@@ -41,6 +41,7 @@ import {
   scheduleHealthColors,
 } from "@/lib/projects/schedule-health";
 import { formatDateVi } from "@/lib/dates";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import type {
   Project,
   ProjectPhase,
@@ -52,7 +53,7 @@ import type {
   ProjectSubmission,
 } from "@/lib/projects/types";
 
-export const PROJECT_PANEL_W = 520;
+export const PROJECT_PANEL_W = 620;
 export const PROJECT_PANEL_RAIL_W = 52;
 const CONTENT_W = PROJECT_PANEL_W - PROJECT_PANEL_RAIL_W;
 const PANEL_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -89,6 +90,7 @@ interface WorkspacePayload {
   files: ProjectFile[];
   items: ProjectItem[];
   myRole?: ProjectMemberRole | null;
+  canEditMeta?: boolean;
 }
 
 export function ProjectTaskPanel({
@@ -205,6 +207,7 @@ export function ProjectTaskPanel({
     : "#3b9fe8";
   const myRole = data?.myRole ?? null;
   const canEdit = myRole === "owner" || myRole === "manager";
+  const canEditMeta = Boolean(data?.canEditMeta);
   const canUpdate = roleCanUpdateProgress(myRole);
   const canSubmit = roleCanSubmit(myRole);
   const canReview = roleCanReview(myRole);
@@ -386,11 +389,11 @@ export function ProjectTaskPanel({
           </div>
 
           {/* Tab label */}
-          <div className="shrink-0 px-3 py-1.5 text-xs font-medium text-slate-300 border-b border-white/5 flex items-center justify-between gap-2 min-h-[30px]">
+          <div className="shrink-0 px-3 py-1.5 text-xs font-medium text-slate-300 border-b border-white/5 flex items-center gap-2 min-h-[30px]">
             <span className="shrink-0 uppercase tracking-wide">
               {TABS.find((t) => t.id === tab)?.label}
             </span>
-            {tab === "items" && data && data.items.length > 0 && (
+            {tab === "items" && data && (
               <ProjectItemsSearch
                 value={itemsSearch}
                 onChange={setItemsSearch}
@@ -407,7 +410,12 @@ export function ProjectTaskPanel({
               <p className="text-rose-300">{error}</p>
             )}
             {!loading && data && tab === "overview" && (
-              <OverviewTab project={data.project} phases={data.phases} />
+              <OverviewTab
+                project={data.project}
+                phases={data.phases}
+                canEditMeta={canEditMeta}
+                onSave={patchProject}
+              />
             )}
             {!loading && data && tab === "phases" && (
               <ProjectPhasesTab
@@ -443,7 +451,7 @@ export function ProjectTaskPanel({
                 items={data.items}
                 canEdit={canEdit}
                 searchQuery={itemsSearch}
-                linkedPhaseName={data.phases.find((p) => p.progressFromItems)?.name}
+                linkedPhases={data.phases.filter((p) => p.progressFromItems)}
                 onChanged={() => load({ silent: true })}
               />
             )}
@@ -488,9 +496,13 @@ export function ProjectTaskPanel({
 function OverviewTab({
   project,
   phases,
+  canEditMeta,
+  onSave,
 }: {
   project: Project;
   phases: ProjectPhase[];
+  canEditMeta: boolean;
+  onSave: (body: Record<string, unknown>) => Promise<boolean>;
 }) {
   const progress =
     phases.length > 0
@@ -500,8 +512,17 @@ function OverviewTab({
         )
       : 0;
 
+  const fieldIn =
+    "w-full rounded-md border border-white/15 bg-[#0f1a2e] px-2 py-1 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+
   return (
     <div className="space-y-4">
+      {canEditMeta && (
+        <p className="text-[10px] text-sky-200/80 bg-sky-500/10 border border-sky-500/25 rounded px-2 py-1.5">
+          Bạn có quyền quản trị — có thể sửa thông tin dự án bên dưới.
+        </p>
+      )}
+
       <div className="rounded-lg bg-white/5 border border-white/10 p-2.5">
         <div className="flex justify-between text-[11px] mb-1.5">
           <span className="text-slate-400">Tiến độ tổng (công đoạn)</span>
@@ -516,26 +537,72 @@ function OverviewTab({
       </div>
 
       <dl className="grid grid-cols-2 gap-2">
-        <Info label="Bắt đầu" value={fmtDate(project.startDate)} />
-        <Info label="Dự kiến HT" value={fmtDate(project.expectedEndDate)} />
-        <Info label="HT thực tế" value={fmtDate(project.actualEndDate)} />
-        <Info label="Ký HĐ" value={fmtDate(project.contractSignedAt)} />
-        <Info
-          label="Giá HĐ"
-          value={
-            project.contractValue
-              ? `${project.contractValue.toLocaleString("vi-VN")} ₫`
-              : "—"
-          }
+        <EditableInfo
+          label="Mã dự án"
+          canEdit={canEditMeta}
+          value={project.code}
+          onCommit={(v) => onSave({ code: v })}
+          mono
         />
-        <Info label="Quản lý" value={project.managerName || "—"} />
-        <Info label="Địa chỉ CT" value={project.address || "—"} className="col-span-2" />
-        <Info
-          label="Địa chỉ cung cấp"
-          value={project.supplierAddress || "—"}
+        <EditableInfo
+          label="Tên dự án"
+          canEdit={canEditMeta}
+          value={project.name}
+          onCommit={(v) => onSave({ name: v })}
           className="col-span-2"
         />
-        <Info label="Xuất khẩu" value={project.exportCountry || "—"} />
+        <EditableDate
+          label="Bắt đầu"
+          canEdit={canEditMeta}
+          value={project.startDate}
+          onCommit={(v) => onSave({ startDate: v })}
+        />
+        <EditableDate
+          label="Dự kiến HT"
+          canEdit={canEditMeta}
+          value={project.expectedEndDate}
+          onCommit={(v) => onSave({ expectedEndDate: v })}
+        />
+        <EditableDate
+          label="HT thực tế"
+          canEdit={canEditMeta}
+          value={project.actualEndDate}
+          onCommit={(v) => onSave({ actualEndDate: v })}
+        />
+        <EditableDate
+          label="Ký HĐ"
+          canEdit={canEditMeta}
+          value={project.contractSignedAt}
+          onCommit={(v) => onSave({ contractSignedAt: v })}
+        />
+        <EditableInfo
+          label="Giá HĐ"
+          canEdit={canEditMeta}
+          value={project.contractValue ? String(project.contractValue) : ""}
+          onCommit={(v) => onSave({ contractValue: v ? Number(v.replace(/\D/g, "")) : null })}
+          inputMode="numeric"
+        />
+        <Info label="Quản lý" value={project.managerName || "—"} />
+        <EditableInfo
+          label="Địa chỉ CT"
+          canEdit={canEditMeta}
+          value={project.address || ""}
+          onCommit={(v) => onSave({ address: v })}
+          className="col-span-2"
+        />
+        <EditableInfo
+          label="Địa chỉ cung cấp"
+          canEdit={canEditMeta}
+          value={project.supplierAddress || ""}
+          onCommit={(v) => onSave({ supplierAddress: v })}
+          className="col-span-2"
+        />
+        <EditableInfo
+          label="Xuất khẩu"
+          canEdit={canEditMeta}
+          value={project.exportCountry || ""}
+          onCommit={(v) => onSave({ exportCountry: v })}
+        />
         {project.completedLateDays > 0 && (
           <Info
             label="Trễ khi hoàn thành"
@@ -544,10 +611,23 @@ function OverviewTab({
         )}
       </dl>
 
-      {project.notes && (
+      {(project.notes || canEditMeta) && (
         <div>
           <div className="text-[10px] uppercase text-slate-500 mb-1">Ghi chú</div>
-          <p className="text-slate-200 whitespace-pre-wrap">{project.notes}</p>
+          {canEditMeta ? (
+            <textarea
+              key={project.updatedAt}
+              defaultValue={project.notes || ""}
+              rows={3}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (project.notes || "")) void onSave({ notes: v });
+              }}
+              className={`${fieldIn} resize-y min-h-[60px]`}
+            />
+          ) : (
+            <p className="text-slate-200 whitespace-pre-wrap">{project.notes}</p>
+          )}
         </div>
       )}
 
@@ -688,6 +768,88 @@ function FilesTab({ files }: { files: ProjectFile[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function EditableInfo({
+  label,
+  value,
+  canEdit,
+  onCommit,
+  className = "",
+  mono,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  canEdit: boolean;
+  onCommit: (v: string) => void;
+  className?: string;
+  mono?: boolean;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+}) {
+  const fieldIn =
+    "w-full rounded-md border border-white/15 bg-[#0f1a2e] px-2 py-1 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+  if (!canEdit) {
+    return (
+      <Info
+        label={label}
+        value={
+          label === "Giá HĐ" && value
+            ? `${Number(value).toLocaleString("vi-VN")} ₫`
+            : value
+        }
+        className={className}
+      />
+    );
+  }
+  return (
+    <div className={className}>
+      <dt className="text-[10px] uppercase text-slate-500">{label}</dt>
+      <dd className="mt-0.5">
+        <input
+          key={`${label}-${value}`}
+          defaultValue={value}
+          inputMode={inputMode}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v !== value) onCommit(v);
+          }}
+          className={`${fieldIn} ${mono ? "font-mono" : ""}`}
+        />
+      </dd>
+    </div>
+  );
+}
+
+function EditableDate({
+  label,
+  value,
+  canEdit,
+  onCommit,
+}: {
+  label: string;
+  value: string | null;
+  canEdit: boolean;
+  onCommit: (v: string | null) => void;
+}) {
+  if (!canEdit) {
+    return <Info label={label} value={fmtDate(value)} />;
+  }
+  return (
+    <div>
+      <dt className="text-[10px] uppercase text-slate-500">{label}</dt>
+      <dd className="mt-0.5">
+        <ErpDateInput
+          value={value ?? ""}
+          onChange={() => {}}
+          onCommit={(v) => {
+            if (v !== value) onCommit(v || null);
+          }}
+          className="text-[11px]"
+        />
+      </dd>
+    </div>
   );
 }
 

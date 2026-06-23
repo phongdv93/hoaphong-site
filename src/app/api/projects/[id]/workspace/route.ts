@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { loadProjectInTenant } from "@/lib/projects/api-tenant";
-import { canViewProject } from "@/lib/projects/permissions";
+import { canEditProjectMeta, canViewProject } from "@/lib/projects/permissions";
 import { listMembers, listPhases } from "@/lib/projects/repository";
 import { listPhaseProgressLogs } from "@/lib/projects/phase-progress";
 import { listProjectSubmissions } from "@/lib/projects/submissions";
 import {
   listProjectFiles,
-  listProjectItems,
   listProjectMessages,
 } from "@/lib/projects/workspace";
+import { listProjectItems } from "@/lib/projects/repository";
 
 export async function GET(
   _req: Request,
@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: "Không có quyền xem" }, { status: 403 });
     }
 
-    const [phases, members, messages, submissions, progressLogs, files, items] =
+    const [phases, members, messages, submissions, progressLogs, files, items, canEditMeta] =
       await Promise.all([
         listPhases(id),
         listMembers(id),
@@ -38,6 +38,7 @@ export async function GET(
         listPhaseProgressLogs(id, undefined, 40).catch(() => []),
         listProjectFiles(id).catch(() => []),
         listProjectItems(id).catch(() => []),
+        canEditProjectMeta(id, ctx.user.id),
       ]);
 
     return NextResponse.json({
@@ -50,6 +51,7 @@ export async function GET(
       files,
       items,
       myRole: view.role,
+      canEditMeta,
     });
   });
 }

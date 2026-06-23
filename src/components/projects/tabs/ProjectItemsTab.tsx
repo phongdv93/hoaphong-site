@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { ClipboardPaste, Plus, Search, Trash2 } from "lucide-react";
-import type { ProjectItem } from "@/lib/projects/types";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
+import type { ProjectItem, ProjectPhase } from "@/lib/projects/types";
 import {
   getPasteImportStats,
   MAX_PASTE_COLUMNS,
@@ -43,7 +44,7 @@ export function ProjectItemsSearch({
   filtered: number;
 }) {
   return (
-    <div className="flex items-center gap-1 min-w-0 flex-1 max-w-[14rem] h-6 bg-white/5 border border-white/15 rounded-md px-1.5">
+    <div className="flex items-center gap-1 min-w-0 flex-1 h-6 bg-white/5 border border-white/15 rounded-md px-1.5">
       <Search size={12} className="text-slate-500 shrink-0" />
       <input
         value={value}
@@ -60,21 +61,21 @@ export function ProjectItemsSearch({
   );
 }
 
-/** Hạng mục — layout 2 cột: tên+mô tả | SL kế hoạch / đã có */
+/** Hạng mục (sản phẩm) — SL mặc định 1, theo dõi tiến độ theo công đoạn */
 export function ProjectItemsTab({
   projectId,
   items,
   canEdit,
   onChanged,
-  linkedPhaseName,
+  linkedPhases,
   searchQuery,
 }: {
   projectId: number;
   items: ProjectItem[];
   canEdit: boolean;
   onChanged: () => void;
-  /** Công đoạn đang gán tiến độ theo hạng mục */
-  linkedPhaseName?: string | null;
+  /** Các công đoạn đang gán tiến độ theo hạng mục */
+  linkedPhases: Pick<ProjectPhase, "id" | "name">[];
   searchQuery: string;
 }) {
   const [importOpen, setImportOpen] = useState(false);
@@ -105,6 +106,10 @@ export function ProjectItemsTab({
       description: string;
       quantity: number;
       quantityDone: number;
+      unitPrice: number;
+      supplier: string;
+      orderedAt: string | null;
+      phaseProgress: { phaseId: number; quantityDone: number };
     }>
   ) {
     const res = await fetch(`/api/projects/${projectId}/items/${id}`, {
@@ -206,10 +211,25 @@ export function ProjectItemsTab({
     }
   }
 
-  function pctDone(it: ProjectItem): number {
-    if (it.quantity <= 0) return it.quantityDone > 0 ? 100 : 0;
-    return Math.min(100, Math.round((it.quantityDone / it.quantity) * 100));
+  function pctDone(it: ProjectItem, phaseId?: number): number {
+    const done =
+      phaseId != null
+        ? it.phaseDone[phaseId] ?? 0
+        : it.quantityDone;
+    if (it.quantity <= 0) return done > 0 ? 100 : 0;
+    return Math.min(100, Math.round((done / it.quantity) * 100));
   }
+
+  function phaseShortName(name: string): string {
+    const s = name.trim();
+    if (s.length <= 8) return s;
+    return `${s.slice(0, 7)}…`;
+  }
+
+  const hasPhaseCols = linkedPhases.length > 0;
+  const qtyColW = hasPhaseCols
+    ? Math.min(56 + linkedPhases.length * 52, 220)
+    : 70;
 
   return (
     <div className="space-y-3 w-full min-w-0">
@@ -218,13 +238,19 @@ export function ProjectItemsTab({
         rồi dán vào ô <strong className="text-slate-300">Dán nhiều hàng</strong> (không sửa tay sau
         khi dán). Hỗ trợ tới <strong className="text-slate-300">{MAX_PASTE_COLUMNS} cột</strong>;
         cột SL/KL/Qty được nhận tự động.
-        Cập nhật <strong className="text-slate-300">Có</strong> khi theo dõi.
+        Mỗi hạng mục là <strong className="text-slate-300">sản phẩm</strong> (SL mặc định 1) — lưu NCC, giá, ngày đặt hàng.
+        {hasPhaseCols
+          ? " Nhập SL theo từng công đoạn đã gán."
+          : " Cập nhật Có khi theo dõi chung."}
       </p>
 
-      {linkedPhaseName && (
+      {hasPhaseCols && (
         <p className="text-[11px] text-emerald-200/90 bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-2.5 py-2">
-          Công đoạn <strong>{linkedPhaseName}</strong> đang lấy tiến độ từ tổng{" "}
-          <strong>Có / SL</strong> ở đây — đủ số lượng mọi hạng mục thì công đoạn đạt 100%.
+          Tiến độ các công đoạn{" "}
+          <strong>
+            {linkedPhases.map((p) => p.name).join(", ")}
+          </strong>{" "}
+          lấy từ SL đã làm / KH từng hạng mục.
         </p>
       )}
 
@@ -381,8 +407,13 @@ export function ProjectItemsTab({
       ) : (
         <ul className="space-y-2 w-full min-w-0 list-none p-0 m-0">
           {filteredItems.map((it) => {
-            const pct = pctDone(it);
-            const done = it.quantity > 0 && it.quantityDone >= it.quantity;
+            const overallPct = hasPhaseCols
+              ? Math.max(
+                  ...linkedPhases.map((ph) => pctDone(it, ph.id)),
+                  0
+                )
+              : pctDone(it);
+            const done = it.quantity > 0 && overallPct >= 100;
             return (
               <li
                 key={it.id}
@@ -392,7 +423,12 @@ export function ProjectItemsTab({
                     : "bg-white/[0.03] border-white/10"
                 }`}
               >
-                <div className="grid grid-cols-[minmax(0,1fr)_70px_auto] gap-1.5 w-full items-start">
+                <div
+                  className="grid gap-1.5 w-full items-start"
+                  style={{
+                    gridTemplateColumns: `minmax(0,1fr) ${qtyColW}px auto`,
+                  }}
+                >
                   <div className="min-w-0 w-full flex flex-col gap-1">
                     {canEdit ? (
                       <>
@@ -404,7 +440,7 @@ export function ProjectItemsTab({
                             if (v && v !== it.name) void patchItem(it.id, { name: v });
                           }}
                           className={`${ITEM_IN} text-[11px] font-medium`}
-                          placeholder="Tên hạng mục"
+                          placeholder="Tên sản phẩm / hạng mục"
                         />
                         <input
                           key={`${it.id}-d`}
@@ -416,6 +452,43 @@ export function ProjectItemsTab({
                           className={`${ITEM_IN} text-[10px] text-slate-300`}
                           placeholder="Mô tả (tuỳ chọn)"
                         />
+                        <div className="grid grid-cols-1 gap-1 mt-0.5">
+                          <input
+                            key={`${it.id}-sup`}
+                            defaultValue={it.supplier}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v !== it.supplier) void patchItem(it.id, { supplier: v });
+                            }}
+                            className={`${ITEM_IN} text-[10px]`}
+                            placeholder="Mua từ đâu (NCC)"
+                          />
+                          <div className="grid grid-cols-2 gap-1">
+                            <input
+                              key={`${it.id}-price`}
+                              type="text"
+                              inputMode="decimal"
+                              defaultValue={it.unitPrice ? String(it.unitPrice) : ""}
+                              onBlur={(e) => {
+                                const raw = e.target.value.replace(/[^\d.,]/g, "").replace(",", ".");
+                                const n = raw ? Number(raw) : 0;
+                                if (n !== it.unitPrice) void patchItem(it.id, { unitPrice: n });
+                              }}
+                              className={`${ITEM_IN} text-[10px] tabular-nums`}
+                              placeholder="Giá"
+                            />
+                            <ErpDateInput
+                              value={it.orderedAt ?? ""}
+                              onChange={() => {}}
+                              onCommit={(v) => {
+                                const iso = v || null;
+                                if (iso !== it.orderedAt) void patchItem(it.id, { orderedAt: iso });
+                              }}
+                              className="text-[10px] min-h-[26px]"
+                              placeholder="Ngày đặt"
+                            />
+                          </div>
+                        </div>
                       </>
                     ) : (
                       <>
@@ -427,11 +500,25 @@ export function ProjectItemsTab({
                             {it.description}
                           </div>
                         ) : null}
+                        {(it.supplier || it.unitPrice || it.orderedAt) && (
+                          <div className="text-[10px] text-slate-400 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {it.supplier && <span>NCC: {it.supplier}</span>}
+                            {it.unitPrice > 0 && (
+                              <span>
+                                Giá: {it.unitPrice.toLocaleString("vi-VN")} ₫
+                              </span>
+                            )}
+                            {it.orderedAt && <span>Đặt: {it.orderedAt}</span>}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
 
-                  <div className="w-[70px] shrink-0 flex flex-col gap-1 pt-0.5">
+                  <div
+                    className="shrink-0 flex flex-col gap-1 pt-0.5"
+                    style={{ width: qtyColW }}
+                  >
                     <div className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-0.5">
                       <span className="text-[8px] text-slate-500 leading-none">KH</span>
                       {canEdit ? (
@@ -452,28 +539,63 @@ export function ProjectItemsTab({
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-0.5">
-                      <span className="text-[8px] text-emerald-400/90 leading-none">Có</span>
-                      {canEdit ? (
-                        <input
-                          key={`${it.id}-qd`}
-                          type="text"
-                          inputMode="decimal"
-                          defaultValue={String(it.quantityDone)}
-                          onBlur={(e) => {
-                            const q = Math.max(0, parseItemQuantity(e.target.value));
-                            if (q !== it.quantityDone) {
-                              void patchItem(it.id, { quantityDone: q });
-                            }
-                          }}
-                          className={`${ITEM_IN} w-full text-center text-[10px] tabular-nums text-emerald-200 py-0.5 px-1`}
-                        />
-                      ) : (
-                        <span className="text-[10px] tabular-nums text-emerald-200 text-center">
-                          {it.quantityDone}
-                        </span>
+                    {hasPhaseCols
+                      ? linkedPhases.map((ph) => (
+                          <div
+                            key={ph.id}
+                            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-0.5"
+                            title={ph.name}
+                          >
+                            <span className="text-[7px] text-emerald-400/90 leading-none truncate">
+                              {phaseShortName(ph.name)}
+                            </span>
+                            {canEdit ? (
+                              <input
+                                key={`${it.id}-ph-${ph.id}`}
+                                type="text"
+                                inputMode="decimal"
+                                defaultValue={String(it.phaseDone[ph.id] ?? 0)}
+                                onBlur={(e) => {
+                                  const q = Math.max(0, parseItemQuantity(e.target.value));
+                                  if (q !== (it.phaseDone[ph.id] ?? 0)) {
+                                    void patchItem(it.id, {
+                                      phaseProgress: { phaseId: ph.id, quantityDone: q },
+                                    });
+                                  }
+                                }}
+                                className={`${ITEM_IN} w-full text-center text-[10px] tabular-nums text-emerald-200 py-0.5 px-0.5`}
+                              />
+                            ) : (
+                              <span className="text-[10px] tabular-nums text-emerald-200 text-center">
+                                {it.phaseDone[ph.id] ?? 0}
+                              </span>
+                            )}
+                          </div>
+                        ))
+                      : (
+                        <div className="grid grid-cols-[18px_minmax(0,1fr)] items-center gap-0.5">
+                          <span className="text-[8px] text-emerald-400/90 leading-none">Có</span>
+                          {canEdit ? (
+                            <input
+                              key={`${it.id}-qd`}
+                              type="text"
+                              inputMode="decimal"
+                              defaultValue={String(it.quantityDone)}
+                              onBlur={(e) => {
+                                const q = Math.max(0, parseItemQuantity(e.target.value));
+                                if (q !== it.quantityDone) {
+                                  void patchItem(it.id, { quantityDone: q });
+                                }
+                              }}
+                              className={`${ITEM_IN} w-full text-center text-[10px] tabular-nums text-emerald-200 py-0.5 px-1`}
+                            />
+                          ) : (
+                            <span className="text-[10px] tabular-nums text-emerald-200 text-center">
+                              {it.quantityDone}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </div>
                   </div>
                   <div className="flex flex-col items-center justify-between shrink-0 w-7 pt-0.5">
                     <span
@@ -481,7 +603,7 @@ export function ProjectItemsTab({
                         done ? "text-emerald-300" : "text-slate-500"
                       }`}
                     >
-                      {pct}%
+                      {overallPct}%
                     </span>
                     {canEdit && (
                       <button

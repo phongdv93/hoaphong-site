@@ -63,6 +63,15 @@ export async function canEditProject(projectId: number, userId: number): Promise
   return role !== null && ROLES_EDIT_PROJECT.includes(role);
 }
 
+/** Sửa thông tin dự án (mã, tên, HĐ, địa chỉ…) — chỉ quản trị công ty / ultimate */
+export async function canEditProjectMeta(projectId: number, userId: number): Promise<boolean> {
+  if (await isUltimateAdmin(userId)) return true;
+  const companyId = await getProjectCompanyId(projectId);
+  if (!companyId) return false;
+  const companyRole = await getEffectiveCompanyRole(companyId, userId);
+  return companyRole === "admin";
+}
+
 export async function canEditPhase(projectId: number, userId: number): Promise<boolean> {
   const role = await resolveProjectMemberRole(projectId, userId);
   return role !== null && ROLES_EDIT_PHASE.includes(role);

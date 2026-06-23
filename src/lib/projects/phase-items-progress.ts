@@ -3,7 +3,9 @@ import { toLocalDateString } from "@/lib/dates";
 import type { PhaseStatus, ProjectItem } from "./types";
 
 /** % hoàn thành = tổng quantity_done / tổng quantity (bỏ hạng mục cancelled). */
-export function computeItemsProgressPercent(items: Pick<ProjectItem, "quantity" | "quantityDone" | "status">[]): number {
+export function computeItemsProgressPercent(
+  items: Pick<ProjectItem, "quantity" | "quantityDone" | "status">[]
+): number {
   if (items.length === 0) return 0;
 
   let totalQty = 0;
@@ -42,7 +44,7 @@ export function derivePhaseStatusFromProgress(
   return "in_progress";
 }
 
-/** Cập nhật % và trạng thái các công đoạn đang gán theo hạng mục. */
+/** Cập nhật % và trạng thái từng công đoạn đang gán theo hạng mục. */
 export async function syncPhasesProgressFromItems(projectId: number): Promise<void> {
   const linked = await tenantQuery<{ id: number; status: string }>(
     `SELECT id, status FROM project_phases
@@ -52,22 +54,48 @@ export async function syncPhasesProgressFromItems(projectId: number): Promise<vo
   if (linked.length === 0) return;
 
   const itemRows = await tenantQuery<{
+    id: number;
     quantity: number;
     quantity_done: number;
     status: string;
   }>(
-    `SELECT quantity, quantity_done, status FROM project_items WHERE project_id = $1`,
+    `SELECT id, quantity, quantity_done, status FROM project_items WHERE project_id = $1`,
     [projectId]
   );
-  const items = itemRows.map((r) => ({
-    quantity: Number(r.quantity),
-    quantityDone: Number(r.quantity_done ?? 0),
-    status: r.status as ProjectItem["status"],
-  }));
-  const percent = computeItemsProgressPercent(items);
+
   const today = new Date().toISOString().slice(0, 10);
 
   for (const ph of linked) {
+    const progressRows = await tenantQuery<{
+      quantity: number;
+      quantity_done: number;
+      status: string;
+    }>(
+      `SELECT i.quantity, COALESCE(pp.quantity_done, 0) AS quantity_done, i.status
+       FROM project_items i
+       LEFT JOIN project_item_phase_progress pp
+         ON pp.item_id = i.id AND pp.phase_id = $2
+       WHERE i.project_id = $1`,
+      [projectId, ph.id]
+    );
+
+    const items = progressRows.map((r) => ({
+      quantity: Number(r.quantity),
+      quantityDone: Number(r.quantity_done ?? 0),
+      status: r.status as ProjectItem["status"],
+    }));
+
+    const hasPhaseData = progressRows.some((r) => Number(r.quantity_done ?? 0) > 0);
+    const percent = hasPhaseData
+      ? computeItemsProgressPercent(items)
+      : computeItemsProgressPercent(
+          itemRows.map((r) => ({
+            quantity: Number(r.quantity),
+            quantityDone: Number(r.quantity_done ?? 0),
+            status: r.status as ProjectItem["status"],
+          }))
+        );
+
     const status = derivePhaseStatusFromProgress(percent, ph.status as PhaseStatus);
     const row = await tenantQueryOne<{ started_at: unknown; completed_at: unknown }>(
       `SELECT started_at, completed_at FROM project_phases WHERE id = $1`,
