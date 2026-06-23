@@ -11,6 +11,8 @@ const EXEMPT_PREFIXES = [
   "/erp/dang-ky",
   "/erp/cho-duyet",
   "/erp/register",
+  "/erp/quen-mat-khau",
+  "/erp/dat-lai-mat-khau",
 ];
 
 function isExempt(pathname: string): boolean {

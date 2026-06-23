@@ -7,6 +7,7 @@ import { ERP } from "@/lib/paths";
 import {
   Grid3X3,
   LogOut,
+  Lock,
   ChevronDown,
   ChevronRight,
   ShieldCheck,
@@ -416,6 +417,16 @@ export function ErpShell({
             </div>
           )}
           <CompanyWebsiteNavLink compact={isRail} />
+          <Link
+            href={ERP.changePassword}
+            className={`flex items-center rounded text-slate-muted hover:text-white hover:bg-white/5 ${
+              isRail ? "w-10 h-10 justify-center" : "gap-2 px-2 py-2 w-full"
+            }`}
+            title="Đổi mật khẩu"
+          >
+            <Lock size={14} />
+            {!isRail && "Đổi mật khẩu"}
+          </Link>
           <Link
             href={ERP.base}
             className={`flex items-center rounded text-slate-muted hover:text-white hover:bg-white/5 ${

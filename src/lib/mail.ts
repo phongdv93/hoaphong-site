@@ -166,6 +166,8 @@ export async function sendPasswordResetEmail(input: {
   to: string;
   name: string;
   resetUrl: string;
+  otp: string;
+  otpExpiresMinutes: number;
   expiresMinutes: number;
 }) {
   const text = [
@@ -173,7 +175,10 @@ export async function sendPasswordResetEmail(input: {
     ``,
     `Bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu ERP.`,
     ``,
-    `Nhấn link sau trong vòng ${input.expiresMinutes} phút:`,
+    `Mã OTP (nhập tại trang Quên mật khẩu): ${input.otp}`,
+    `Hiệu lực ${input.otpExpiresMinutes} phút.`,
+    ``,
+    `Hoặc nhấn link sau trong vòng ${input.expiresMinutes} phút:`,
     input.resetUrl,
     ``,
     `Nếu không phải bạn, bỏ qua email này.`,
@@ -181,10 +186,20 @@ export async function sendPasswordResetEmail(input: {
     `— Hoa Phong ERP`,
   ].join("\n");
 
+  const html = [
+    `<p>Xin chào <strong>${input.name}</strong>,</p>`,
+    `<p>Bạn đã yêu cầu đặt lại mật khẩu ERP.</p>`,
+    `<p style="font-size:24px;font-weight:bold;letter-spacing:4px;font-family:monospace">${input.otp}</p>`,
+    `<p>Mã OTP hiệu lực <strong>${input.otpExpiresMinutes} phút</strong>.</p>`,
+    `<p>Hoặc <a href="${input.resetUrl}">nhấn vào đây</a> để đặt mật khẩu mới (hiệu lực ${input.expiresMinutes} phút).</p>`,
+    `<p style="color:#888;font-size:12px">Nếu không phải bạn, bỏ qua email này.</p>`,
+  ].join("");
+
   return sendMail({
     to: input.to,
-    subject: "Đặt lại mật khẩu ERP — Hoa Phong",
+    subject: `Mã OTP đặt lại mật khẩu ERP — ${input.otp}`,
     text,
+    html,
   });
 }
 

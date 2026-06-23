@@ -14,9 +14,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       message:
-        "Nếu email có trong hệ thống, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu.",
+        "Nếu email có trong hệ thống, chúng tôi đã gửi mã OTP và hướng dẫn đặt lại mật khẩu.",
       mailSent: result.mailSent,
       resetUrl: result.resetUrl,
+      devOtp: result.devOtp,
       mailError: result.mailError,
     });
   } catch (err) {

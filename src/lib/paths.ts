@@ -4,6 +4,7 @@ export const ERP = {
   login: "/erp/login",
   forgotPassword: "/erp/quen-mat-khau",
   resetPassword: "/erp/dat-lai-mat-khau",
+  changePassword: "/erp/doi-mat-khau",
   admin: "/erp/admin",
   khoGo: "/erp/kho-go",
   khoGoNhap: "/erp/kho-go/nhap-kho",

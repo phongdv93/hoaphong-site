@@ -178,3 +178,5 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at);
+ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+CREATE INDEX IF NOT EXISTS idx_password_reset_otp ON password_reset_tokens(otp_hash) WHERE otp_hash IS NOT NULL;
