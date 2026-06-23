@@ -1,0 +1,32 @@
+---
+description: Multi-tenant isolation — mỗi công ty một database riêng, không lẫn dữ liệu
+alwaysApply: true
+---
+
+# Cô lập dữ liệu theo công ty (tenant)
+
+## Kiến trúc bắt buộc
+
+- **Mỗi công ty = một PostgreSQL database riêng** (~vài chục MB), tên dạng `hoaphong_tenant_{id}`.
+- **Platform DB** (`DATABASE_URL`, `schema-platform.sql`): chỉ auth, danh sách công ty, gói module, `tenant_db_name` / `tenant_db_url` — không lưu nghiệp vụ ERP.
+- **Tenant DB** (`schema-tenant.sql`): dự án, hạng mục, `factory_products`, khách hàng, kho gỗ, XNK, v.v. — **mỗi công ty hoàn toàn tách biệt**.
+
+Các công ty không liên quan **không được** đọc/ghi chung bảng nghiệp vụ.
+
+## Code
+
+- Mọi thao tác nghiệp vụ ERP: `runWithTenantCompany(companyId, …)` + `tenantQuery` / `tenantExecute` / `tenantWithTransaction` từ `@/lib/db/tenant`.
+- **Không** dùng `query`/`execute` từ `@/lib/db` cho dữ liệu tenant (trừ seed/migration đặc biệt).
+- API: `requireActiveTenant()` hoặc `resolveActiveCompanyForUser` → bọc handler bằng `runWithTenantCompany`.
+- Công ty mới: `provisionTenantDatabase` / `ensureCompanyHasTenant`.
+- `company_id` trong bảng tenant (vd. `projects`) là metadata trong DB đó, **không** thay cho việc chọn đúng tenant pool.
+
+## File / object storage
+
+- Upload hiện tại: `public/uploads/` trên VPS — khi mở rộng ưu tiên **prefix theo `companyId`** hoặc **S3 bucket + key `tenants/{companyId}/...`** để file cũng tách tenant.
+- Không dùng URL/file chung không gắn công ty cho tài liệu nhạy cảm.
+
+## Tính năng mới (vd. sản phẩm, hạng mục dự án)
+
+- Bảng mới cho nghiệp vụ công ty → thêm vào `schema-tenant.sql`, không platform.
+- Không join/query chéo giữa hai tenant DB; ultimate admin đổi công ty = đổi pool qua context.

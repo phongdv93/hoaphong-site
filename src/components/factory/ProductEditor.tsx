@@ -68,6 +68,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   const [imageUrl, setImageUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<FactoryProductStatus>("draft");
+  const [sourceProjectId, setSourceProjectId] = useState<number | null>(null);
   const [bomWood, setBomWood] = useState<BomLineInput[]>([emptyRow()]);
   const [bomHardware, setBomHardware] = useState<BomLineInput[]>([emptyRow()]);
   const [bomPackaging, setBomPackaging] = useState<BomLineInput[]>([emptyRow()]);
@@ -78,7 +79,10 @@ export function ProductEditor({ productId }: { productId: number | null }) {
     setError(null);
     try {
       const res = await fetch(`/api/factory/products/${productId}`);
-      if (!res.ok) throw new Error("Không tải được sản phẩm");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err.error === "string" ? err.error : "Không tải được sản phẩm");
+      }
       const data: { product: FactoryProduct; lines: FactoryBomLine[] } = await res.json();
       const p = data.product;
       setName(p.name);
@@ -98,6 +102,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
       setImageUrl(p.imageUrl || "");
       setNotes(p.notes);
       setStatus(p.status);
+      setSourceProjectId(p.sourceProjectId);
       setBomWood(linesToDraft(data.lines, "wood"));
       setBomHardware(linesToDraft(data.lines, "hardware"));
       setBomPackaging(linesToDraft(data.lines, "packaging"));
@@ -195,24 +200,45 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   }
 
   if (loading) {
-    return <p className="text-midnight/50">Đang tải...</p>;
+    return <p className="text-slate-400">Đang tải...</p>;
   }
 
   return (
     <div className="space-y-6 max-w-7xl">
+      {!isNew && productId && !loading && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className="font-mono text-sky tabular-nums">#{productId}</span>
+          {name.trim() ? (
+            <span className="text-white font-medium">{name}</span>
+          ) : (
+            <span className="text-slate-500 italic">Chưa đặt tên</span>
+          )}
+          {sourceProjectId ? (
+            <Link
+              href={`/erp/du-an?p=${sourceProjectId}`}
+              className="text-xs text-sky/90 hover:underline"
+            >
+              ← Dự án #{sourceProjectId}
+            </Link>
+          ) : null}
+        </div>
+      )}
+
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm px-4 py-2">{error}</div>
+        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-200 text-sm px-4 py-2">
+          {error}
+        </div>
       )}
 
       <div className="erp-card p-4">
-        <h2 className="font-semibold text-navy text-sm mb-3">Thông tin sản phẩm</h2>
+        <h2 className="font-semibold text-slate-200 text-sm mb-3">Thông tin sản phẩm</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-2 text-xs">
           <div className="col-span-2 sm:col-span-3 lg:col-span-6">
-            <label className="block font-medium text-midnight/65 mb-0.5">Tên sản phẩm *</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Tên sản phẩm *</label>
             <input className="input-field py-1.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="col-span-2 sm:col-span-3 lg:col-span-6">
-            <label className="block font-medium text-midnight/65 mb-0.5">Mô tả</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Mô tả</label>
             <textarea
               className="input-field py-1.5 text-sm min-h-[52px] resize-y"
               value={description}
@@ -221,7 +247,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div className="col-span-2 sm:col-span-2 lg:col-span-3">
-            <label className="block font-medium text-midnight/65 mb-0.5">Nhà cung cấp</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
             <input
               className="input-field py-1.5"
               value={supplier}
@@ -230,7 +256,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Ngày đặt hàng</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Ngày đặt hàng</label>
             <ErpDateInput
               value={orderedAt}
               onChange={setOrderedAt}
@@ -239,19 +265,19 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Mã range</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Mã range</label>
             <input className="input-field py-1.5" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Mã gỗ</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Mã gỗ</label>
             <input className="input-field py-1.5" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Mã sơn</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Mã sơn</label>
             <input className="input-field py-1.5" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} />
           </div>
           <div className="col-span-2 sm:col-span-1 lg:col-span-3">
-            <label className="block font-medium text-midnight/65 mb-0.5">Mã KH / phiên bản nhánh</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Mã KH / phiên bản nhánh</label>
             <input
               className="input-field py-1.5"
               value={customerBranchCode}
@@ -260,7 +286,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Dài (mm)</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Dài (mm)</label>
             <input
               type="number"
               className="input-field py-1.5"
@@ -269,7 +295,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Sâu (mm)</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Sâu (mm)</label>
             <input
               type="number"
               className="input-field py-1.5"
@@ -278,7 +304,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Cao (mm)</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Cao (mm)</label>
             <input
               type="number"
               className="input-field py-1.5"
@@ -288,7 +314,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
           </div>
           <div className="flex gap-1 items-end">
             <div className="flex-1 min-w-0">
-              <label className="block font-medium text-midnight/65 mb-0.5">CBM (m³)</label>
+              <label className="block font-medium text-slate-400 mb-0.5">CBM (m³)</label>
               <input
                 type="number"
                 step="0.000001"
@@ -307,7 +333,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             </button>
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Cân (kg)</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Cân (kg)</label>
             <input
               type="number"
               step="0.01"
@@ -317,13 +343,12 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Giá</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Giá</label>
             <input className="input-field py-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div>
-            <label className="block font-medium text-midnight/65 mb-0.5">Trạng thái</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Trạng thái</label>
             <AppSelect
-              variant="light"
               className="py-1.5"
               value={status}
               onChange={(v) => setStatus(v as FactoryProductStatus)}
@@ -335,7 +360,7 @@ export function ProductEditor({ productId }: { productId: number | null }) {
             />
           </div>
           <div className="col-span-2 sm:col-span-3 lg:col-span-3">
-            <label className="block font-medium text-midnight/65 mb-0.5">Ảnh (URL)</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Ảnh (URL)</label>
             <input
               className="input-field py-1.5"
               value={imageUrl}
@@ -343,16 +368,16 @@ export function ProductEditor({ productId }: { productId: number | null }) {
               placeholder="https://…"
             />
           </div>
-          <div className="col-span-2 sm:col-span-3 lg:col-span-3 flex items-center justify-center bg-white/5 rounded-lg border border-navy/10 min-h-[72px] p-2">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-3 flex items-center justify-center bg-white/5 rounded-lg border border-white/10 min-h-[72px] p-2">
             {imageUrl.trim() ? (
               /* eslint-disable-next-line @next/next/no-img-element -- URL tùy ý từ ERP */
               <img src={imageUrl.trim()} alt="" className="max-h-20 max-w-full object-contain rounded" />
             ) : (
-              <span className="text-midnight/35 text-[11px]">Xem trước ảnh</span>
+              <span className="text-slate-500 text-[11px]">Xem trước ảnh</span>
             )}
           </div>
           <div className="col-span-2 sm:col-span-3 lg:col-span-6">
-            <label className="block font-medium text-midnight/65 mb-0.5">Ghi chú</label>
+            <label className="block font-medium text-slate-400 mb-0.5">Ghi chú</label>
             <textarea className="input-field py-1.5 text-xs" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
@@ -360,8 +385,8 @@ export function ProductEditor({ productId }: { productId: number | null }) {
 
       <div className="erp-card p-4 space-y-4">
         <div>
-          <h2 className="font-semibold text-navy text-sm">BOM — 3 phần</h2>
-          <p className="text-[11px] text-midnight/50 mt-1">
+          <h2 className="font-semibold text-slate-200 text-sm">BOM — 3 phần</h2>
+          <p className="text-[11px] text-slate-500 mt-1">
             Gỗ: kích thước mm + gợi ý <strong>wood_species</strong>. Hardware: không lưu 3 cạnh (kích thước trong tên), tìm <strong>kho vật tư</strong>. Bao bì: chọn loại Âm dương / Nắp mở.
           </p>
         </div>

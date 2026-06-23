@@ -38,6 +38,9 @@ function partRowCbm(row: BomLineInput, showDims: boolean): number {
   return computeCbmMm(row.lengthMm, row.depthMm, row.heightMm);
 }
 
+const BOM_IN =
+  "w-full px-1.5 py-1 rounded border border-white/15 bg-[#0f1a2e] text-slate-100 text-[11px] placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky/40";
+
 export function BomBlock({
   section,
   title,
@@ -136,11 +139,11 @@ export function BomBlock({
   const tableMin = showDims ? "min-w-[980px]" : "min-w-[720px]";
 
   return (
-    <div className="border border-navy/10 rounded-lg overflow-hidden">
-      <div className="bg-mist/80 px-3 py-2 border-b border-navy/10 flex flex-wrap justify-between gap-2 items-center">
+    <div className="border border-white/10 rounded-lg overflow-hidden bg-[#141e32]">
+      <div className="bg-white/5 px-3 py-2 border-b border-white/10 flex flex-wrap justify-between gap-2 items-center">
         <div>
-          <h3 className="font-semibold text-navy text-sm">{displayTitle}</h3>
-          {hint && <p className="text-[11px] text-midnight/50 mt-0.5">{hint}</p>}
+          <h3 className="font-semibold text-slate-200 text-sm">{displayTitle}</h3>
+          {hint && <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>}
         </div>
         <button type="button" onClick={addRow} className="btn-outline text-xs py-1.5 px-2">
           <Plus size={14} className="inline mr-1" /> Thêm dòng
@@ -148,7 +151,7 @@ export function BomBlock({
       </div>
       <div className="overflow-x-auto">
         <table className={`w-full text-[11px] ${tableMin}`}>
-          <thead className="bg-mist text-left text-midnight/65">
+          <thead className="bg-white/[0.03] text-left text-slate-400">
             <tr>
               <th className="px-1.5 py-1.5 w-7">#</th>
               <th className="px-1.5 py-1.5 min-w-[88px]">Mã CT</th>
@@ -180,11 +183,11 @@ export function BomBlock({
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-t border-navy/5 align-top">
-                <td className="px-1 py-1 text-midnight/40">{i + 1}</td>
+              <tr key={i} className="border-t border-white/10 align-top hover:bg-white/[0.02]">
+                <td className="px-1 py-1 text-slate-500">{i + 1}</td>
                 <td className="px-0.5 py-0.5">
                   <input
-                    className="w-full px-1.5 py-1 border border-navy/10 rounded font-mono"
+                    className={`${BOM_IN} font-mono`}
                     value={row.partCode}
                     onChange={(e) => updateRow(i, { partCode: e.target.value })}
                     placeholder="Auto / mã kho"
@@ -192,7 +195,7 @@ export function BomBlock({
                 </td>
                 <td className="px-0.5 py-0.5">
                   <input
-                    className="w-full px-1.5 py-1 border border-navy/10 rounded"
+                    className={BOM_IN}
                     value={row.name}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -205,7 +208,6 @@ export function BomBlock({
                 {isWood && (
                   <td className="px-0.5 py-0.5">
                     <AppSelect
-                      variant="light"
                       size="sm"
                       value=""
                       onChange={(v) => {
@@ -229,7 +231,7 @@ export function BomBlock({
                     <td className="px-0.5 py-0.5">
                       <input
                         type="number"
-                        className="w-full px-1 py-1 border border-navy/10 rounded"
+                        className={BOM_IN}
                         value={row.lengthMm || ""}
                         onChange={(e) => updateRow(i, { lengthMm: Number(e.target.value) || 0 })}
                       />
@@ -237,7 +239,7 @@ export function BomBlock({
                     <td className="px-0.5 py-0.5">
                       <input
                         type="number"
-                        className="w-full px-1 py-1 border border-navy/10 rounded"
+                        className={BOM_IN}
                         value={row.depthMm || ""}
                         onChange={(e) => updateRow(i, { depthMm: Number(e.target.value) || 0 })}
                       />
@@ -245,31 +247,31 @@ export function BomBlock({
                     <td className="px-0.5 py-0.5">
                       <input
                         type="number"
-                        className="w-full px-1 py-1 border border-navy/10 rounded"
+                        className={BOM_IN}
                         value={row.heightMm || ""}
                         onChange={(e) => updateRow(i, { heightMm: Number(e.target.value) || 0 })}
                       />
                     </td>
-                    <td className="px-0.5 py-0.5 text-midnight/60 whitespace-nowrap" title="Dài×Sâu×Cao / 10⁹">
+                    <td className="px-0.5 py-0.5 text-slate-400 whitespace-nowrap" title="Dài×Sâu×Cao / 10⁹">
                       {partRowCbm(row, showDims) > 0 ? partRowCbm(row, showDims).toFixed(6) : "—"}
                     </td>
                   </>
                 )}
                 {isHardware && (
                   <td className="px-0.5 py-0.5">
-                    <div className="max-h-24 overflow-y-auto border border-navy/5 rounded bg-white">
+                    <div className="max-h-24 overflow-y-auto border border-white/10 rounded bg-[#0f1a2e]">
                       {(hwSuggest[i] ?? []).length === 0 ? (
-                        <p className="px-1 py-1 text-midnight/40 text-[10px]">Gõ tên để tìm…</p>
+                        <p className="px-1 py-1 text-slate-500 text-[10px]">Gõ tên để tìm…</p>
                       ) : (
                         hwSuggest[i]!.map((it) => (
                           <button
                             key={it.id}
                             type="button"
-                            className="block w-full text-left px-1.5 py-0.5 hover:bg-sky/10 text-[10px] truncate"
+                            className="block w-full text-left px-1.5 py-0.5 hover:bg-sky/15 text-[10px] truncate text-slate-200"
                             title={it.name}
                             onClick={() => updateRow(i, { partCode: it.code, name: it.name, unit: it.unit || row.unit })}
                           >
-                            <span className="font-mono text-navy">{it.code}</span> {it.name}
+                            <span className="font-mono text-sky-light">{it.code}</span> {it.name}
                           </button>
                         ))
                       )}
@@ -280,14 +282,14 @@ export function BomBlock({
                   <input
                     type="number"
                     step="0.01"
-                    className="w-full px-1 py-1 border border-navy/10 rounded"
+                    className={BOM_IN}
                     value={row.qty}
                     onChange={(e) => updateRow(i, { qty: Number(e.target.value) || 0 })}
                   />
                 </td>
                 <td className="px-0.5 py-0.5">
                   <input
-                    className="w-full px-1 py-1 border border-navy/10 rounded"
+                    className={BOM_IN}
                     value={row.unit}
                     onChange={(e) => updateRow(i, { unit: e.target.value })}
                   />
@@ -295,7 +297,6 @@ export function BomBlock({
                 {isPackaging ? (
                   <td className="px-0.5 py-0.5">
                     <AppSelect
-                      variant="light"
                       size="sm"
                       value={row.materialType}
                       onChange={(v) => updateRow(i, { materialType: v })}
@@ -308,7 +309,7 @@ export function BomBlock({
                 ) : (
                   <td className="px-0.5 py-0.5">
                     <input
-                      className="w-full px-1 py-1 border border-navy/10 rounded"
+                      className={BOM_IN}
                       value={row.materialType}
                       onChange={(e) => updateRow(i, { materialType: e.target.value })}
                       placeholder={isHardware ? "—" : "gỗ…"}
@@ -318,14 +319,14 @@ export function BomBlock({
                 )}
                 <td className="px-0.5 py-0.5">
                   <input
-                    className="w-full px-1 py-1 border border-navy/10 rounded"
+                    className={BOM_IN}
                     value={row.specNotes}
                     onChange={(e) => updateRow(i, { specNotes: e.target.value })}
                   />
                 </td>
                 <td className="px-0.5 py-0.5">
                   <input
-                    className="w-full px-1 py-1 border border-navy/10 rounded"
+                    className={BOM_IN}
                     value={row.remark}
                     onChange={(e) => updateRow(i, { remark: e.target.value })}
                   />
@@ -343,7 +344,7 @@ export function BomBlock({
                   </td>
                 )}
                 <td className="px-0.5 py-0.5">
-                  <button type="button" className="p-0.5 text-red-500 hover:bg-red-50 rounded" onClick={() => removeRow(i)}>
+                  <button type="button" className="p-0.5 text-rose-400 hover:bg-rose-500/15 rounded" onClick={() => removeRow(i)}>
                     <Trash2 size={13} />
                   </button>
                 </td>

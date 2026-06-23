@@ -2,13 +2,23 @@ import Link from "next/link";
 import { ErpShell } from "@/components/erp/ErpShell";
 import { DbSetupBanner } from "@/components/erp/DbSetupBanner";
 import { listFactoryProducts } from "@/lib/factory/products";
+import { requireActiveTenantCompany } from "@/lib/projects/with-active-tenant";
 import { Plus } from "lucide-react";
 
 export default async function FactoryProductListPage() {
+  const ctx = await requireActiveTenantCompany();
+  if ("error" in ctx) {
+    return (
+      <ErpShell title="Sản phẩm & BOM" groupId="san-pham">
+        <p className="text-sm text-rose-300">{ctx.error}</p>
+      </ErpShell>
+    );
+  }
+
   let rows: Awaited<ReturnType<typeof listFactoryProducts>> = [];
   let loadError: string | null = null;
   try {
-    rows = await listFactoryProducts();
+    rows = await ctx.run(() => listFactoryProducts());
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Không kết nối được database";
   }
@@ -42,7 +52,7 @@ export default async function FactoryProductListPage() {
               <thead className="erp-table-head">
                 <tr>
                   <th className="px-2 py-3 w-14">Ảnh</th>
-                  <th className="px-4 py-3">ID</th>
+                  <th className="px-4 py-3">Mã SP</th>
                   <th className="px-4 py-3">Tên</th>
                   <th className="px-4 py-3">NCC</th>
                   <th className="px-4 py-3">Giá</th>
@@ -66,13 +76,38 @@ export default async function FactoryProductListPage() {
                       <td className="px-2 py-2 w-14">
                         {p.imageUrl?.trim() ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={p.imageUrl.trim()} alt="" className="h-10 w-10 object-cover rounded border border-navy/10" />
+                          <img src={p.imageUrl.trim()} alt="" className="h-10 w-10 object-cover rounded border border-white/10" />
                         ) : (
                           <span className="text-slate-600 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-500">{p.id}</td>
-                      <td className="px-4 py-3 font-medium text-white">{p.name}</td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        <Link
+                          href={`/erp/san-pham/san-pham/${p.id}`}
+                          className="text-sky hover:underline tabular-nums"
+                          title="Mã sản phẩm (duy nhất trong công ty)"
+                        >
+                          #{p.id}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/erp/san-pham/san-pham/${p.id}`}
+                          className="font-medium text-white hover:text-sky hover:underline"
+                        >
+                          {p.name || "—"}
+                        </Link>
+                        {p.sourceProjectId ? (
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            <Link
+                              href={`/erp/du-an?p=${p.sourceProjectId}`}
+                              className="text-sky/80 hover:underline"
+                            >
+                              Từ dự án #{p.sourceProjectId}
+                            </Link>
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-3 text-xs text-slate-400">{p.supplier || "—"}</td>
                       <td className="px-4 py-3 text-xs tabular-nums">{p.price || "—"}</td>
                       <td className="px-4 py-3 font-mono text-xs">{p.rangeCode || "—"}</td>
@@ -82,8 +117,8 @@ export default async function FactoryProductListPage() {
                       <td className="px-4 py-3">{p.cbmM3 ? p.cbmM3.toFixed(4) : "—"}</td>
                       <td className="px-4 py-3 text-xs">{p.status}</td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/erp/san-pham/san-pham/${p.id}`} className="text-sky font-medium hover:underline">
-                          Sửa
+                        <Link href={`/erp/san-pham/san-pham/${p.id}`} className="text-sky font-medium hover:underline text-xs">
+                          Mở →
                         </Link>
                       </td>
                     </tr>

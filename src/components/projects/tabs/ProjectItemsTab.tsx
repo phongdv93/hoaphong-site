@@ -460,7 +460,8 @@ export function ProjectItemsTab({
                             title="Giá, NCC, ngày đặt hàng — sửa trong sản phẩm"
                           >
                             <ExternalLink size={11} />
-                            Sản phẩm #{it.factoryProductId}
+                            #{it.factoryProductId}
+                            {it.name ? ` — ${it.name}` : ""}
                           </Link>
                         ) : null}
                       </>

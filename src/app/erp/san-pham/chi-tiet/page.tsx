@@ -2,12 +2,22 @@ import { ErpShell } from "@/components/erp/ErpShell";
 import { DbSetupBanner } from "@/components/erp/DbSetupBanner";
 import { FactoryPartsCatalogClient } from "@/components/factory/FactoryPartsCatalogClient";
 import { listFactoryParts } from "@/lib/factory/products";
+import { requireActiveTenantCompany } from "@/lib/projects/with-active-tenant";
 
 export default async function FactoryPartsCatalogPage() {
+  const ctx = await requireActiveTenantCompany();
+  if ("error" in ctx) {
+    return (
+      <ErpShell title="Danh mục chi tiết (tái sử dụng)" groupId="san-pham">
+        <p className="text-sm text-rose-300">{ctx.error}</p>
+      </ErpShell>
+    );
+  }
+
   let parts: Awaited<ReturnType<typeof listFactoryParts>> = [];
   let loadError: string | null = null;
   try {
-    parts = await listFactoryParts();
+    parts = await ctx.run(() => listFactoryParts());
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Lỗi database";
   }
