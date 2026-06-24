@@ -10,6 +10,8 @@ async function seed() {
   const email = process.env.ADMIN_EMAIL || "admin@hoaphong.vn";
   const password = process.env.ADMIN_PASSWORD || "admin123";
 
+  const legacyAdminEmail = "admin@hoaphong.vn";
+
   const existing = await queryOne<{ id: number }>("SELECT id FROM users WHERE email = $1", [email]);
   if (!existing) {
     const hash = await bcrypt.hash(password, 10);
@@ -21,6 +23,13 @@ async function seed() {
   } else {
     await execute("UPDATE users SET is_platform_admin = TRUE WHERE email = $1", [email]);
     console.log("✓ Admin đã có — đã gán Hoa Phong Premium (is_platform_admin)");
+  }
+
+  if (email !== legacyAdminEmail) {
+    await execute(
+      "UPDATE users SET is_platform_admin = FALSE WHERE LOWER(email) = LOWER($1)",
+      [legacyAdminEmail]
+    );
   }
 
   await saveSettings({});
