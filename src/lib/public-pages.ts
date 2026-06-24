@@ -8,6 +8,7 @@ export function getPublicPageLabel(pathname: string): string | null {
     "/blog": "Blog",
     "/lien-he": "Liên hệ",
     "/mini-tool/bao-gia": "Mini tool báo giá",
+    "/mini-tool": "Mini tool",
     "/bao-gia": "Mini tool báo giá",
   };
   if (map[pathname]) return map[pathname];
