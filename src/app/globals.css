@@ -159,6 +159,73 @@
     @apply rounded-xl border border-white/10 bg-white/[0.04] p-3.5 space-y-3 lg:sticky lg:top-24 self-start;
   }
 
+  .quote-edit-surface {
+    @apply rounded-xl border border-white/10 bg-white/[0.03] px-4 py-5 md:px-6 md:py-6;
+  }
+
+  .quote-edit-surface .quote-doc-title {
+    @apply text-left text-xl md:text-2xl text-white text-center sm:text-left;
+  }
+
+  .quote-edit-surface .quote-meta-label {
+    @apply text-slate-muted;
+  }
+
+  .quote-edit-surface .quote-meta-value {
+    @apply border-white/15 bg-white/5 text-white;
+  }
+
+  .quote-edit-surface .quote-tfoot {
+    @apply bg-white/[0.06];
+  }
+
+  .quote-party-pill-dark {
+    @apply rounded-xl border border-white/10 px-3 py-3 bg-white/[0.02];
+  }
+
+  .quote-party-title-dark {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2;
+  }
+
+  .quote-party-line-dark {
+    @apply w-full bg-transparent border-0 border-b border-white/10 px-0 py-1.5 text-sm text-white
+      placeholder:text-slate-muted/50 focus:outline-none focus:border-sky/60;
+  }
+
+  .quote-party-line-dark-bold {
+    @apply font-semibold text-[15px] text-white;
+  }
+
+  .quote-th-dark {
+    @apply bg-white/10 text-sky-light text-[11px] font-semibold;
+  }
+
+  .quote-table-dark td,
+  .quote-table-dark th {
+    @apply border-white/10;
+  }
+
+  .quote-cell-input-dark {
+    @apply text-white placeholder:text-slate-muted/40;
+  }
+
+  .quote-preview-sheet[data-preview="minimal"] .quote-party-pill {
+    @apply rounded-md border-gray-300;
+  }
+
+  .quote-preview-sheet[data-preview="modern"] .quote-doc-title {
+    @apply border-b-2 pb-2;
+    border-color: var(--quote-primary);
+  }
+
+  .quote-preview-sheet[data-preview="formal"] {
+    @apply ring-2 ring-gray-200;
+  }
+
+  .quote-preview-sheet[data-preview="formal"] .quote-doc-title {
+    @apply tracking-[0.2em];
+  }
+
   .quote-party-pill {
     @apply rounded-[1.25rem] border border-gray-200/90 px-4 py-3 bg-transparent;
   }

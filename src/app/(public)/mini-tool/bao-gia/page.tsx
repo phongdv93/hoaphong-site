@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { QuoteBuilder } from "@/components/quote/QuoteBuilder";
 import { PublicPageLayout } from "@/components/public/PublicPageLayout";
 import { getSettings } from "@/lib/settings";
@@ -13,19 +12,7 @@ export default async function MiniToolBaoGiaPage() {
   const settings = await getSettings();
 
   return (
-    <PublicPageLayout
-      fillViewport
-      toolbar={
-        <p className="text-sm text-slate-muted max-w-3xl">
-          Mini tool dành cho khách vãng lai — không cần đăng nhập. Dữ liệu lưu trên trình duyệt của
-          bạn. Nhân viên công ty dùng{" "}
-          <Link href="/erp/marketing/bao-gia" className="text-sky hover:underline">
-            Báo giá ERP
-          </Link>{" "}
-          để lưu danh mục sản phẩm và theo luồng bán hàng.
-        </p>
-      }
-    >
+    <PublicPageLayout fillViewport>
       <QuoteBuilder
         variant="mini"
         defaultSeller={{

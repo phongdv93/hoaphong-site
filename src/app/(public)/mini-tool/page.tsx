@@ -20,7 +20,6 @@ export default function MiniToolHubPage() {
   return (
     <PublicPageLayout>
       <div className="max-w-2xl">
-        <h2 className="font-display text-2xl md:text-3xl font-bold text-white mb-2">Mini tool</h2>
         <p className="text-slate-muted text-sm md:text-base mb-8">
           Công cụ miễn phí trên trình duyệt — dữ liệu lưu local, không cần tài khoản ERP.
         </p>

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  Download,
+  Eye,
   FolderOpen,
   ImagePlus,
   Layers,
   LayoutTemplate,
   Plus,
   Save,
+  SlidersHorizontal,
   Trash2,
   X,
   ChevronDown,
@@ -49,8 +50,9 @@ import type { CellAnchor, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate 
 import { COLUMN_ROLE_OPTIONS } from "@/lib/quote/types";
 import type { ColumnRole } from "@/lib/quote/types";
 import { primaryCssVars } from "@/lib/quote/theme";
-import { PDF_TEMPLATES } from "@/lib/quote/pdf-templates";
-import { FONT_FAMILIES, getFontFamily } from "@/lib/quote/pdf-fonts";
+import { FONT_FAMILIES } from "@/lib/quote/pdf-fonts";
+import { primaryColorForTemplate, type PdfTemplateMeta } from "@/lib/quote/pdf-templates";
+import { QuotePreviewModal } from "@/components/quote/QuotePreviewModal";
 
 // === PartyBlock: 4 field chính, còn lại ẩn sau toggle ===
 const PARTY_FIELDS_PRIMARY: { key: keyof QuoteParty; label: string; placeholder: string }[] = [
@@ -71,10 +73,12 @@ function PartyBlock({
   title,
   party,
   onChange,
+  editMode = false,
 }: {
   title: string;
   party: QuoteParty;
   onChange: (party: QuoteParty) => void;
+  editMode?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -87,47 +91,47 @@ function PartyBlock({
   const showExtra = expanded || hasExtraData;
 
   return (
-    <div className="quote-party-pill">
-      <p className="quote-party-title">{title}</p>
+    <div className={editMode ? "quote-party-pill-dark" : "quote-party-pill"}>
+      <p className={editMode ? "quote-party-title-dark" : "quote-party-title"}>{title}</p>
       <div className="space-y-0.5">
         <input
           type="text"
           value={party.company ?? ""}
           onChange={(e) => onChange({ ...party, company: e.target.value })}
           placeholder="Tên công ty / tổ chức"
-          className="quote-party-line quote-party-line-bold"
+          className={editMode ? "quote-party-line-dark quote-party-line-dark-bold" : "quote-party-line quote-party-line-bold"}
         />
         <input
           type="text"
           value={party.name ?? ""}
           onChange={(e) => onChange({ ...party, name: e.target.value })}
           placeholder="Người liên hệ"
-          className="quote-party-line"
+          className={editMode ? "quote-party-line-dark" : "quote-party-line"}
         />
         <input
           type="text"
           value={party.phone ?? ""}
           onChange={(e) => onChange({ ...party, phone: e.target.value })}
           placeholder="Điện thoại"
-          className="quote-party-line"
+          className={editMode ? "quote-party-line-dark" : "quote-party-line"}
         />
         <input
           type="text"
           value={party.email ?? ""}
           onChange={(e) => onChange({ ...party, email: e.target.value })}
           placeholder="Email"
-          className="quote-party-line"
+          className={editMode ? "quote-party-line-dark" : "quote-party-line"}
         />
       </div>
 
       {showExtra && (
-        <div className="space-y-0.5 mt-2 pt-2 border-t border-gray-100">
+        <div className={`space-y-0.5 mt-2 pt-2 border-t ${editMode ? "border-white/10" : "border-gray-100"}`}>
           <textarea
             value={party.address ?? ""}
             onChange={(e) => onChange({ ...party, address: e.target.value })}
             placeholder="Địa chỉ"
             rows={2}
-            className="quote-party-line resize-none min-h-[2.5rem]"
+            className={`${editMode ? "quote-party-line-dark" : "quote-party-line"} resize-none min-h-[2.5rem]`}
           />
           {PARTY_FIELDS_EXTRA.filter((f) => f.key !== "address").map((f) => (
             <input
@@ -136,7 +140,7 @@ function PartyBlock({
               value={party[f.key] ?? ""}
               onChange={(e) => onChange({ ...party, [f.key]: e.target.value })}
               placeholder={f.placeholder}
-              className="quote-party-line"
+              className={editMode ? "quote-party-line-dark" : "quote-party-line"}
             />
           ))}
         </div>
@@ -146,7 +150,7 @@ function PartyBlock({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 mt-2"
+          className={`flex items-center gap-1 text-[10px] mt-2 ${editMode ? "text-slate-muted hover:text-white" : "text-gray-400 hover:text-gray-600"}`}
         >
           {showExtra ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           {showExtra ? "Ẩn bớt" : "Thêm MST, ngân hàng…"}
@@ -233,6 +237,8 @@ export function QuoteBuilder({
   const [newColRole, setNewColRole] = useState<ColumnRole>("custom");
   const [newColLabel, setNewColLabel] = useState("Cột mới");
   const [newColAfter, setNewColAfter] = useState(-1);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
@@ -409,6 +415,13 @@ export function QuoteBuilder({
     (role === "unitPrice" && !doc.exportOptions.showUnitPrice) ||
     (role === "lineTotal" && !doc.exportOptions.showLineTotal);
 
+  const handleSelectPrintTemplate = (template: PdfTemplateMeta) => {
+    patch({
+      pdfTemplateId: template.id,
+      primaryColor: primaryColorForTemplate(template.id),
+    });
+  };
+
   const themeStyle = primaryCssVars(doc.primaryColor);
 
   return (
@@ -419,21 +432,23 @@ export function QuoteBuilder({
         </div>
       )}
 
-      {/* Topbar: tên file + action phụ */}
+      {/* Topbar */}
       <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 pb-3 mb-3">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-sm font-semibold text-white shrink-0">
-            {isErp ? "Báo giá" : "Mini tool báo giá"}
-          </span>
-          <input
-            type="text"
-            value={saveName}
-            onChange={(e) => setSaveName(e.target.value)}
-            className="min-w-0 flex-1 max-w-md rounded-lg bg-white/5 border border-white/15 px-2.5 py-1.5 text-sm text-white"
-            placeholder="Tên bản lưu…"
-          />
-        </div>
+        <input
+          type="text"
+          value={saveName}
+          onChange={(e) => setSaveName(e.target.value)}
+          className="min-w-0 flex-1 max-w-md rounded-lg bg-white/5 border border-white/15 px-2.5 py-1.5 text-sm text-white"
+          placeholder={isErp ? "Tên báo giá…" : "Tên bản lưu…"}
+        />
         <div className="flex flex-wrap gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            className={`quote-tool-btn text-xs ${sidebarOpen ? "quote-tool-btn-primary" : ""}`}
+          >
+            <SlidersHorizontal size={14} /> Tùy chỉnh
+          </button>
           <button type="button" onClick={handleNew} className="quote-tool-btn text-xs">
             Mới
           </button>
@@ -443,13 +458,32 @@ export function QuoteBuilder({
           <button type="button" onClick={handleSaveTemplate} className="quote-tool-btn text-xs">
             <LayoutTemplate size={14} /> Template
           </button>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="quote-tool-btn quote-tool-btn-primary text-xs"
+          >
+            <Eye size={14} /> Xem & in
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,14rem)_1fr] gap-3 items-start overflow-hidden">
-
-        {/* Sidebar ngắn — chiều cao theo nội dung, dính khi cuộn trang giấy */}
-        <aside className="quote-sidebar flex flex-col gap-0 divide-y divide-white/10">
+      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden relative">
+        {sidebarOpen && (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+              aria-label="Đóng tùy chỉnh"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <aside className="quote-sidebar z-40 fixed left-0 top-0 bottom-0 w-[min(100%,17rem)] overflow-y-auto lg:static lg:w-[14rem] lg:shrink-0 flex flex-col gap-0 divide-y divide-white/10 shadow-xl lg:shadow-none">
+              <div className="flex items-center justify-between lg:hidden pt-1 pb-2 border-b border-white/10 mb-1">
+                <span className="text-xs font-semibold text-white">Tùy chỉnh</span>
+                <button type="button" onClick={() => setSidebarOpen(false)} className="p-1 text-slate-muted">
+                  <X size={18} />
+                </button>
+              </div>
 
           <SbSection title="Thương hiệu">
             <label className="block">
@@ -476,18 +510,8 @@ export function QuoteBuilder({
             </label>
           </SbSection>
 
-          <SbSection title="In PDF">
+          <SbSection title="Font in PDF">
             <label className="block text-xs text-slate-muted">
-              <span className="block mb-1">Kiểu in</span>
-              <AppSelect
-                value={doc.pdfTemplateId}
-                onChange={(v) => patch({ pdfTemplateId: v })}
-                className="w-full rounded bg-white/5 border border-white/15 px-2 py-1.5 text-xs text-white text-left flex items-center justify-between"
-                options={PDF_TEMPLATES.map((t) => ({ value: t.id, label: t.name }))}
-              />
-            </label>
-            <label className="block text-xs text-slate-muted">
-              <span className="block mb-1">Font</span>
               <AppSelect
                 value={doc.fontFamilyId}
                 onChange={(v) => patch({ fontFamilyId: v })}
@@ -572,36 +596,30 @@ export function QuoteBuilder({
                 <Layers size={14} /> Lưu danh mục SP
               </button>
             )}
-            <button type="button" onClick={handlePdf} disabled={exporting}
-              className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
-              <Download size={14} /> {exporting ? "PDF…" : "Xuất PDF"}
-            </button>
           </div>
-        </aside>
+            </aside>
+          </>
+        )}
 
-        {/* Main: chỉ trang giấy cuộn — sidebar + footer trang giữ nguyên */}
-        <div className="min-h-0 h-full max-h-full overflow-y-auto overflow-x-hidden pr-0.5 rounded-xl">
-        <div
-          className="quote-sheet quote-pdf-root bg-white text-gray-900 rounded-xl shadow-xl shadow-black/20 px-4 py-6 md:px-6 md:py-8"
-          style={themeStyle}
-        >
-          {/* Header: logo + tiêu đề + số + ngày */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-100 pb-6 mb-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-0.5">
+        <div className="quote-edit-surface" style={themeStyle}>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-white/10 pb-5 mb-5">
             <div className="shrink-0">
               {doc.logoDataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={doc.logoDataUrl} alt="Logo" className="max-h-14 w-auto object-contain object-left" />
+                <img src={doc.logoDataUrl} alt="Logo" className="max-h-12 w-auto object-contain object-left rounded" />
               ) : (
-                <label className="h-14 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-[10px] text-gray-400 cursor-pointer hover:border-gray-300">
+                <label className="h-12 flex items-center justify-center rounded-lg border border-dashed border-white/20 text-[10px] text-slate-muted cursor-pointer hover:border-white/35 px-4">
                   + Logo
                   <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleLogo(e.target.files?.[0] ?? null)} />
                 </label>
               )}
             </div>
-            <div className="flex-1 min-w-0 px-0 sm:px-4">
-              <input value={doc.title} onChange={(e) => patch({ title: e.target.value })} className="quote-doc-title" />
+            <div className="flex-1 min-w-0">
+              <input value={doc.title} onChange={(e) => patch({ title: e.target.value })} className="quote-doc-title w-full bg-transparent border-0 outline-none" />
             </div>
-            <div className="shrink-0 space-y-1 sm:text-right sm:self-center">
+            <div className="shrink-0 space-y-2 sm:text-right w-full sm:w-auto">
               <label className="block">
                 <span className="quote-meta-label">Số báo giá</span>
                 <input value={doc.quoteNumber} onChange={(e) => patch({ quoteNumber: e.target.value })}
@@ -619,22 +637,22 @@ export function QuoteBuilder({
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 mb-4">
-            <PartyBlock title="Bên báo giá" party={doc.seller} onChange={(seller) => patch({ seller })} />
-            <PartyBlock title="Khách hàng" party={doc.customer} onChange={(customer) => patch({ customer })} />
+            <PartyBlock editMode title="Bên báo giá" party={doc.seller} onChange={(seller) => patch({ seller })} />
+            <PartyBlock editMode title="Khách hàng" party={doc.customer} onChange={(customer) => patch({ customer })} />
           </div>
 
-          <p className="text-[10px] text-gray-400 mb-1.5">Ctrl+V trong ô bảng để dán từ Excel</p>
+          <p className="text-[10px] text-slate-muted mb-1.5">Ctrl+V trong ô bảng để dán từ Excel</p>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table ref={tableRef} className="quote-table w-full border-collapse text-sm" onPaste={handleTablePaste}>
+            <table ref={tableRef} className="quote-table quote-table-dark w-full border-collapse text-sm" onPaste={handleTablePaste}>
               <thead>
                 <tr>
                   {doc.columns.map((col, ci) => (
                     <th key={col.id}
-                      className={`quote-th border border-gray-200 p-0 ${webColumnClass(col)} ${isColHiddenOnExport(col.role) ? "opacity-40" : ""}`}>
+                      className={`quote-th-dark border p-0 ${webColumnClass(col)} ${isColHiddenOnExport(col.role) ? "opacity-40" : ""}`}>
                       <input
                         value={col.label}
                         onChange={(e) => setColumnLabel(ci, e.target.value)}
-                        className={`w-full bg-transparent text-center focus:outline-none ${isNarrowHeader(col) ? "px-1 py-1.5 text-[10px]" : "px-2 py-2"}`}
+                        className={`w-full bg-transparent text-center text-sky-light focus:outline-none ${isNarrowHeader(col) ? "px-1 py-1.5 text-[10px]" : "px-2 py-2"}`}
                       />
                     </th>
                   ))}
@@ -642,30 +660,30 @@ export function QuoteBuilder({
               </thead>
               <tbody>
                 {doc.rows.map((row, ri) => (
-                  <tr key={row.id} className={ri % 2 === 1 ? "bg-gray-50/60" : ""}>
+                  <tr key={row.id} className={ri % 2 === 1 ? "bg-white/[0.02]" : ""}>
                     {doc.columns.map((col, ci) => {
                       const hidden = isColHiddenOnExport(col.role);
                       const colCls = webColumnClass(col);
                       const pad = colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1" : "px-2";
                       if (col.role === "lineTotal") return (
-                        <td key={col.id} className={`border border-gray-200 ${pad} py-1.5 text-right font-semibold text-gray-900 tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
-                          style={{ background: "var(--quote-primary-light)" }}>
+                        <td key={col.id} className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
+                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}>
                           {getLineTotalDisplay(row, doc.columns)}
                         </td>
                       );
                       if (col.role === "vat") return (
-                        <td key={col.id} className={`border border-gray-200 ${pad} py-1.5 text-right font-semibold text-gray-900 tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
-                          style={{ background: "var(--quote-primary-light)" }}>
+                        <td key={col.id} className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
+                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}>
                           {getVatDisplay(row, doc.columns, vatRateNum)}
                         </td>
                       );
                       if (col.role === "index") return (
-                        <td key={col.id} className={`border border-gray-200 ${pad} py-1.5 text-center text-gray-600 font-medium tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}>
+                        <td key={col.id} className={`border ${pad} py-1.5 text-center text-slate-muted font-medium tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}>
                           {getSttDisplay(ri)}
                         </td>
                       );
                       return (
-                        <td key={col.id} className={`border border-gray-200 p-0 ${colCls} ${hidden ? "opacity-40" : ""}`}>
+                        <td key={col.id} className={`border p-0 ${colCls} ${hidden ? "opacity-40" : ""}`}>
                           <textarea
                             data-quote-cell
                             value={row.cells[col.id] ?? ""}
@@ -676,13 +694,11 @@ export function QuoteBuilder({
                               e.target.style.height = "auto";
                               e.target.style.height = `${e.target.scrollHeight}px`;
                             }}
-                            className={`quote-cell-input w-full min-h-[2.25rem] py-1.5 resize-none bg-transparent text-gray-900 font-normal focus:outline-none ${
+                            className={`quote-cell-input quote-cell-input-dark w-full min-h-[2.25rem] py-1.5 resize-none bg-transparent font-normal focus:outline-none ${
                               colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1 text-center" : "px-2"
                             } ${col.role === "quantity" || col.role === "unitPrice" ? "text-right tabular-nums" : ""} ${
-                              anchor.rowIndex === ri && anchor.colIndex === ci ? "ring-2 ring-inset" : ""
+                              anchor.rowIndex === ri && anchor.colIndex === ci ? "ring-2 ring-inset ring-sky/50" : ""
                             }`}
-                            style={anchor.rowIndex === ri && anchor.colIndex === ci
-                              ? ({ "--tw-ring-color": "var(--quote-primary)" } as CSSProperties) : undefined}
                           />
                         </td>
                       );
@@ -696,29 +712,29 @@ export function QuoteBuilder({
                     {lineTotalColIndex >= 0 ? (
                       <>
                         <td colSpan={Math.max(1, lineTotalColIndex)}
-                          className="border border-gray-200 px-2 py-2.5 text-right quote-label !text-[0.65rem]">Tổng trước thuế</td>
-                        <td className="border border-gray-200 px-2 py-2.5 text-right text-base font-bold text-gray-900 tabular-nums">
+                          className="border px-2 py-2.5 text-right quote-label !text-[0.65rem]">Tổng trước thuế</td>
+                        <td className="border px-2 py-2.5 text-right text-base font-bold text-white tabular-nums">
                           {formatVnMoney(grandTotal)}</td>
                         {doc.columns.slice(lineTotalColIndex + 1).map((col) => (
-                          <td key={col.id} className="border border-gray-200" />
+                          <td key={col.id} className="border" />
                         ))}
                       </>
                     ) : (
-                      <td colSpan={doc.columns.length} className="border border-gray-200 px-2 py-2.5 text-right">
+                      <td colSpan={doc.columns.length} className="border px-2 py-2.5 text-right">
                         <span className="quote-label mr-3">Tổng trước thuế</span>
-                        <span className="text-base font-bold tabular-nums">{formatVnMoney(grandTotal)}</span>
+                        <span className="text-base font-bold tabular-nums text-white">{formatVnMoney(grandTotal)}</span>
                       </td>
                     )}
                   </tr>
                   {vatRateNum > 0 && lineTotalColIndex >= 0 && (
                     <tr className="quote-tfoot">
                       <td colSpan={Math.max(1, lineTotalColIndex)}
-                        className="border border-gray-200 px-2 py-2.5 text-right quote-label !text-[0.65rem]">
+                        className="border px-2 py-2.5 text-right quote-label !text-[0.65rem]">
                         Thuế GTGT ({vatRateNum}%)</td>
-                      <td className="border border-gray-200" />
+                      <td className="border" />
                       {doc.columns.slice(lineTotalColIndex + 1).map((col) => (
                         <td key={col.id}
-                          className="border border-gray-200 px-2 py-2.5 text-right text-base font-bold text-gray-900 tabular-nums">
+                          className="border px-2 py-2.5 text-right text-base font-bold text-white tabular-nums">
                           {col.role === "vat" ? formatVnMoney(totalVat) : ""}
                         </td>
                       ))}
@@ -727,9 +743,9 @@ export function QuoteBuilder({
                   {lineTotalColIndex >= 0 && (
                     <tr className="quote-tfoot">
                       <td colSpan={Math.max(1, lineTotalColIndex)}
-                        className="border border-gray-200 px-2 py-2.5 text-right quote-label !text-[0.65rem]">Tổng sau thuế</td>
+                        className="border px-2 py-2.5 text-right quote-label !text-[0.65rem]">Tổng sau thuế</td>
                       <td colSpan={doc.columns.length - lineTotalColIndex}
-                        className="border border-gray-200 px-2 py-2.5 text-right text-base font-bold text-gray-900 tabular-nums">
+                        className="border px-2 py-2.5 text-right text-base font-bold text-white tabular-nums">
                         {formatVnMoney(payableTotal)}</td>
                     </tr>
                   )}
@@ -738,61 +754,76 @@ export function QuoteBuilder({
             </table>
           </div>
 
-          {/* Ghi chú */}
-          <div className="mt-6 pt-4 border-t border-gray-100">
+          <div className="mt-6 pt-4 border-t border-white/10">
             <p className="quote-label mb-2">Ghi chú</p>
             <textarea
               value={doc.notes}
               onChange={(e) => patch({ notes: e.target.value })}
               rows={2}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-normal text-gray-800 focus:outline-none resize-y"
-              onFocus={(e)  => (e.target.style.borderColor = doc.primaryColor)}
-              onBlur={(e)   => (e.target.style.borderColor = "#e5e7eb")}
+              className="input-field-dark resize-y min-h-[4rem]"
             />
           </div>
 
-          {/* Người báo giá / chữ ký */}
-          <div className="mt-4 max-w-[14rem] ml-auto mr-4 md:mr-6 flex flex-col items-center">
-            <p className="quote-label mb-1 text-center">Người báo giá</p>
-            <input value={doc.quoter.title}
-              onChange={(e) => patch({ quoter: { ...doc.quoter, title: e.target.value } })}
-              placeholder="Chức danh"
-              className="w-full text-center text-xs font-medium text-gray-700 border-0 py-0 mb-2 leading-tight focus:outline-none bg-transparent"
-            />
-            <div className="quote-sig-box w-full justify-center">
+          <div className="mt-4 grid sm:grid-cols-2 gap-4">
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
+              <p className="quote-label">Người báo giá</p>
+              <input
+                value={doc.quoter.title}
+                onChange={(e) => patch({ quoter: { ...doc.quoter, title: e.target.value } })}
+                placeholder="Chức danh"
+                className="input-field-dark text-sm"
+              />
+              <input
+                value={doc.quoter.name}
+                onChange={(e) => patch({ quoter: { ...doc.quoter, name: e.target.value } })}
+                placeholder="Họ tên"
+                className="input-field-dark text-sm font-semibold"
+              />
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="quote-label mb-2">Chữ ký (hiện khi in)</p>
               {doc.quoter.signatureDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={doc.quoter.signatureDataUrl} alt="Chữ ký"
-                  className="max-h-16 w-auto max-w-full object-contain mx-auto"
-                  style={{ transform: `scale(${doc.quoter.signatureScale ?? 1})`, transformOrigin: "center bottom" }}
-                />
+                <div className="flex items-end gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={doc.quoter.signatureDataUrl}
+                    alt="Chữ ký"
+                    className="max-h-14 w-auto object-contain"
+                    style={{ transform: `scale(${doc.quoter.signatureScale ?? 1})`, transformOrigin: "left bottom" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => patch({ quoter: { ...doc.quoter, signatureDataUrl: null } })}
+                    className="text-[10px] text-red-400 hover:underline"
+                  >
+                    Xóa
+                  </button>
+                </div>
               ) : (
-                <label className="text-[11px] font-normal text-gray-500 cursor-pointer hover:text-gray-700 flex items-center justify-center gap-1">
-                  <ImagePlus size={14} /> Chèn chữ ký
+                <label className="quote-tool-btn text-xs w-full cursor-pointer justify-center">
+                  <ImagePlus size={14} /> Tải chữ ký
                   <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleSignature(e.target.files?.[0] ?? null)} />
                 </label>
               )}
             </div>
-            {doc.quoter.signatureDataUrl && (
-              <button type="button"
-                onClick={() => patch({ quoter: { ...doc.quoter, signatureDataUrl: null } })}
-                className="text-[10px] font-normal text-red-500 hover:underline mb-1">
-                Xóa chữ ký
-              </button>
-            )}
-            <input value={doc.quoter.name}
-              onChange={(e) => patch({ quoter: { ...doc.quoter, name: e.target.value } })}
-              placeholder="Họ tên"
-              className="w-full text-center text-sm font-bold text-gray-900 border-0 py-0.5 focus:outline-none bg-transparent"
-            />
           </div>
-
-          <p className="mt-4 text-center text-[10px] font-normal text-gray-500 tracking-wide">
-            Powered by hoaphong.com.vn
-          </p>
         </div>
         </div>
       </div>
+
+      <QuotePreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        doc={doc}
+        grandTotal={grandTotal}
+        totalVat={totalVat}
+        payableTotal={payableTotal}
+        vatRateNum={vatRateNum}
+        lineTotalColIndex={lineTotalColIndex}
+        exporting={exporting}
+        onSelectTemplate={handleSelectPrintTemplate}
+        onExportPdf={handlePdf}
+      />
 
       {/* === Modal thêm cột (không đổi) === */}
       {addColOpen && (
