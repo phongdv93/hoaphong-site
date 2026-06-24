@@ -12,7 +12,7 @@ import {
 } from "@/lib/projects/constants";
 import { CompanyPortalLink } from "@/components/erp/CompanyPortalLink";
 import type { CompanySummary } from "@/lib/projects/types";
-import { companyPublicCode, companyWorkspacePath } from "@/lib/projects/company-code";
+import { companyWorkspacePath } from "@/lib/projects/company-code";
 
 export function CompanyList() {
   const router = useRouter();
@@ -111,8 +111,8 @@ export function CompanyList() {
               )}
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-slate-200 truncate">{c.name}</div>
-                <div className="text-xs text-slate-200/60 truncate font-mono tabular-nums">
-                  MST {companyPublicCode(c)} · {COMPANY_STATUS_LABELS[c.status]}
+                <div className="text-xs text-slate-200/60 truncate">
+                  {COMPANY_STATUS_LABELS[c.status]}
                 </div>
                 <div className="mt-1">
                   <CompanyPortalLink subdomain={c.subdomain} compact />

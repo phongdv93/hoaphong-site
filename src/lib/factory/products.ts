@@ -234,22 +234,61 @@ export async function createCatalogProduct(input: {
   orderedAt?: string | null;
   price?: string;
   sourceProjectId?: number;
+  sourceQuoteRef?: string;
+  notes?: string;
 }): Promise<number> {
   if (!input.name?.trim()) throw new Error("Tên sản phẩm bắt buộc");
   const row = await tenantQueryOne<{ id: number }>(
     `INSERT INTO factory_products (
-       name, description, supplier, ordered_at, price, status, source_project_id
-     ) VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING id`,
+       name, description, supplier, ordered_at, price, notes, status, source_project_id, source_quote_ref
+     ) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8) RETURNING id`,
     [
       input.name.trim(),
       input.description?.trim() ?? "",
       input.supplier?.trim() ?? "",
       input.orderedAt ?? null,
       input.price?.trim() ?? "",
+      input.notes?.trim() ?? "",
       input.sourceProjectId ?? null,
+      input.sourceQuoteRef?.trim() ?? "",
     ]
   );
   return row!.id;
+}
+
+export async function findCatalogProductByName(name: string): Promise<number | null> {
+  const key = name.trim().toLowerCase();
+  if (!key) return null;
+  const row = await tenantQueryOne<{ id: number }>(
+    `SELECT id FROM factory_products WHERE LOWER(TRIM(name)) = $1 ORDER BY id DESC LIMIT 1`,
+    [key]
+  );
+  return row?.id ?? null;
+}
+
+export async function importQuoteLinesToCatalog(
+  quoteRef: string,
+  lines: Array<{
+    name: string;
+    description?: string;
+    unit?: string;
+    price?: string;
+  }>
+): Promise<{ created: number; ids: number[] }> {
+  const ids: number[] = [];
+  for (const line of lines) {
+    if (!line.name?.trim()) continue;
+    const noteParts = [line.unit?.trim() ? `ĐVT: ${line.unit.trim()}` : ""].filter(Boolean);
+    const id = await createCatalogProduct({
+      name: line.name.trim(),
+      description: line.description?.trim() ?? "",
+      price: line.price?.trim() ?? "",
+      sourceQuoteRef: quoteRef,
+      notes: noteParts.join(" · "),
+    });
+    ids.push(id);
+  }
+  return { created: ids.length, ids };
 }
 
 export async function updateCatalogProductMeta(

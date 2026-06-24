@@ -13,7 +13,6 @@ import type {
   CompanyMember,
   CompanyMemberRole,
 } from "@/lib/projects/types";
-import { companyPublicCode } from "@/lib/projects/company-code";
 import { AppSelect } from "@/components/ui/AppSelect";
 
 const ROLE_OPTIONS: CompanyMemberRole[] = ["admin", "manager", "member"];
@@ -113,8 +112,8 @@ export function CompanyDetailClient({ companyId }: { companyId: number }) {
           )}
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-slate-200">{company.name}</h2>
-            <div className="text-xs text-slate-200/60 font-mono tabular-nums">
-              MST {companyPublicCode(company)} · {COMPANY_STATUS_LABELS[company.status]}
+            <div className="text-xs text-slate-200/60">
+              {COMPANY_STATUS_LABELS[company.status]}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">

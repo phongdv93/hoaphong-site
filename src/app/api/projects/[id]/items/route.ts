@@ -5,6 +5,7 @@ import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import { canEditPhase } from "@/lib/projects/permissions";
 import {
   createProjectItem,
+  createProjectItemsFromCatalogNames,
   deleteAllProjectItems,
   getProject,
   listProjectItems,
@@ -57,14 +58,38 @@ export async function POST(req: Request) {
     if (!(await canEditPhase(ctx.projectId, ctx.user.id))) {
       return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
     }
-    if (!body.name?.trim()) {
-      return NextResponse.json({ error: "Tên hạng mục bắt buộc" }, { status: 400 });
+
+    if (Array.isArray(body.rows)) {
+      const result = await createProjectItemsFromCatalogNames({
+        projectId: ctx.projectId,
+        rows: body.rows.map(
+          (r: { name?: string; description?: string; quantity?: number; unit?: string }) => ({
+            name: String(r.name ?? "").trim(),
+            description: r.description,
+            quantity: r.quantity != null ? Number(r.quantity) : undefined,
+            unit: r.unit,
+          })
+        ),
+        baseSortOrder: body.baseSortOrder,
+      });
+      return NextResponse.json(result);
     }
+
+    const factoryProductId = Number(body.factoryProductId);
+    if (!Number.isFinite(factoryProductId) || factoryProductId <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Chọn sản phẩm từ danh mục (Báo giá → Danh mục SP → thêm vào dự án khi khách đặt hàng)",
+        },
+        { status: 400 }
+      );
+    }
+
     const id = await createProjectItem({
       projectId: ctx.projectId,
-      name: body.name.trim(),
+      factoryProductId,
       sortOrder: body.sortOrder,
-      description: body.description,
       quantity: body.quantity != null ? Number(body.quantity) : undefined,
       quantityDone: body.quantityDone != null ? Number(body.quantityDone) : undefined,
       unit: body.unit,

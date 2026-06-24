@@ -5,6 +5,7 @@ import {
   Download,
   FolderOpen,
   ImagePlus,
+  Layers,
   LayoutTemplate,
   Plus,
   Save,
@@ -52,6 +53,7 @@ import {
   saveQuote,
   saveTemplate,
 } from "@/lib/quote/storage";
+import { extractCatalogLinesFromQuote } from "@/lib/quote/to-catalog";
 import type { CellAnchor, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate } from "@/lib/quote/types";
 import { COLUMN_ROLE_OPTIONS } from "@/lib/quote/types";
 import type { ColumnRole } from "@/lib/quote/types";
@@ -341,6 +343,36 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
     showToast("Đã lưu báo giá");
   };
 
+  const handleSaveToCatalog = async () => {
+    const lines = extractCatalogLinesFromQuote(doc);
+    if (!lines.length) {
+      showToast("Không có dòng hàng (cột Nội dung)");
+      return;
+    }
+    setExporting(true);
+    try {
+      const res = await fetch("/api/factory/products/import-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quoteNumber: doc.quoteNumber,
+          quoteName: saveName.trim() || doc.savedName,
+          lines,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(j.error || "Cần đăng nhập ERP và chọn công ty");
+        return;
+      }
+      showToast(j.message || `Đã lưu ${j.created} sản phẩm`);
+    } catch {
+      showToast("Không kết nối được server");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleSaveTemplate = () => {
     const name = saveName.trim() || "Template báo giá";
     saveTemplate(docToTemplate(doc, name));
@@ -523,13 +555,22 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
             </label>
           </SbSection>
 
-          <div className="mt-auto pt-3 grid grid-cols-2 gap-1.5">
-            <button type="button" onClick={handleSaveQuote} className="quote-tool-btn quote-tool-btn-primary text-xs !py-2">
-              <Save size={14} /> Lưu
+          <div className="mt-auto pt-3 space-y-1.5">
+            <button type="button" onClick={handleSaveQuote} className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
+              <Save size={14} /> Lưu báo giá
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSaveToCatalog()}
+              disabled={exporting}
+              className="quote-tool-btn text-xs !py-2 w-full"
+              title="Lưu các dòng hàng vào danh mục sản phẩm ERP (cần đăng nhập)"
+            >
+              <Layers size={14} /> Lưu danh mục SP
             </button>
             <button type="button" onClick={handlePdf} disabled={exporting}
-              className="quote-tool-btn quote-tool-btn-primary text-xs !py-2">
-              <Download size={14} /> {exporting ? "PDF…" : "PDF"}
+              className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
+              <Download size={14} /> {exporting ? "PDF…" : "Xuất PDF"}
             </button>
           </div>
         </aside>

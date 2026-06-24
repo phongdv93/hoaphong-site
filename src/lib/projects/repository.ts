@@ -1,4 +1,4 @@
-import { createCatalogProduct, updateCatalogProductMeta } from "@/lib/factory/products";
+import { findCatalogProductByName } from "@/lib/factory/products";
 import { toLocalDateString } from "@/lib/dates";
 import { syncPhasesProgressFromItems } from "./phase-items-progress";
 import { syncTenantUser, syncTenantUsers } from "@/lib/db/sync-tenant-user";
@@ -573,29 +573,22 @@ function mapProjectItem(
   };
 }
 
-async function ensureItemFactoryProduct(row: Record<string, unknown>): Promise<number> {
-  const existing = row.factory_product_id != null ? Number(row.factory_product_id) : null;
-  if (existing) return existing;
+export async function listProjectItems(projectId: number): Promise<ProjectItem[]> {
+  const [rows, phaseDoneMap] = await Promise.all([
+    tenantQuery<Record<string, unknown>>(
+      `SELECT i.*,
+              p.name AS product_name,
+              p.description AS product_description
+       FROM project_items i
+       LEFT JOIN factory_products p ON p.id = i.factory_product_id
+       WHERE i.project_id = $1
+       ORDER BY i.sort_order, i.id`,
+      [projectId]
+    ),
+    loadPhaseDoneByProject(projectId),
+  ]);
 
-  const itemId = row.id as number;
-  const projectId = row.project_id as number;
-  const legacySupplier = String(row.supplier ?? "");
-  const legacyPrice = Number(row.unit_price ?? 0);
-  const legacyOrdered = row.ordered_at ? toLocalDateString(row.ordered_at) : null;
-
-  const productId = await createCatalogProduct({
-    name: String(row.name),
-    description: String(row.description ?? ""),
-    supplier: legacySupplier,
-    orderedAt: legacyOrdered,
-    price: legacyPrice > 0 ? String(legacyPrice) : "",
-    sourceProjectId: projectId,
-  });
-  await tenantExecute(
-    `UPDATE project_items SET factory_product_id = $1, updated_at = NOW() WHERE id = $2`,
-    [productId, itemId]
-  );
-  return productId;
+  return rows.map((r) => mapProjectItem(r, phaseDoneMap.get(r.id as number) ?? {}));
 }
 
 async function loadPhaseDoneByProject(projectId: number): Promise<Map<number, Record<number, number>>> {
@@ -617,39 +610,6 @@ async function loadPhaseDoneByProject(projectId: number): Promise<Map<number, Re
     map.get(itemId)![r.phase_id] = Number(r.quantity_done ?? 0);
   }
   return map;
-}
-
-export async function listProjectItems(projectId: number): Promise<ProjectItem[]> {
-  const [rows, phaseDoneMap] = await Promise.all([
-    tenantQuery<Record<string, unknown>>(
-      `SELECT i.*,
-              p.name AS product_name,
-              p.description AS product_description
-       FROM project_items i
-       LEFT JOIN factory_products p ON p.id = i.factory_product_id
-       WHERE i.project_id = $1
-       ORDER BY i.sort_order, i.id`,
-      [projectId]
-    ),
-    loadPhaseDoneByProject(projectId),
-  ]);
-
-  for (const row of rows) {
-    if (!row.factory_product_id) {
-      const productId = await ensureItemFactoryProduct(row);
-      row.factory_product_id = productId;
-      const prod = await tenantQueryOne<{ name: string; description: string }>(
-        `SELECT name, description FROM factory_products WHERE id = $1`,
-        [productId]
-      );
-      if (prod) {
-        row.product_name = prod.name;
-        row.product_description = prod.description;
-      }
-    }
-  }
-
-  return rows.map((r) => mapProjectItem(r, phaseDoneMap.get(r.id as number) ?? {}));
 }
 
 export async function upsertItemPhaseProgress(
@@ -687,13 +647,20 @@ export async function upsertItemPhaseProgress(
 
 export async function createProjectItem(input: {
   projectId: number;
-  name: string;
+  factoryProductId: number;
   sortOrder?: number;
-  description?: string;
   quantity?: number;
   quantityDone?: number;
   unit?: string;
 }): Promise<number> {
+  const product = await tenantQueryOne<{ name: string; description: string }>(
+    `SELECT name, description FROM factory_products WHERE id = $1`,
+    [input.factoryProductId]
+  );
+  if (!product) {
+    throw new Error("Sản phẩm không có trong danh mục — lưu từ báo giá trước");
+  }
+
   const order =
     input.sortOrder ??
     (await tenantQueryOne<{ next: number }>(
@@ -702,20 +669,21 @@ export async function createProjectItem(input: {
     ))?.next ??
     10;
 
-  const productId = await createCatalogProduct({
-    name: input.name.trim(),
-    description: input.description ?? "",
-    sourceProjectId: input.projectId,
-  });
+  await tenantExecute(
+    `UPDATE factory_products
+     SET source_project_id = COALESCE(source_project_id, $1), updated_at = NOW()
+     WHERE id = $2`,
+    [input.projectId, input.factoryProductId]
+  );
 
   const params = [
     input.projectId,
-    input.name.trim(),
-    input.description ?? "",
+    product.name.trim(),
+    product.description?.trim() ?? "",
     input.quantity ?? 1,
     input.quantityDone ?? 0,
     input.unit ?? "",
-    productId,
+    input.factoryProductId,
     order,
   ];
   const insert = () =>
@@ -739,6 +707,36 @@ export async function createProjectItem(input: {
     await syncPhasesProgressFromItems(input.projectId);
     return row!.id;
   }
+}
+
+/** Dán nhiều hàng — chỉ thêm SP đã có trong danh mục (khớp tên). */
+export async function createProjectItemsFromCatalogNames(input: {
+  projectId: number;
+  rows: Array<{ name: string; description?: string; quantity?: number; unit?: string }>;
+  baseSortOrder?: number;
+}): Promise<{ added: number; skipped: string[] }> {
+  let added = 0;
+  const skipped: string[] = [];
+  const base = input.baseSortOrder ?? 0;
+
+  for (let i = 0; i < input.rows.length; i++) {
+    const r = input.rows[i];
+    const productId = await findCatalogProductByName(r.name);
+    if (!productId) {
+      skipped.push(r.name);
+      continue;
+    }
+    await createProjectItem({
+      projectId: input.projectId,
+      factoryProductId: productId,
+      quantity: r.quantity ?? 1,
+      unit: r.unit,
+      sortOrder: base + i,
+    });
+    added++;
+  }
+
+  return { added, skipped };
 }
 
 export async function updateProjectItem(
@@ -765,16 +763,10 @@ export async function updateProjectItem(
     return;
   }
 
-  const productId = await ensureItemFactoryProduct(cur);
   const nextName = input.name ?? String(cur.name);
   const nextDesc = input.description ?? String(cur.description ?? "");
-
-  if (input.name !== undefined || input.description !== undefined) {
-    await updateCatalogProductMeta(productId, {
-      name: nextName,
-      description: nextDesc,
-    });
-  }
+  const productId =
+    cur.factory_product_id != null ? Number(cur.factory_product_id) : null;
 
   await tenantExecute(
     `UPDATE project_items SET

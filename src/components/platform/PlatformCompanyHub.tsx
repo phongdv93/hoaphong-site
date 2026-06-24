@@ -10,7 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { CompanyPortalLink } from "@/components/erp/CompanyPortalLink";
-import { companyPublicCode, companyWorkspacePath } from "@/lib/projects/company-code";
+import { companyWorkspacePath } from "@/lib/projects/company-code";
 import { CompanyModulesPanel } from "./CompanyModulesPanel";
 
 interface CompanyInfo {
@@ -104,9 +104,7 @@ export function PlatformCompanyHub({ companyId }: { companyId: number }) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">{company.name}</h2>
-              <p className="text-sm text-slate-400 font-mono mt-0.5">
-                MST {companyPublicCode(company)}
-              </p>
+              <p className="text-sm text-slate-400 font-mono mt-0.5">{company.code}</p>
               <div className="mt-2 max-w-md">
                 <CompanyPortalLink
                   subdomain={company.subdomain ?? company.code}

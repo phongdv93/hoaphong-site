@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ClipboardPaste, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
 import type { ProjectItem, ProjectPhase } from "@/lib/projects/types";
 import {
@@ -83,20 +83,56 @@ export function ProjectItemsTab({
   /** Clipboard HTML khi Ctrl+C từ Sheets/Excel — mỗi &lt;tr&gt; = 1 hàng, chính xác hơn plain text. */
   const [pasteHtml, setPasteHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [catalog, setCatalog] = useState<Array<{ id: number; name: string }>>([]);
+  const [pickId, setPickId] = useState("");
+  const [pickSearch, setPickSearch] = useState("");
 
-  async function createItem(payload: {
-    name: string;
-    sortOrder: number;
-    description?: string;
-    quantity?: number;
-  }) {
+  useEffect(() => {
+    fetch("/api/factory/products")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!Array.isArray(list)) return;
+        setCatalog(
+          list.map((p: { id: number; name: string }) => ({
+            id: p.id,
+            name: p.name || `#${p.id}`,
+          }))
+        );
+      })
+      .catch(() => setCatalog([]));
+  }, []);
+
+  const catalogOptions = useMemo(() => {
+    const q = normSearch(pickSearch);
+    if (!q) return catalog;
+    return catalog.filter(
+      (p) => normSearch(p.name).includes(q) || String(p.id).includes(q)
+    );
+  }, [catalog, pickSearch]);
+
+  async function addFromCatalog(e: React.FormEvent) {
+    e.preventDefault();
+    const factoryProductId = Number(pickId);
+    if (!factoryProductId) return;
+    setLoading(true);
     const res = await fetch(`/api/projects/${projectId}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        factoryProductId,
+        sortOrder: items.length,
+        quantity: 1,
+      }),
     });
-    return res.ok;
+    setLoading(false);
+    if (res.ok) {
+      setPickId("");
+      setPickSearch("");
+      onChanged();
+    } else {
+      const j = await res.json().catch(() => ({}));
+      alert(typeof j.error === "string" ? j.error : "Không thêm được hạng mục");
+    }
   }
 
   async function patchItem(
@@ -172,39 +208,36 @@ export function ProjectItemsTab({
       return;
     }
     setLoading(true);
-    let ok = 0;
-    const base = items.length;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (
-        await createItem({
+    const res = await fetch(`/api/projects/${projectId}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rows: rows.map((r) => ({
           name: r.name,
           description: r.description,
           quantity: r.quantity,
-          sortOrder: base + i,
-        })
-      ) {
-        ok++;
-      }
-    }
+        })),
+        baseSortOrder: items.length,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
     setLoading(false);
-    if (ok > 0) {
+    if (res.ok && (j.added ?? 0) > 0) {
       setPasteText("");
       setPasteHtml(null);
       setImportOpen(false);
       onChanged();
-    } else alert("Import thất bại");
-  }
-
-  async function addOne(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    setLoading(true);
-    const ok = await createItem({ name: newName, sortOrder: items.length, quantity: 1 });
-    setLoading(false);
-    if (ok) {
-      setNewName("");
-      onChanged();
+      if (Array.isArray(j.skipped) && j.skipped.length > 0) {
+        alert(
+          `Đã thêm ${j.added} hạng mục.\nChưa có trong danh mục (lưu từ báo giá trước): ${j.skipped.slice(0, 8).join(", ")}${j.skipped.length > 8 ? "…" : ""}`
+        );
+      }
+    } else if (res.ok) {
+      alert(
+        "Không thêm được dòng nào — tên hàng phải khớp sản phẩm đã lưu trong danh mục (từ báo giá)."
+      );
+    } else {
+      alert(typeof j.error === "string" ? j.error : "Import thất bại");
     }
   }
 
@@ -231,15 +264,16 @@ export function ProjectItemsTab({
   return (
     <div className="space-y-3 w-full min-w-0">
       <p className="text-[11px] text-slate-400 leading-relaxed">
-        Chọn vùng trên Google Sheets / Excel → <strong className="text-slate-300">Ctrl+C</strong>{" "}
-        rồi dán vào ô <strong className="text-slate-300">Dán nhiều hàng</strong> (không sửa tay sau
-        khi dán). Hỗ trợ tới <strong className="text-slate-300">{MAX_PASTE_COLUMNS} cột</strong>;
-        cột SL/KL/Qty được nhận tự động.
-        Mỗi hàng tự tạo <strong className="text-slate-300">sản phẩm</strong> trong{" "}
-        <Link href="/erp/san-pham/san-pham" className="text-sky hover:underline">
-          danh mục sản phẩm
+        Luồng:{" "}
+        <Link href="/bao-gia" className="text-sky hover:underline">
+          Báo giá
         </Link>{" "}
-        (giá, NCC, ngày đặt hàng sửa ở đó). Tab này chỉ theo dõi <strong className="text-slate-300">tiến độ</strong>.
+        →{" "}
+        <Link href="/erp/san-pham/san-pham" className="text-sky hover:underline">
+          Danh mục sản phẩm
+        </Link>{" "}
+        → khách đặt hàng → <strong className="text-slate-300">thêm SP vào dự án</strong> → đặt
+        NCC (trong SP) → theo dõi tiến độ ở đây.
         {hasPhaseCols
           ? " Nhập SL theo từng công đoạn đã gán."
           : " Cập nhật Có khi theo dõi chung."}
@@ -365,36 +399,37 @@ export function ProjectItemsTab({
       )}
 
       {canEdit && (
-        <form onSubmit={addOne} className="flex gap-1.5 w-full">
+        <form onSubmit={addFromCatalog} className="flex flex-wrap gap-1.5 w-full items-center">
           <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onPaste={(e) => {
-              const plain = e.clipboardData.getData("text/plain");
-              const html = e.clipboardData.getData("text/html");
-              if (
-                plain &&
-                (plain.includes("\t") || plain.includes("\n") || plain.includes("\r"))
-              ) {
-                const rows = parseProjectItemPaste(plain, html?.trim() ? html : null);
-                if (rows.length >= 2) {
-                  e.preventDefault();
-                  setImportOpen(true);
-                  setPasteText(plain.replace(/\u00a0/g, " "));
-                  setPasteHtml(html?.trim() ? html : null);
-                  setNewName("");
-                }
-              }
-            }}
-            placeholder="Thêm một hạng mục… (dán nhiều dòng → mở dán hàng loạt)"
-            className={`${ITEM_IN} text-xs flex-1 min-w-0`}
+            value={pickSearch}
+            onChange={(e) => setPickSearch(e.target.value)}
+            placeholder="Tìm SP trong danh mục…"
+            className={`${ITEM_IN} text-xs flex-1 min-w-[120px]`}
+            list="project-item-catalog"
           />
+          <datalist id="project-item-catalog">
+            {catalogOptions.slice(0, 80).map((p) => (
+              <option key={p.id} value={`#${p.id} ${p.name}`} />
+            ))}
+          </datalist>
+          <select
+            value={pickId}
+            onChange={(e) => setPickId(e.target.value)}
+            className={`${ITEM_IN} text-xs max-w-[180px]`}
+          >
+            <option value="">Chọn SP #{""}</option>
+            {catalogOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                #{p.id} {p.name.length > 36 ? `${p.name.slice(0, 35)}…` : p.name}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
-            disabled={loading || !newName.trim()}
-            className="shrink-0 inline-flex items-center gap-1 bg-sky text-white px-2 py-1 rounded text-[11px]"
+            disabled={loading || !pickId}
+            className="shrink-0 inline-flex items-center gap-1 bg-sky text-white px-2 py-1 rounded text-[11px] disabled:opacity-50"
           >
-            <Plus size={13} />
+            <Plus size={13} /> Thêm từ danh mục
           </button>
         </form>
       )}

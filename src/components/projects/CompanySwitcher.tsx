@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Building2, Plus, Check } from "lucide-react";
 import type { CompanySummary } from "@/lib/projects/types";
-import { companyPublicCode } from "@/lib/projects/company-code";
 import { COMPANY_CHANGED_EVENT, dispatchCompanyChanged } from "@/lib/erp/events";
 
 /** Hiển thị công ty đang active + dropdown switch. Dùng trong ErpShell sidebar. */
@@ -96,12 +95,12 @@ export function CompanySwitcher({ collapsed = false }: { collapsed?: boolean }) 
             className={`flex items-center gap-2 rounded bg-white/5 hover:bg-white/10 text-xs text-left ${
               collapsed ? "p-2 justify-center w-10 h-10" : "w-full px-2 py-2"
             }`}
-            title={active ? `${active.name} · MST ${companyPublicCode(active)}` : "Chọn công ty"}
+            title={active?.name ?? "Chọn công ty"}
           >
             <Building2 size={14} className="shrink-0 text-sky-light" />
             {!collapsed && (
-              <span className="truncate flex-1 font-mono tabular-nums">
-                {active ? companyPublicCode(active) : "Chọn công ty"}
+              <span className="truncate flex-1">
+                {active?.name ?? "Chọn công ty"}
               </span>
             )}
           </button>
@@ -123,10 +122,7 @@ export function CompanySwitcher({ collapsed = false }: { collapsed?: boolean }) 
                     className={c.id === activeId ? "text-emerald-300" : "opacity-0"}
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="font-mono tabular-nums truncate">{companyPublicCode(c)}</div>
-                    <div className="text-[10px] text-slate-muted truncate" title={c.name}>
-                      {c.name}
-                    </div>
+                    <div className="truncate">{c.name}</div>
                     <div className="text-[10px] text-slate-muted truncate">
                       {c.projectCount} dự án · {c.memberCount} thành viên · {c.myRole}
                     </div>
