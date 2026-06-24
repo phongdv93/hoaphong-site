@@ -265,7 +265,7 @@ export function ProjectItemsTab({
     <div className="space-y-3 w-full min-w-0">
       <p className="text-[11px] text-slate-400 leading-relaxed">
         Luồng:{" "}
-        <Link href="/bao-gia" className="text-sky hover:underline">
+        <Link href="/erp/marketing/bao-gia" className="text-sky hover:underline">
           Báo giá
         </Link>{" "}
         →{" "}

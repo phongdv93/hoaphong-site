@@ -41,17 +41,8 @@ import {
   insertColumnAt,
 } from "@/lib/quote/template";
 import {
-  clearDraft,
-  deleteSavedQuote,
-  deleteSavedTemplate,
-  listSavedQuotes,
-  listSavedTemplates,
-  loadDraft,
-  loadSavedQuote,
-  loadSavedTemplate,
-  saveDraft,
-  saveQuote,
-  saveTemplate,
+  createQuoteStorage,
+  type QuoteStorageScope,
 } from "@/lib/quote/storage";
 import { extractCatalogLinesFromQuote } from "@/lib/quote/to-catalog";
 import type { CellAnchor, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate } from "@/lib/quote/types";
@@ -218,7 +209,16 @@ function SbSection({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteParty> }) {
+export function QuoteBuilder({
+  defaultSeller,
+  variant = "mini",
+}: {
+  defaultSeller?: Partial<QuoteParty>;
+  /** mini = công cụ public; erp = báo giá nội bộ công ty */
+  variant?: QuoteStorageScope;
+}) {
+  const isErp = variant === "erp";
+  const storage = useMemo(() => createQuoteStorage(variant), [variant]);
   const tableRef = useRef<HTMLTableElement>(null);
   const [doc, setDoc] = useState<QuoteDocument>(() => createQuote({ seller: defaultSeller }));
   const [anchor, setAnchor] = useState<CellAnchor>({ rowIndex: 0, colIndex: 0 });
@@ -239,7 +239,7 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
   };
 
   useEffect(() => {
-    const draft = loadDraft();
+    const draft = storage.loadDraft();
     if (draft) {
       setDoc(draft);
       setSaveName(draft.savedName);
@@ -249,7 +249,7 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
       setSaveName(initial.savedName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [storage]);
 
   const lineTotalColIndex = useMemo(
     () => doc.columns.findIndex((c) => c.role === "lineTotal"),
@@ -261,9 +261,9 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
   const payableTotal = grandTotal + totalVat;
 
   useEffect(() => {
-    const t = setTimeout(() => saveDraft(doc), 400);
+    const t = setTimeout(() => storage.saveDraft(doc), 400);
     return () => clearTimeout(t);
-  }, [doc]);
+  }, [doc, storage]);
 
   const patch = useCallback((partial: Partial<QuoteDocument>) => {
     setDoc((prev) => ({ ...prev, ...partial, updatedAt: new Date().toISOString() }));
@@ -338,7 +338,7 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
 
   const handleSaveQuote = () => {
     const name  = saveName.trim() || doc.savedName || "Báo giá";
-    const saved = saveQuote({ ...doc, savedName: name });
+    const saved = storage.saveQuote({ ...doc, savedName: name });
     setDoc(saved); setSaveName(name);
     showToast("Đã lưu báo giá");
   };
@@ -375,19 +375,19 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
 
   const handleSaveTemplate = () => {
     const name = saveName.trim() || "Template báo giá";
-    saveTemplate(docToTemplate(doc, name));
+    storage.saveTemplate(docToTemplate(doc, name));
     showToast("Đã lưu template");
   };
 
-  const openSaves = () => { setSavedQuotes(listSavedQuotes()); setSavedTemplates(listSavedTemplates()); setSaveTab("quote"); setSavesOpen(true); };
+  const openSaves = () => { setSavedQuotes(storage.listSavedQuotes()); setSavedTemplates(storage.listSavedTemplates()); setSaveTab("quote"); setSavesOpen(true); };
 
-  const handleLoadQuote    = (id: string) => { const loaded = loadSavedQuote(id);    if (!loaded) return; setDoc(loaded); setSaveName(loaded.savedName); setSavesOpen(false); showToast("Đã mở báo giá"); };
-  const handleLoadTemplate = (id: string) => { const tmpl   = loadSavedTemplate(id); if (!tmpl)   return; setDoc(applyTemplate(tmpl, doc)); setSaveName(tmpl.savedName); setSavesOpen(false); showToast("Đã áp template"); };
+  const handleLoadQuote    = (id: string) => { const loaded = storage.loadSavedQuote(id);    if (!loaded) return; setDoc(loaded); setSaveName(loaded.savedName); setSavesOpen(false); showToast("Đã mở báo giá"); };
+  const handleLoadTemplate = (id: string) => { const tmpl   = storage.loadSavedTemplate(id); if (!tmpl)   return; setDoc(applyTemplate(tmpl, doc)); setSaveName(tmpl.savedName); setSavesOpen(false); showToast("Đã áp template"); };
 
   const handleNew = () => {
     if (!confirm("Tạo báo giá mới?")) return;
     const fresh = createQuote({ seller: defaultSeller });
-    setDoc(fresh); setSaveName(fresh.savedName); clearDraft(); saveDraft(fresh);
+    setDoc(fresh); setSaveName(fresh.savedName); storage.clearDraft(); storage.saveDraft(fresh);
   };
 
   const handlePdf = async () => {
@@ -422,7 +422,9 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
       {/* Topbar: tên file + action phụ */}
       <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 pb-3 mb-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-sm font-semibold text-white shrink-0">Báo giá</span>
+          <span className="text-sm font-semibold text-white shrink-0">
+            {isErp ? "Báo giá" : "Mini tool báo giá"}
+          </span>
           <input
             type="text"
             value={saveName}
@@ -559,15 +561,17 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
             <button type="button" onClick={handleSaveQuote} className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
               <Save size={14} /> Lưu báo giá
             </button>
-            <button
-              type="button"
-              onClick={() => void handleSaveToCatalog()}
-              disabled={exporting}
-              className="quote-tool-btn text-xs !py-2 w-full"
-              title="Lưu các dòng hàng vào danh mục sản phẩm ERP (cần đăng nhập)"
-            >
-              <Layers size={14} /> Lưu danh mục SP
-            </button>
+            {isErp && (
+              <button
+                type="button"
+                onClick={() => void handleSaveToCatalog()}
+                disabled={exporting}
+                className="quote-tool-btn text-xs !py-2 w-full"
+                title="Lưu các dòng hàng vào danh mục sản phẩm ERP"
+              >
+                <Layers size={14} /> Lưu danh mục SP
+              </button>
+            )}
             <button type="button" onClick={handlePdf} disabled={exporting}
               className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
               <Download size={14} /> {exporting ? "PDF…" : "Xuất PDF"}
@@ -847,7 +851,7 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
                         {q.customer.company || q.customer.name || "—"} · {new Date(q.updatedAt).toLocaleString("vi-VN")}
                       </p>
                     </button>
-                    <button type="button" onClick={() => { deleteSavedQuote(q.id); setSavedQuotes(listSavedQuotes()); }}
+                    <button type="button" onClick={() => { storage.deleteSavedQuote(q.id); setSavedQuotes(storage.listSavedQuotes()); }}
                       className="p-2 text-red-400/80 hover:text-red-300 shrink-0" aria-label="Xóa"><Trash2 size={16} /></button>
                   </li>
                 ))
@@ -861,7 +865,7 @@ export function QuoteBuilder({ defaultSeller }: { defaultSeller?: Partial<QuoteP
                       {t.columns.length} cột · {t.rowCount} dòng · {new Date(t.updatedAt).toLocaleString("vi-VN")}
                     </p>
                   </button>
-                  <button type="button" onClick={() => { deleteSavedTemplate(t.id); setSavedTemplates(listSavedTemplates()); }}
+                  <button type="button" onClick={() => { storage.deleteSavedTemplate(t.id); setSavedTemplates(storage.listSavedTemplates()); }}
                     className="p-2 text-red-400/80 hover:text-red-300 shrink-0" aria-label="Xóa"><Trash2 size={16} /></button>
                 </li>
               ))}

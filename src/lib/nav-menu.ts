@@ -14,7 +14,7 @@ export const DEFAULT_NAV_MENU: NavMenuItem[] = [
   { id: "services", href: "/dich-vu", label: "Dịch vụ", visible: true, sortOrder: 2 },
   { id: "products", href: "/san-pham", label: "Sản phẩm", visible: true, sortOrder: 3 },
   { id: "blog", href: "/blog", label: "Blog", visible: true, sortOrder: 4 },
-  { id: "quote", href: "/bao-gia", label: "Báo giá", visible: true, sortOrder: 5 },
+  { id: "quote", href: "/mini-tool/bao-gia", label: "Mini tool báo giá", visible: true, sortOrder: 5 },
   { id: "contact", href: "/lien-he", label: "Liên hệ", visible: true, sortOrder: 6 },
 ];
 

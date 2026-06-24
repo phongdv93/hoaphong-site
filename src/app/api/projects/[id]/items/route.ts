@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Chọn sản phẩm từ danh mục (Báo giá → Danh mục SP → thêm vào dự án khi khách đặt hàng)",
+            "Chọn sản phẩm từ danh mục (ERP Báo giá → Danh mục SP → thêm vào dự án khi khách đặt hàng)",
         },
         { status: 400 }
       );

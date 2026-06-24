@@ -1,25 +1,6 @@
-import { QuoteBuilder } from "@/components/quote/QuoteBuilder";
-import { PublicPageLayout } from "@/components/public/PublicPageLayout";
-import { getSettings } from "@/lib/settings";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Báo giá online",
-  description: "Tạo báo giá, thêm logo, thông tin khách hàng, bảng linh hoạt và tải PDF.",
-};
-
-export default async function BaoGiaPage() {
-  const settings = await getSettings();
-
-  return (
-    <PublicPageLayout fillViewport>
-      <QuoteBuilder
-        defaultSeller={{
-          company: settings.companyName,
-          address: settings.address,
-          phone: settings.phone,
-          email: settings.email,
-        }}
-      />
-    </PublicPageLayout>
-  );
+/** Giữ URL cũ — chuyển sang mini tool public. */
+export default function BaoGiaRedirectPage() {
+  redirect("/mini-tool/bao-gia");
 }

@@ -12,6 +12,7 @@ import {
   Receipt,
   Wallet,
   FileSpreadsheet,
+  FileText,
   Users,
   ShoppingCart,
   BadgeDollarSign,
@@ -196,6 +197,15 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
         href: "/erp/marketing/khach-hang",
         status: "active",
         icon: Users,
+        ownerDepartmentId: "marketing",
+      },
+      {
+        id: "bao-gia",
+        title: "Báo giá",
+        description: "Lập báo giá, lưu danh mục SP, xuất PDF",
+        href: "/erp/marketing/bao-gia",
+        status: "active",
+        icon: FileText,
         ownerDepartmentId: "marketing",
       },
       {

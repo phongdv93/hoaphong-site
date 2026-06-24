@@ -7,7 +7,8 @@ export function getPublicPageLabel(pathname: string): string | null {
     "/san-pham": "Sản phẩm",
     "/blog": "Blog",
     "/lien-he": "Liên hệ",
-    "/bao-gia": "Báo giá",
+    "/mini-tool/bao-gia": "Mini tool báo giá",
+    "/bao-gia": "Mini tool báo giá",
   };
   if (map[pathname]) return map[pathname];
   if (pathname.startsWith("/blog/")) return "Blog";
