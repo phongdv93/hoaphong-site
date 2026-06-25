@@ -36,7 +36,7 @@ export function ProjectListClient() {
         <div className="text-sm text-slate-400 p-8 pt-4">Đang tải…</div>
       }
     >
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex flex-col flex-1 min-h-0 h-0">
         <ProjectListInner />
       </div>
     </Suspense>
@@ -253,7 +253,7 @@ function ProjectListInner() {
   }, [setHeaderActions, view, canCreate, createBlockedMsg, openCreatePanel]);
 
   if (items === null) {
-    return <div className="text-sm text-slate-400">Đang tải…</div>;
+    return <div className="text-sm text-slate-400 pt-5 px-8">Đang tải…</div>;
   }
 
   const timelineMode = view === "timeline" && !errorBanner;
@@ -266,13 +266,13 @@ function ProjectListInner() {
     <div
       className={
         timelineMode
-          ? "flex flex-col flex-1 min-h-0"
+          ? "flex flex-col flex-1 min-h-0 h-0"
           : "space-y-4 pt-4 px-8"
       }
     >
       <div
         className={`flex flex-wrap items-center gap-2 ${
-          timelineMode ? "shrink-0 mb-3 px-8 pt-4" : ""
+          timelineMode ? "shrink-0 mb-2 px-8 pt-5 pb-1" : ""
         }`}
       >
         <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
@@ -341,7 +341,7 @@ function ProjectListInner() {
       )}
 
       {timelineFull && (
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 h-0 overflow-hidden border-t border-white/10">
           <ProjectsTimelineWorkspace
             projects={ganttProjects}
             dayWidth={dayWidth}

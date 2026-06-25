@@ -63,7 +63,7 @@ export function ProjectsTimelineWorkspace({
   }, [panelProjectId]);
 
   return (
-    <div className={`flex flex-1 min-h-0 min-w-0 overflow-hidden ${className}`}>
+    <div className={`flex flex-col flex-1 min-h-0 h-0 min-w-0 overflow-hidden ${className}`}>
       <ProjectsGantt
         projects={projects}
         expandedId={expandedId}

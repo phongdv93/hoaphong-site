@@ -84,7 +84,7 @@ export function ProjectsGantt({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [projects.length, dayWidth]);
 
   const rowLayout = useMemo(() => {
     let y = ROW_GAP;
@@ -174,8 +174,12 @@ export function ProjectsGantt({
 
   return (
     <div
-      className={`relative flex flex-col flex-1 min-h-0 h-full overflow-hidden w-full ${className}`}
-      style={{ background: "#081229", color: "#e2e8f0" }}
+      className={`relative flex-1 min-h-0 w-full overflow-hidden ${className}`}
+      style={{
+        background: "#081229",
+        color: "#e2e8f0",
+        minHeight: "min(100%, calc(100vh - 11.5rem))",
+      }}
     >
       <ScheduleLegend />
       <FloatingControls
@@ -186,7 +190,7 @@ export function ProjectsGantt({
 
       <div
         ref={scrollRef}
-        className="overflow-auto flex-1 min-h-0 h-0 w-full overscroll-x-contain"
+        className="absolute inset-0 overflow-auto overscroll-x-contain"
         title="Lăn chuột để cuộn ngang timeline"
       >
         <div
