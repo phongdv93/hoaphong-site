@@ -1,3 +1,5 @@
+import type { QuotePageOrientation } from "./page-spec";
+
 export type ColumnRole =
   | "custom"
   | "index"
@@ -30,7 +32,11 @@ export type QuoterInfo = {
 export type QuoteExportOptions = {
   showUnitPrice: boolean;
   showLineTotal: boolean;
+  /** Khổ in A4 — mặc định dọc */
+  pageOrientation?: QuotePageOrientation;
 };
+
+export type { QuotePageOrientation };
 
 export type QuoteColumn = {
   id: string;

@@ -342,6 +342,34 @@
     @apply text-purple-700;
   }
 
+  /* A4 preview frame */
+  .quote-a4-viewport {
+    @apply w-full max-w-[min(297mm,100%)];
+  }
+
+  .quote-a4-page {
+    @apply bg-white mx-auto border border-gray-300/80;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .quote-a4-margins {
+    box-sizing: border-box;
+    min-height: 100%;
+  }
+
+  .quote-a4-page--landscape {
+    max-width: min(297mm, 100%);
+  }
+
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+  }
+
   .quote-party-pill {
     @apply rounded-[1.25rem] border border-gray-200/90 px-4 py-3 bg-transparent;
   }

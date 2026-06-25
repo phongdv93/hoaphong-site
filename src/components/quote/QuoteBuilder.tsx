@@ -422,6 +422,10 @@ export function QuoteBuilder({
     });
   };
 
+  const handleOrientationChange = (pageOrientation: "portrait" | "landscape") => {
+    patch({ exportOptions: { ...doc.exportOptions, pageOrientation } });
+  };
+
   const themeStyle = primaryCssVars(doc.primaryColor);
 
   return (
@@ -822,6 +826,7 @@ export function QuoteBuilder({
         lineTotalColIndex={lineTotalColIndex}
         exporting={exporting}
         onSelectTemplate={handleSelectPrintTemplate}
+        onOrientationChange={handleOrientationChange}
         onExportPdf={handlePdf}
       />
 

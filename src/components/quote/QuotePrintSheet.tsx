@@ -539,7 +539,7 @@ export function QuotePrintSheet({
 
   return (
     <div
-      className={`quote-preview-sheet quote-sheet quote-pdf-root bg-white text-gray-900 rounded-xl shadow-2xl shadow-black/40 overflow-hidden quote-print-layout--${meta.preview}`}
+      className={`quote-preview-sheet quote-sheet quote-pdf-root bg-white text-gray-900 overflow-hidden quote-print-layout--${meta.preview}`}
       style={themeStyle}
       data-preview={meta.preview}
     >

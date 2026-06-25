@@ -6,6 +6,7 @@ import { runWithTenantCompany } from "@/lib/db/tenant-context";
 import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import { canCreateProject } from "@/lib/projects/permissions";
 import { createProject, listProjects } from "@/lib/projects/repository";
+import { generateFreeProjectCode } from "@/lib/projects/project-code";
 import type { ProjectStatus } from "@/lib/projects/types";
 
 async function requireActiveCompany(userId: number) {
@@ -77,18 +78,24 @@ export async function POST(req: Request) {
   if (!body.name?.trim()) {
     return NextResponse.json({ error: "Tên dự án bắt buộc" }, { status: 400 });
   }
-  if (!body.code?.trim()) {
-    return NextResponse.json(
-      { error: "Mã dự án (PI / số hợp đồng) bắt buộc" },
-      { status: 400 }
-    );
+
+  const creationMode = body.creationMode === "pi" ? "pi" : "free";
+  let code = String(body.code ?? "").trim();
+  if (!code) {
+    if (creationMode === "pi") {
+      return NextResponse.json(
+        { error: "Mã đơn hàng / PI bắt buộc" },
+        { status: 400 }
+      );
+    }
+    code = generateFreeProjectCode();
   }
 
   try {
     const id = await runWithTenantCompany(active.companyId, () =>
       createProject({
       companyId: active.companyId,
-      code: body.code,
+      code,
       name: body.name.trim(),
       customerId: body.customerId ?? null,
       contractValue: Number(body.contractValue ?? 0),
@@ -102,7 +109,7 @@ export async function POST(req: Request) {
       exportCountry: body.exportCountry || "",
       managerUserId: body.managerUserId ?? null,
       createdBy: user.id,
-      seedPhases: body.seedPhases !== false,
+      seedPhases: body.seedPhases === true,
     })
     );
     return NextResponse.json({ id });

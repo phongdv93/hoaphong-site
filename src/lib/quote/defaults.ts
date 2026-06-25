@@ -59,7 +59,7 @@ export function normalizeQuoter(raw: unknown): QuoterInfo {
 }
 
 export function defaultExportOptions(): QuoteExportOptions {
-  return { showUnitPrice: true, showLineTotal: true };
+  return { showUnitPrice: true, showLineTotal: true, pageOrientation: "portrait" };
 }
 
 export function createColumn(label: string, role: ColumnRole = "custom"): QuoteColumn {

@@ -1,5 +1,6 @@
 import type { ColumnRole, QuoteColumn, QuoteDocument, QuoteTemplate } from "./types";
 import { createColumn, defaultExportOptions, normalizeParty, normalizeQuoter } from "./defaults";
+import { normalizePageOrientation } from "./page-spec";
 import { normalizePdfTemplateId } from "./pdf-templates";
 import { normalizeFontFamilyId } from "./pdf-fonts";
 import { normalizePrimary } from "./theme";
@@ -77,6 +78,9 @@ export function normalizeQuoteDocument(raw: Record<string, unknown>): QuoteDocum
     exportOptions: {
       ...defaultExportOptions(),
       ...((raw.exportOptions as object) ?? {}),
+      pageOrientation: normalizePageOrientation(
+        (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
+      ),
     },
     primaryColor: normalizePrimary(raw.primaryColor as string | undefined),
     pdfTemplateId: normalizePdfTemplateId(raw.pdfTemplateId as string | undefined),
@@ -105,6 +109,9 @@ export function normalizeTemplate(raw: Record<string, unknown>): QuoteTemplate {
     exportOptions: {
       ...defaultExportOptions(),
       ...((raw.exportOptions as object) ?? {}),
+      pageOrientation: normalizePageOrientation(
+        (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
+      ),
     },
     primaryColor: normalizePrimary(raw.primaryColor as string | undefined),
     pdfTemplateId: normalizePdfTemplateId(raw.pdfTemplateId as string | undefined),

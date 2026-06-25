@@ -22,8 +22,8 @@ import {
 import { hexToRgb, lightenRgb, normalizePrimary } from "./theme";
 import { getPdfTemplateMeta } from "./pdf-templates";
 import { drawQuoteLayoutHeader, tableStylesForLayout } from "./pdf-layout-draw";
+import { normalizePageOrientation, PAGE_MARGIN_MM } from "./page-spec";
 
-const PAGE_MARGIN = 8;
 const FOOTER_H = 10;
 /** Chiều cao mỗi dòng nội dung party (mm) */
 const PARTY_LINE_H = 4.1;
@@ -275,7 +275,11 @@ async function exportQuotePdfClassic(
   ]);
   const autoTable = autoTableMod.default;
 
-  const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  const pdf = new jsPDF({
+    orientation: normalizePageOrientation(doc.exportOptions.pageOrientation) === "landscape" ? "l" : "p",
+    unit: "mm",
+    format: "a4",
+  });
   const family = getFontFamily(doc.fontFamilyId);
   await loadDocFonts(pdf, family);
   const hasItalic = hasItalicFont();
@@ -293,7 +297,7 @@ async function exportQuotePdfClassic(
   const exportBodyRows = rowsForExport(doc.rows, doc.columns);
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const margin = PAGE_MARGIN;
+  const margin = PAGE_MARGIN_MM.left;
   const templateMeta = getPdfTemplateMeta(doc.pdfTemplateId);
   const layoutVariant = templateMeta.preview;
 

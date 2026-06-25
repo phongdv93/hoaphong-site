@@ -21,8 +21,9 @@ import {
   hasItalicFont,
   loadDocFonts,
 } from "./pdf-shared";
+import { normalizePageOrientation, PAGE_MARGIN_MM } from "./page-spec";
 
-const PAGE_MARGIN = 8;
+const FOOTER_H = 10;
 const GREEN_DATE: [number, number, number] = [21, 128, 61];
 const NEUTRAL_BG: [number, number, number] = [250, 248, 242];
 
@@ -317,7 +318,11 @@ export async function exportQuotePdfHoaphong(
   ]);
   const autoTable = autoTableMod.default;
 
-  const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  const pdf = new jsPDF({
+    orientation: normalizePageOrientation(doc.exportOptions.pageOrientation) === "landscape" ? "l" : "p",
+    unit: "mm",
+    format: "a4",
+  });
   const family = getFontFamily(doc.fontFamilyId);
   await loadDocFonts(pdf, family);
   const italic = hasItalicFont();
@@ -333,7 +338,7 @@ export async function exportQuotePdfHoaphong(
   const exportBodyRows = rowsForExport(doc.rows, doc.columns);
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const margin = PAGE_MARGIN;
+  const margin = PAGE_MARGIN_MM.left;
 
   let y = margin;
 
