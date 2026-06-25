@@ -174,7 +174,7 @@ export function ProjectsGantt({
 
   return (
     <div
-      className={`relative flex flex-col min-h-0 overflow-hidden w-full ${className}`}
+      className={`relative flex flex-col flex-1 min-h-0 h-full overflow-hidden w-full ${className}`}
       style={{ background: "#081229", color: "#e2e8f0" }}
     >
       <ScheduleLegend />
@@ -186,7 +186,7 @@ export function ProjectsGantt({
 
       <div
         ref={scrollRef}
-        className="overflow-auto flex-1 min-h-0 w-full overscroll-x-contain"
+        className="overflow-auto flex-1 min-h-0 h-0 w-full overscroll-x-contain"
         title="Lăn chuột để cuộn ngang timeline"
       >
         <div
@@ -233,11 +233,14 @@ export function ProjectsGantt({
             }}
           >
             {projects.map((p, i) => {
-              const startIso = p.startDate || p.createdAt.slice(0, 10);
+              const startIso = p.startDate || p.createdAt?.slice(0, 10) || today;
               const endIso = p.actualEndDate || p.expectedEndDate || startIso;
-              const sIdx = indexOfDate(startIso);
-              const eIdx = indexOfDate(endIso);
-              if (sIdx < 0 || eIdx < 0) return null;
+              let sIdx = indexOfDate(startIso);
+              let eIdx = indexOfDate(endIso);
+              if (sIdx < 0) sIdx = indexOfDate(today);
+              if (eIdx < 0) eIdx = sIdx >= 0 ? sIdx : 0;
+              if (sIdx < 0) return null;
+              if (eIdx < sIdx) eIdx = sIdx;
               const x = sIdx * cellW;
               const w = Math.max(cellW, (eIdx - sIdx + 1) * cellW);
               const { top, barH, expanded } = rowLayout[i];

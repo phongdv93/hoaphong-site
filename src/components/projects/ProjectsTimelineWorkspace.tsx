@@ -71,7 +71,7 @@ export function ProjectsTimelineWorkspace({
         onToggleExpand={(id) => setExpandedId((cur) => (cur === id ? null : id))}
         onOpenPanel={onOpenProjectPanel}
         dayWidth={dayWidth}
-        className="flex-1 min-w-0 min-h-0"
+        className="flex-1 min-w-0 min-h-0 h-full"
       />
 
       {panelOpen && (

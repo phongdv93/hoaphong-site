@@ -31,8 +31,14 @@ type ViewMode = "timeline" | "list";
 
 export function ProjectListClient() {
   return (
-    <Suspense fallback={<div className="text-sm text-slate-400 p-8">Đang tải…</div>}>
-      <ProjectListInner />
+    <Suspense
+      fallback={
+        <div className="text-sm text-slate-400 p-8 pt-4">Đang tải…</div>
+      }
+    >
+      <div className="flex flex-col flex-1 min-h-0">
+        <ProjectListInner />
+      </div>
     </Suspense>
   );
 }
@@ -260,13 +266,13 @@ function ProjectListInner() {
     <div
       className={
         timelineMode
-          ? "flex flex-col flex-1 min-h-0 max-h-full"
-          : "space-y-4"
+          ? "flex flex-col flex-1 min-h-0"
+          : "space-y-4 pt-4 px-8"
       }
     >
       <div
         className={`flex flex-wrap items-center gap-2 ${
-          timelineMode ? "shrink-0 mb-3 px-8" : ""
+          timelineMode ? "shrink-0 mb-3 px-8 pt-4" : ""
         }`}
       >
         <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
@@ -335,7 +341,7 @@ function ProjectListInner() {
       )}
 
       {timelineFull && (
-        <div className="flex-1 min-h-0 max-h-full overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <ProjectsTimelineWorkspace
             projects={ganttProjects}
             dayWidth={dayWidth}
@@ -345,7 +351,7 @@ function ProjectListInner() {
             onOpenProjectPanel={openProjectPanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}
-            className="h-full min-h-0 max-h-full"
+            className="flex-1 min-h-0"
           />
         </div>
       )}
