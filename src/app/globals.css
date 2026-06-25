@@ -209,21 +209,137 @@
     @apply text-white placeholder:text-slate-muted/40;
   }
 
-  .quote-preview-sheet[data-preview="minimal"] .quote-party-pill {
-    @apply rounded-md border-gray-300;
+  /* —— Print layout variants (preview) —— */
+  .quote-print-layout--classic {
+    @apply px-4 py-6 md:px-6 md:py-8;
   }
 
-  .quote-preview-sheet[data-preview="modern"] .quote-doc-title {
-    @apply border-b-2 pb-2;
-    border-color: var(--quote-primary);
+  .quote-print-layout--minimal .quote-layout-minimal-inner {
+    @apply py-4;
   }
 
-  .quote-preview-sheet[data-preview="formal"] {
-    @apply ring-2 ring-gray-200;
+  .quote-doc-title--left {
+    @apply text-left;
   }
 
-  .quote-preview-sheet[data-preview="formal"] .quote-doc-title {
-    @apply tracking-[0.2em];
+  .quote-doc-title--accent {
+    border-bottom: 3px solid var(--quote-primary);
+    @apply pb-2;
+  }
+
+  .quote-doc-title--formal {
+    font-family: Georgia, "Times New Roman", serif;
+    @apply tracking-[0.18em] text-2xl;
+  }
+
+  .quote-doc-title--inverse {
+    color: #fff !important;
+  }
+
+  .quote-party-plain {
+    @apply py-1;
+  }
+
+  .quote-party-plain .quote-party-title {
+    @apply text-gray-500 mb-1;
+  }
+
+  .quote-party-framed {
+    @apply border-2 border-gray-400 px-4 py-3 bg-white;
+  }
+
+  .quote-party-sidebar .quote-party-title {
+    @apply text-white/70;
+  }
+
+  .quote-party-sidebar p {
+    @apply text-white/95;
+  }
+
+  .quote-layout-modern-grid {
+    @apply grid min-h-[520px];
+    grid-template-columns: minmax(7rem, 28%) 1fr;
+  }
+
+  .quote-modern-sidebar {
+    background: var(--quote-primary);
+    @apply text-white p-5 md:p-6;
+  }
+
+  .quote-modern-sidebar img {
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+  }
+
+  .quote-modern-main {
+    @apply bg-white;
+  }
+
+  .quote-layout-formal-frame {
+    @apply border-4 border-double border-gray-700 m-3 md:m-4;
+  }
+
+  .quote-layout-striped-banner {
+    background: var(--quote-primary);
+  }
+
+  .quote-table--minimal .quote-th,
+  .quote-table--minimal td {
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .quote-table--minimal .quote-th {
+    @apply border-t-0 border-b-2 bg-transparent;
+    border-bottom-color: var(--quote-primary);
+  }
+
+  .quote-table--minimal td {
+    @apply border-t-0 border-b border-gray-200;
+  }
+
+  .quote-table--minimal .quote-row-alt {
+    @apply bg-transparent;
+  }
+
+  .quote-table--solid-head .quote-th {
+    background: var(--quote-primary) !important;
+    color: #fff !important;
+    @apply border-0;
+  }
+
+  .quote-table--solid-head .quote-row-alt {
+    background: rgba(var(--quote-primary-rgb), 0.04);
+  }
+
+  .quote-table--compact {
+    @apply text-xs;
+  }
+
+  .quote-table--compact .quote-th,
+  .quote-table--compact td {
+    @apply px-1.5 py-1;
+  }
+
+  .quote-compact-meta-chips {
+    @apply flex flex-wrap gap-1.5;
+  }
+
+  .quote-compact-chip {
+    @apply text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700;
+  }
+
+  .quote-layout-hoaphong .quote-hoaphong-header {
+    @apply px-5 py-5 md:px-6;
+    background: linear-gradient(135deg, #4c1d95 0%, #6b21a8 50%, #7c3aed 100%);
+  }
+
+  .quote-hoaphong-party {
+    @apply rounded-lg border border-purple-200/80 bg-purple-50/50 px-4 py-3;
+  }
+
+  .quote-hoaphong-party .quote-party-title {
+    @apply text-purple-700;
   }
 
   .quote-party-pill {

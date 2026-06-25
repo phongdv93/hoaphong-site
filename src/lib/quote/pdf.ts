@@ -16,11 +16,12 @@ import {
   addImageFit,
   detectImageFormat,
   drawPageFooter,
-  formatQuoteDate,
   hasItalicFont,
   loadDocFonts,
 } from "./pdf-shared";
 import { hexToRgb, lightenRgb, normalizePrimary } from "./theme";
+import { getPdfTemplateMeta } from "./pdf-templates";
+import { drawQuoteLayoutHeader, tableStylesForLayout } from "./pdf-layout-draw";
 
 const PAGE_MARGIN = 8;
 const FOOTER_H = 10;
@@ -28,10 +29,6 @@ const FOOTER_H = 10;
 const PARTY_LINE_H = 4.1;
 /** Cột label cố định — value thẳng hàng, dễ đọc */
 const PARTY_LABEL_W = 21;
-
-function titleUpper(raw: string): string {
-  return (raw || "BÁO GIÁ").toLocaleUpperCase("vi-VN");
-}
 
 type PartyLine = {
   label: string;
@@ -71,22 +68,32 @@ function partyBlock(
   heading: string,
   party: QuoteParty,
   primary: [number, number, number],
-  hasItalic: boolean
+  hasItalic: boolean,
+  lightText = false
 ) {
   pdf.setFont("DocFont", "bold");
   pdf.setFontSize(7.5);
-  pdf.setTextColor(primary[0], primary[1], primary[2]);
+  if (lightText) {
+    pdf.setTextColor(255, 255, 255);
+  } else {
+    pdf.setTextColor(primary[0], primary[1], primary[2]);
+  }
   pdf.text(heading, x, y);
 
   let cy = y + 4.5;
   for (const line of partyLines(party)) {
     setLabelFont(pdf, hasItalic);
+    if (lightText) pdf.setTextColor(230, 230, 230);
     pdf.text(line.label, x, cy);
     const valueW = w - PARTY_LABEL_W;
 
     pdf.setFont("DocFont", line.company ? "bold" : "normal");
     pdf.setFontSize(line.company ? 9 : 8.5);
-    pdf.setTextColor(15, 15, 15);
+    if (lightText) {
+      pdf.setTextColor(255, 255, 255);
+    } else {
+      pdf.setTextColor(15, 15, 15);
+    }
 
     const wrapped = pdf.splitTextToSize(line.value, valueW);
     pdf.text(wrapped, x + PARTY_LABEL_W, cy);
@@ -287,40 +294,31 @@ async function exportQuotePdfClassic(
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = PAGE_MARGIN;
-  const contentRight = pageW - margin;
-  let y = margin;
+  const templateMeta = getPdfTemplateMeta(doc.pdfTemplateId);
+  const layoutVariant = templateMeta.preview;
 
-  if (doc.logoDataUrl) {
+  if (doc.logoDataUrl && layoutVariant === "classic") {
     try {
-      await addImageFit(pdf, doc.logoDataUrl, margin, y, 32, 18);
+      await addImageFit(pdf, doc.logoDataUrl, margin, margin, 32, 18);
     } catch {
       /* skip */
     }
   }
 
-  const titleY = y + 10;
-  pdf.setFont("DocFont", "bold");
-  pdf.setFontSize(20);
-  pdf.setTextColor(10, 10, 10);
-  pdf.text(titleUpper(doc.title), pageW / 2, titleY, { align: "center" });
+  const layout = drawQuoteLayoutHeader({
+    pdf,
+    doc,
+    variant: layoutVariant,
+    primary,
+    primarySoft,
+    pageW,
+    margin,
+    hasItalic,
+    partyBlock,
+  });
 
-  pdf.setFont("DocFont", "normal");
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(45, 45, 45);
-  pdf.text(`Số ${doc.quoteNumber}`, contentRight, titleY - 2, { align: "right" });
-  pdf.text(`Ngày ${formatQuoteDate(doc.quoteDate)}`, contentRight, titleY + 1.6, { align: "right" });
-
-  y += 20;
-  pdf.setDrawColor(primarySoft[0], primarySoft[1], primarySoft[2]);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageW - margin, y);
-  y += 5;
-
-  const colW = (pageW - margin * 2) / 2 - 6;
-  const rightColX = margin + colW + 12;
-  const leftEnd = partyBlock(pdf, margin, y, colW, "BÊN BÁO GIÁ", doc.seller, primary, hasItalic);
-  const rightEnd = partyBlock(pdf, rightColX, y, colW, "KHÁCH HÀNG", doc.customer, primary, hasItalic);
-  y = Math.max(leftEnd, rightEnd) + 3;
+  const y = layout.y;
+  const tableW = pageW - layout.tableMarginLeft - layout.tableMarginRight;
 
   const head = [exportCols.map((c) => c.label)];
   const body = exportBodyRows.map((row, rowIndex) =>
@@ -340,36 +338,40 @@ async function exportQuotePdfClassic(
     primarySoft
   );
 
+  const tbl = tableStylesForLayout(layoutVariant, primary, primarySoft);
+  const colW = (pageW - margin * 2) / 2 - 6;
+  const rightColX = margin + colW + 12;
+
   autoTable(pdf, {
     startY: y,
     head,
     body,
     foot: footRows.length ? footRows : undefined,
-    margin: { left: margin, right: margin },
-    tableWidth: pageW - margin * 2,
+    margin: { left: layout.tableMarginLeft, right: layout.tableMarginRight },
+    tableWidth: tableW,
     styles: {
       font: "DocFont",
       fontStyle: "normal",
-      fontSize: 9,
-      cellPadding: 2.5,
-      lineColor: [200, 200, 200],
-      lineWidth: 0.15,
+      fontSize: tbl.fontSize,
+      cellPadding: layoutVariant === "compact" ? 1.8 : 2.5,
+      lineColor: tbl.lineColor,
+      lineWidth: tbl.lineWidth,
       textColor: [20, 20, 20],
       overflow: "linebreak",
     },
     headStyles: {
       font: "DocFont",
       fontStyle: "bold",
-      fillColor: primarySoft,
-      textColor: primary,
-      fontSize: 8.5,
+      fillColor: tbl.headStyles.fillColor,
+      textColor: tbl.headStyles.textColor,
+      fontSize: tbl.headStyles.fontSize,
     },
     footStyles: {
       font: "DocFont",
       fontStyle: "bold",
-      fontSize: 9,
+      fontSize: tbl.fontSize,
     },
-    alternateRowStyles: { fillColor: [250, 250, 250] },
+    alternateRowStyles: tbl.alternateRow ? { fillColor: [250, 250, 250] } : undefined,
     columnStyles: Object.fromEntries(
       exportCols.map((col, i) => [
         i,

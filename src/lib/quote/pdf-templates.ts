@@ -1,10 +1,12 @@
+import { migrateTemplateId } from "./print-layout";
+
 export type PdfTemplatePreviewVariant =
   | "classic"
   | "minimal"
   | "modern"
   | "formal"
-  | "emerald"
-  | "burgundy"
+  | "striped"
+  | "compact"
   | "hoaphong";
 
 export type PdfTemplateMeta = {
@@ -20,44 +22,44 @@ export const PDF_TEMPLATES: PdfTemplateMeta[] = [
   {
     id: "classic",
     name: "Mặc định",
-    description: "Xanh navy, bố cục cân đối",
+    description: "Logo trên, 2 cột thông tin, bảng chuẩn",
     primaryColor: "#1e5a9e",
     preview: "classic",
   },
   {
     id: "minimal",
     name: "Tối giản",
-    description: "Ít viền, chữ rõ",
+    description: "Không viền, tiêu đề lớn, bảng gạch ngang",
     primaryColor: "#374151",
     preview: "minimal",
   },
   {
     id: "modern",
-    name: "Hiện đại",
-    description: "Accent xanh, header gọn",
+    name: "Sidebar",
+    description: "Thanh màu bên trái, logo + bên bán",
     primaryColor: "#0284c7",
     preview: "modern",
   },
   {
     id: "formal",
     name: "Trang trọng",
-    description: "Viền kép, phù hợp hợp đồng",
+    description: "Viền kép, khung thông tin, tiêu đề serif",
     primaryColor: "#1e3a5f",
     preview: "formal",
   },
   {
-    id: "emerald",
-    name: "Xanh lá",
-    description: "Tông xanh tươi mát",
+    id: "striped",
+    name: "Banner",
+    description: "Header full-width màu, bảng đầu cột đậm",
     primaryColor: "#059669",
-    preview: "emerald",
+    preview: "striped",
   },
   {
-    id: "burgundy",
-    name: "Đỏ đô",
-    description: "Tông ấm, nội thất",
+    id: "compact",
+    name: "Gọn",
+    description: "Meta dạng chip, chữ nhỏ, nhiều dòng",
     primaryColor: "#9f1239",
-    preview: "burgundy",
+    preview: "compact",
   },
   {
     id: "hoaphong",
@@ -96,11 +98,13 @@ export function isValidPdfTemplateId(id: string | undefined | null): boolean {
 }
 
 export function normalizePdfTemplateId(id: string | undefined | null): string {
-  return isValidPdfTemplateId(id) ? (id as string) : DEFAULT_PDF_TEMPLATE_ID;
+  const migrated = migrateTemplateId(id ?? "");
+  return isValidPdfTemplateId(migrated) ? migrated : DEFAULT_PDF_TEMPLATE_ID;
 }
 
 export function getPdfTemplateMeta(id: string): PdfTemplateMeta {
-  return PDF_TEMPLATES.find((t) => t.id === id) ?? PDF_TEMPLATES[0];
+  const migrated = migrateTemplateId(id);
+  return PDF_TEMPLATES.find((t) => t.id === migrated) ?? PDF_TEMPLATES[0];
 }
 
 /** Áp màu chủ đạo từ template (trừ khi user đã tự chỉnh — luôn sync khi đổi template in). */
