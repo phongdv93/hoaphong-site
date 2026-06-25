@@ -163,6 +163,47 @@ export async function listProjects(
   }));
 }
 
+export type PiSourceProject = {
+  id: number;
+  code: string;
+  name: string;
+  customerId: number | null;
+  customerName: string | null;
+  startDate: string | null;
+  expectedEndDate: string | null;
+  address: string;
+  itemCount: number;
+};
+
+/** Dự án có thể chọn làm mẫu PI / đơn hàng khi tạo dự án mới. */
+export async function listPiSourceProjects(companyId: number): Promise<PiSourceProject[]> {
+  const rows = await tenantQuery<Record<string, unknown>>(
+    `SELECT p.id, p.code, p.name, p.customer_id, c.name AS customer_name,
+            p.start_date, p.expected_end_date, p.address,
+            (SELECT COUNT(*)::int FROM project_items i WHERE i.project_id = p.id) AS item_count
+     FROM projects p
+     LEFT JOIN customers c ON c.id = p.customer_id
+     WHERE p.company_id = $1
+       AND (p.deleted_at IS NULL OR p.deleted_at > NOW() - INTERVAL '8 hours')
+     ORDER BY p.updated_at DESC
+     LIMIT 100`,
+    [companyId],
+    companyId
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    code: String(r.code ?? ""),
+    name: String(r.name ?? ""),
+    customerId: r.customer_id != null ? Number(r.customer_id) : null,
+    customerName: r.customer_name != null ? String(r.customer_name) : null,
+    startDate: r.start_date != null ? String(r.start_date).slice(0, 10) : null,
+    expectedEndDate:
+      r.expected_end_date != null ? String(r.expected_end_date).slice(0, 10) : null,
+    address: String(r.address ?? ""),
+    itemCount: Number(r.item_count ?? 0),
+  }));
+}
+
 function mapGanttPhases(raw: unknown): ProjectGanttPhase[] {
   if (!raw) return [];
   let arr: unknown = raw;
@@ -803,6 +844,38 @@ export async function deleteAllProjectItems(projectId: number): Promise<number> 
     [projectId]
   );
   await syncPhasesProgressFromItems(projectId);
+  return res.rowCount;
+}
+
+/** Sao chép hạng mục từ dự án PI / đơn hàng có sẵn sang dự án mới. */
+export async function copyProjectItemsFromProject(
+  targetProjectId: number,
+  sourceProjectId: number
+): Promise<number> {
+  if (targetProjectId === sourceProjectId) return 0;
+
+  const pair = await tenantQueryOne<{ sc: number; tc: number }>(
+    `SELECT
+       (SELECT company_id FROM projects WHERE id = $1) AS sc,
+       (SELECT company_id FROM projects WHERE id = $2) AS tc`,
+    [sourceProjectId, targetProjectId]
+  );
+  if (!pair?.sc || !pair?.tc || pair.sc !== pair.tc) {
+    throw new Error("Dự án nguồn không hợp lệ");
+  }
+
+  const res = await tenantExecute(
+    `INSERT INTO project_items (
+       project_id, name, description, quantity, quantity_done, unit,
+       factory_product_id, sort_order, status, notes
+     )
+     SELECT $1, name, description, quantity, 0, unit,
+            factory_product_id, sort_order, status, notes
+     FROM project_items
+     WHERE project_id = $2`,
+    [targetProjectId, sourceProjectId]
+  );
+  await syncPhasesProgressFromItems(targetProjectId);
   return res.rowCount;
 }
 

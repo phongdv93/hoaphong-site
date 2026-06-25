@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import { canEditPhase } from "@/lib/projects/permissions";
 import {
+  copyProjectItemsFromProject,
   createProjectItem,
   createProjectItemsFromCatalogNames,
   deleteAllProjectItems,
@@ -57,6 +58,17 @@ export async function POST(req: Request) {
     }
     if (!(await canEditPhase(ctx.projectId, ctx.user.id))) {
       return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
+    }
+
+    const copyFrom = Number(body.copyFromProjectId);
+    if (Number.isFinite(copyFrom) && copyFrom > 0) {
+      try {
+        const copied = await copyProjectItemsFromProject(ctx.projectId, copyFrom);
+        return NextResponse.json({ copied });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Không sao chép được hạng mục";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
     }
 
     if (Array.isArray(body.rows)) {

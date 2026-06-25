@@ -4,17 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ClipboardList, FileText, Package, Users, Workflow } from "lucide-react";
 import type { Customer } from "@/lib/marketing/customer-types";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
-import { AppSelect } from "@/components/ui/AppSelect";
-import { ProjectItemsTab } from "./tabs/ProjectItemsTab";
+import { ErpSelect } from "@/components/erp/ErpSelect";
 import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
 import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
 import { WizardPhaseSuggestions } from "./WizardPhaseSuggestions";
+import { WizardItemsStep } from "./WizardItemsStep";
 import type {
   Project,
   ProjectItem,
   ProjectMember,
   ProjectPhase,
 } from "@/lib/projects/types";
+import type { PiSourceProject } from "@/lib/projects/repository";
 
 type CreationMode = "free" | "pi";
 
@@ -84,19 +85,44 @@ export function ProjectCreateWizard({
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [address, setAddress] = useState("");
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [sourcePiId, setSourcePiId] = useState<number | null>(null);
+  const [piSources, setPiSources] = useState<PiSourceProject[]>([]);
+  const [piSourcesLoading, setPiSourcesLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const itemsCopiedRef = useRef(false);
+
   const { data: workspace, loading: wsLoading, reload } = useWizardWorkspace(projectId);
 
-  const step2Busy = useRef(false);
-  const autoFromStep3 = useRef(false);
-  const autoFromStep4 = useRef(false);
+  useEffect(() => {
+    if (creationMode !== "pi" || step !== 2) return;
+    setPiSourcesLoading(true);
+    fetch("/api/projects?piSources=1")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setPiSources(Array.isArray(list) ? list : []))
+      .catch(() => setPiSources([]))
+      .finally(() => setPiSourcesLoading(false));
+  }, [creationMode, step]);
 
   function pickMode(mode: CreationMode) {
     setCreationMode(mode);
     setError("");
     setStep(2);
+  }
+
+  function selectPiSource(pi: PiSourceProject) {
+    if (sourcePiId === pi.id) {
+      setSourcePiId(null);
+      return;
+    }
+    setSourcePiId(pi.id);
+    setName(pi.name);
+    setCustomerId(pi.customerId);
+    setStartDate(pi.startDate ?? "");
+    setExpectedEndDate(pi.expectedEndDate ?? "");
+    setAddress(pi.address);
+    setError("");
   }
 
   async function ensureProject(): Promise<number | null> {
@@ -141,50 +167,38 @@ export function ProjectCreateWizard({
     }
   }
 
-  const step2Ready =
-    Boolean(name.trim()) && (creationMode !== "pi" || Boolean(code.trim()));
+  async function copyItemsFromPi(targetId: number) {
+    if (!sourcePiId || itemsCopiedRef.current) return;
+    const pi = piSources.find((p) => p.id === sourcePiId);
+    if (!pi?.itemCount) return;
 
-  /** Bước 2: đủ thông tin → tạo dự án & sang bước 3. */
-  useEffect(() => {
-    if (step !== 2 || !step2Ready || step2Busy.current) return;
-    if (projectId) {
-      setStep(3);
-      return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/projects/${targetId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ copyFromProjectId: sourcePiId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Không sao chép được hạng mục");
+        return;
+      }
+      itemsCopiedRef.current = true;
+      await reload();
+    } finally {
+      setBusy(false);
     }
-    const timer = setTimeout(() => {
-      void (async () => {
-        step2Busy.current = true;
-        const id = await ensureProject();
-        step2Busy.current = false;
-        if (id) setStep(3);
-      })();
-    }, 1200);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, step2Ready, name, code, projectId]);
+  }
 
-  /** Bước 3: có hạng mục → sang bước 4. */
-  useEffect(() => {
-    if (step !== 3) autoFromStep3.current = false;
-    if (step !== 4) autoFromStep4.current = false;
-  }, [step]);
+  async function continueFromStep2() {
+    const id = await ensureProject();
+    if (!id) return;
+    await copyItemsFromPi(id);
+    setStep(3);
+  }
 
-  useEffect(() => {
-    if (step !== 3 || !workspace?.items.length || autoFromStep3.current) return;
-    autoFromStep3.current = true;
-    const t = setTimeout(() => setStep(4), 600);
-    return () => clearTimeout(t);
-  }, [step, workspace?.items.length]);
-
-  /** Bước 4: có công đoạn → sang bước 5. */
-  useEffect(() => {
-    if (step !== 4 || !workspace?.phases.length || autoFromStep4.current) return;
-    autoFromStep4.current = true;
-    const t = setTimeout(() => setStep(5), 600);
-    return () => clearTimeout(t);
-  }, [step, workspace?.phases.length]);
-
-  async function goToStep(target: number, save = false) {
+  async function goToStep(target: number) {
     setError("");
     if (target > 2 && !projectId) {
       const id = await ensureProject();
@@ -192,10 +206,6 @@ export function ProjectCreateWizard({
     }
     if (target > 5) {
       if (projectId) onCreated?.(projectId);
-      return;
-    }
-    if (!save) {
-      setStep(target);
       return;
     }
     setStep(target);
@@ -206,7 +216,10 @@ export function ProjectCreateWizard({
     else if (projectId) onCreated?.(projectId);
   }
 
-  const linkedPhases = (workspace?.phases ?? []).filter((p) => p.progressFromItems);
+  const step2Ready =
+    Boolean(name.trim()) && (creationMode !== "pi" || Boolean(code.trim()));
+
+  const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
 
   return (
     <div className="space-y-4 max-w-none">
@@ -236,7 +249,7 @@ export function ProjectCreateWizard({
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-300">Chọn loại dự án — bấm để tiếp tục ngay.</p>
+          <p className="text-sm text-slate-300">Chọn loại dự án — bấm để tiếp tục.</p>
           <div className="grid gap-3">
             <button
               type="button"
@@ -255,7 +268,7 @@ export function ProjectCreateWizard({
             >
               <p className="font-semibold text-white text-sm">Theo đơn hàng / PI</p>
               <p className="text-xs text-slate-400 mt-1">
-                Gắn mã PI, chọn khách hàng. Phù hợp xuất khẩu, hợp đồng thương mại.
+                Gắn mã PI, chọn khách hàng. Có thể chọn PI có sẵn để lấy hạng mục.
               </p>
             </button>
           </div>
@@ -264,9 +277,49 @@ export function ProjectCreateWizard({
 
       {step === 2 && (
         <div className="space-y-4">
-          <p className="text-xs text-slate-400">
-            Điền đủ thông tin bắt buộc — hệ thống tự chuyển bước tiếp theo.
-          </p>
+          {creationMode === "pi" && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-300">Chọn PI / đơn hàng có sẵn (tùy chọn)</p>
+              {piSourcesLoading ? (
+                <p className="text-xs text-slate-500 py-2">Đang tải danh sách PI…</p>
+              ) : piSources.length === 0 ? (
+                <p className="text-xs text-slate-500 py-2 px-3 rounded-lg border border-dashed border-white/10">
+                  Không có PI / đơn hàng nào trong công ty.
+                </p>
+              ) : (
+                <div className="grid gap-2 max-h-40 overflow-y-auto pr-1">
+                  {piSources.map((pi) => {
+                    const selected = sourcePiId === pi.id;
+                    return (
+                      <button
+                        key={pi.id}
+                        type="button"
+                        onClick={() => selectPiSource(pi)}
+                        className={`text-left rounded-lg border px-3 py-2 transition-colors ${
+                          selected
+                            ? "border-sky/60 bg-sky/15"
+                            : "border-white/15 hover:border-sky/40 hover:bg-white/5"
+                        }`}
+                      >
+                        <span className="font-mono text-xs text-sky-light">{pi.code}</span>
+                        <span className="text-sm text-white ml-2">{pi.name}</span>
+                        <span className="block text-[10px] text-slate-500 mt-0.5">
+                          {pi.customerName ? `${pi.customerName} · ` : ""}
+                          {pi.itemCount} hạng mục
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {sourcePiId != null && (
+                <p className="text-[10px] text-sky-light/80">
+                  Đã chọn mẫu — hạng mục sẽ được sao chép khi bấm Tiếp tục (nếu PI có hạng mục).
+                </p>
+              )}
+            </div>
+          )}
+
           <Field label="Tên dự án *">
             <input
               autoFocus
@@ -286,14 +339,12 @@ export function ProjectCreateWizard({
           </Field>
           {creationMode === "pi" && (
             <Field label="Khách hàng">
-              <AppSelect
-                value={String(customerId ?? "")}
-                onChange={(v) => setCustomerId(v ? Number(v) : null)}
-                className="input-field w-full text-left flex items-center justify-between"
-                options={[
-                  { value: "", label: "— Chọn khách hàng —" },
-                  ...customers.map((c) => ({ value: String(c.id), label: c.name })),
-                ]}
+              <ErpSelect
+                value={customerId}
+                onChange={(v) => setCustomerId(v === "" ? null : v)}
+                options={customerOptions}
+                placeholder="— Chọn khách hàng —"
+                className="w-full"
               />
             </Field>
           )}
@@ -313,30 +364,19 @@ export function ProjectCreateWizard({
               placeholder="Địa điểm lắp đặt, giao hàng"
             />
           </Field>
-          {(busy || step2Ready) && (
-            <p className="text-xs text-sky-light/80">
-              {busy ? "Đang tạo dự án…" : "Đủ thông tin — chuyển bước tiếp…"}
-            </p>
-          )}
         </div>
       )}
 
       {step === 3 && projectId && workspace && (
         <div className="space-y-2">
           <p className="text-xs text-slate-400">
-            Giống tab Hạng mục trong chi tiết dự án — dán nhiều hàng hoặc thêm từ danh mục SP.
+            Nhập hoặc dán hạng mục — gõ tên để tìm danh mục SP, hoặc thêm mới.
           </p>
-          <ProjectItemsTab
+          <WizardItemsStep
             projectId={projectId}
             items={workspace.items}
-            canEdit
             onChanged={() => void reload()}
-            linkedPhases={linkedPhases}
-            searchQuery=""
           />
-          {workspace.items.length > 0 && (
-            <p className="text-[10px] text-sky-light/70">Đã có hạng mục — chuyển bước Công đoạn…</p>
-          )}
         </div>
       )}
 
@@ -363,9 +403,6 @@ export function ProjectCreateWizard({
             canEdit
             onChanged={() => void reload()}
           />
-          {workspace.phases.length > 0 && (
-            <p className="text-[10px] text-sky-light/70">Đã có công đoạn — chuyển bước Thành viên…</p>
-          )}
         </div>
       )}
 
@@ -394,13 +431,23 @@ export function ProjectCreateWizard({
           Hủy
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          {step > 1 && step !== 2 && (
+          {step > 1 && (
             <button
               type="button"
               onClick={() => setStep((s) => Math.max(1, s - 1))}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/15 text-xs text-slate-300 hover:bg-white/5"
             >
               <ChevronLeft size={14} /> Quay lại
+            </button>
+          )}
+          {step === 2 && (
+            <button
+              type="button"
+              disabled={busy || !step2Ready}
+              onClick={() => void continueFromStep2()}
+              className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
+            >
+              {busy ? "Đang xử lý…" : "Tiếp tục"}
             </button>
           )}
           {step >= 3 && (
