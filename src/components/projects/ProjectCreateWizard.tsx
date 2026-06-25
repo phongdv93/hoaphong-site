@@ -21,6 +21,7 @@ const STEPS = [
   { n: 5, title: "Thành viên", icon: Users },
 ] as const;
 
+function uid() {
   return crypto.randomUUID();
 }
 
