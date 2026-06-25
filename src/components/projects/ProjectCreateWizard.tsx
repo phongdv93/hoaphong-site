@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardList, FileText, Package, Users, Workflow } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ClipboardList, FileText, Package, Users, Workflow } from "lucide-react";
 import type { Customer } from "@/lib/marketing/customer-types";
-import { DEFAULT_PHASES, MEMBER_ROLE_LABELS } from "@/lib/projects/constants";
-import type { CompanyMember, PhaseKind, ProjectMemberRole } from "@/lib/projects/types";
-import { AppSelect } from "@/components/ui/AppSelect";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
+import { AppSelect } from "@/components/ui/AppSelect";
+import { ProjectItemsTab } from "./tabs/ProjectItemsTab";
+import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
+import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
+import { WizardPhaseSuggestions } from "./WizardPhaseSuggestions";
+import type {
+  Project,
+  ProjectItem,
+  ProjectMember,
+  ProjectPhase,
+} from "@/lib/projects/types";
 
 type CreationMode = "free" | "pi";
 
-type DraftItem = { id: string; name: string; quantity: string; unit: string };
-type DraftMember = { userId: number; role: ProjectMemberRole; userName: string };
+type WorkspacePayload = {
+  project: Project;
+  phases: ProjectPhase[];
+  members: ProjectMember[];
+  items: ProjectItem[];
+};
 
 const STEPS = [
   { n: 1, title: "Loại dự án", icon: FileText },
@@ -21,8 +33,37 @@ const STEPS = [
   { n: 5, title: "Thành viên", icon: Users },
 ] as const;
 
-function uid() {
-  return crypto.randomUUID();
+function useWizardWorkspace(projectId: number | null) {
+  const [data, setData] = useState<WorkspacePayload | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!projectId) {
+      setData(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/workspace`);
+      if (res.ok) {
+        const ws = await res.json();
+        setData({
+          project: ws.project,
+          phases: ws.phases ?? [],
+          members: ws.members ?? [],
+          items: ws.items ?? [],
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { data, loading, reload };
 }
 
 export function ProjectCreateWizard({
@@ -42,35 +83,21 @@ export function ProjectCreateWizard({
   const [startDate, setStartDate] = useState("");
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [address, setAddress] = useState("");
-  const [draftItems, setDraftItems] = useState<DraftItem[]>([
-    { id: uid(), name: "", quantity: "1", unit: "" },
-  ]);
-  const [selectedPhaseKinds, setSelectedPhaseKinds] = useState<Set<PhaseKind>>(
-    () => new Set(DEFAULT_PHASES.map((p) => p.kind))
-  );
-  const [draftMembers, setDraftMembers] = useState<DraftMember[]>([]);
-  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
-  const [companyId, setCompanyId] = useState<number | null>(null);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (step < 5) return;
-    fetch("/api/companies/active")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((active) => {
-        if (!active?.companyId) return;
-        setCompanyId(active.companyId);
-        return fetch(`/api/companies/${active.companyId}/members`).then((r) =>
-          r.ok ? r.json() : []
-        );
-      })
-      .then((rows) => {
-        if (Array.isArray(rows)) setCompanyMembers(rows.filter((c: CompanyMember) => c.status === "active"));
-      })
-      .catch(() => setCompanyMembers([]));
-  }, [step]);
+  const { data: workspace, loading: wsLoading, reload } = useWizardWorkspace(projectId);
+
+  const step2Busy = useRef(false);
+  const autoFromStep3 = useRef(false);
+  const autoFromStep4 = useRef(false);
+
+  function pickMode(mode: CreationMode) {
+    setCreationMode(mode);
+    setError("");
+    setStep(2);
+  }
 
   async function ensureProject(): Promise<number | null> {
     if (projectId) return projectId;
@@ -114,119 +141,75 @@ export function ProjectCreateWizard({
     }
   }
 
-  async function saveItems(id: number) {
-    const rows = draftItems
-      .map((r) => ({
-        name: r.name.trim(),
-        quantity: Number(r.quantity.replace(/[^\d.,]/g, "").replace(",", ".")) || 1,
-        unit: r.unit.trim() || undefined,
-      }))
-      .filter((r) => r.name);
-    if (!rows.length) return;
-    await fetch(`/api/projects/${id}/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows }),
-    });
-  }
+  const step2Ready =
+    Boolean(name.trim()) && (creationMode !== "pi" || Boolean(code.trim()));
 
-  async function savePhases(id: number) {
-    const selected = DEFAULT_PHASES.filter((p) => selectedPhaseKinds.has(p.kind));
-    for (let i = 0; i < selected.length; i++) {
-      const p = selected[i];
-      await fetch(`/api/projects/${id}/phases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: p.kind, name: p.name, sortOrder: (i + 1) * 10 }),
-      });
-    }
-  }
-
-  async function saveMembers(id: number) {
-    for (const m of draftMembers) {
-      await fetch(`/api/projects/${id}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: m.userId, role: m.role }),
-      });
-    }
-  }
-
-  async function finishWizard() {
-    const id = projectId ?? (await ensureProject());
-    if (!id) return;
-    onCreated?.(id);
-  }
-
-  async function goNext(saveCurrent: boolean) {
-    setError("");
-    if (step === 1) {
-      if (!creationMode) {
-        setError("Chọn loại dự án");
-        return;
-      }
-      setStep(2);
-      return;
-    }
-    if (step === 2) {
-      const id = await ensureProject();
-      if (!id) return;
+  /** Bước 2: đủ thông tin → tạo dự án & sang bước 3. */
+  useEffect(() => {
+    if (step !== 2 || !step2Ready || step2Busy.current) return;
+    if (projectId) {
       setStep(3);
       return;
     }
-    if (step === 3) {
-      if (saveCurrent) {
-        const id = projectId ?? (await ensureProject());
-        if (!id) return;
-        setBusy(true);
-        try {
-          await saveItems(id);
-        } finally {
-          setBusy(false);
-        }
-      }
-      setStep(4);
+    const timer = setTimeout(() => {
+      void (async () => {
+        step2Busy.current = true;
+        const id = await ensureProject();
+        step2Busy.current = false;
+        if (id) setStep(3);
+      })();
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, step2Ready, name, code, projectId]);
+
+  /** Bước 3: có hạng mục → sang bước 4. */
+  useEffect(() => {
+    if (step !== 3) autoFromStep3.current = false;
+    if (step !== 4) autoFromStep4.current = false;
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 3 || !workspace?.items.length || autoFromStep3.current) return;
+    autoFromStep3.current = true;
+    const t = setTimeout(() => setStep(4), 600);
+    return () => clearTimeout(t);
+  }, [step, workspace?.items.length]);
+
+  /** Bước 4: có công đoạn → sang bước 5. */
+  useEffect(() => {
+    if (step !== 4 || !workspace?.phases.length || autoFromStep4.current) return;
+    autoFromStep4.current = true;
+    const t = setTimeout(() => setStep(5), 600);
+    return () => clearTimeout(t);
+  }, [step, workspace?.phases.length]);
+
+  async function goToStep(target: number, save = false) {
+    setError("");
+    if (target > 2 && !projectId) {
+      const id = await ensureProject();
+      if (!id) return;
+    }
+    if (target > 5) {
+      if (projectId) onCreated?.(projectId);
       return;
     }
-    if (step === 4) {
-      if (saveCurrent) {
-        const id = projectId ?? (await ensureProject());
-        if (!id) return;
-        setBusy(true);
-        try {
-          await savePhases(id);
-        } finally {
-          setBusy(false);
-        }
-      }
-      setStep(5);
+    if (!save) {
+      setStep(target);
       return;
     }
-    if (step === 5) {
-      if (saveCurrent) {
-        const id = projectId ?? (await ensureProject());
-        if (!id) return;
-        setBusy(true);
-        try {
-          await saveMembers(id);
-        } finally {
-          setBusy(false);
-        }
-      }
-      await finishWizard();
-    }
+    setStep(target);
   }
 
-  function skipStep() {
-    void goNext(false);
+  function skipOrLater() {
+    if (step < 5) setStep(step + 1);
+    else if (projectId) onCreated?.(projectId);
   }
 
-  const memberCandidates = companyMembers.filter(
-    (c) => !draftMembers.some((m) => m.userId === c.userId)
-  );
+  const linkedPhases = (workspace?.phases ?? []).filter((p) => p.progressFromItems);
 
   return (
-    <div className="space-y-5 max-w-none">
+    <div className="space-y-4 max-w-none">
       <nav className="flex gap-1 overflow-x-auto pb-1">
         {STEPS.map((s) => {
           const Icon = s.icon;
@@ -253,34 +236,26 @@ export function ProjectCreateWizard({
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-300">Bạn muốn tạo dự án theo cách nào?</p>
+          <p className="text-sm text-slate-300">Chọn loại dự án — bấm để tiếp tục ngay.</p>
           <div className="grid gap-3">
             <button
               type="button"
-              onClick={() => setCreationMode("free")}
-              className={`text-left rounded-xl border p-4 transition-colors ${
-                creationMode === "free"
-                  ? "border-sky bg-sky/10"
-                  : "border-white/15 hover:border-white/25"
-              }`}
+              onClick={() => pickMode("free")}
+              className="text-left rounded-xl border border-white/15 hover:border-sky/50 hover:bg-sky/10 p-4 transition-colors"
             >
               <p className="font-semibold text-white text-sm">Dự án tự do</p>
               <p className="text-xs text-slate-400 mt-1">
-                Không gắn PI — mã dự án tự sinh nếu để trống. Phù hợp dự án nội bộ, khảo sát.
+                Mã tự sinh nếu để trống. Phù hợp dự án nội bộ, khảo sát.
               </p>
             </button>
             <button
               type="button"
-              onClick={() => setCreationMode("pi")}
-              className={`text-left rounded-xl border p-4 transition-colors ${
-                creationMode === "pi"
-                  ? "border-sky bg-sky/10"
-                  : "border-white/15 hover:border-white/25"
-              }`}
+              onClick={() => pickMode("pi")}
+              className="text-left rounded-xl border border-white/15 hover:border-sky/50 hover:bg-sky/10 p-4 transition-colors"
             >
               <p className="font-semibold text-white text-sm">Theo đơn hàng / PI</p>
               <p className="text-xs text-slate-400 mt-1">
-                Gắn mã PI hoặc hợp đồng, chọn khách hàng. Phù hợp đơn xuất khẩu, hợp đồng thương mại.
+                Gắn mã PI, chọn khách hàng. Phù hợp xuất khẩu, hợp đồng thương mại.
               </p>
             </button>
           </div>
@@ -290,11 +265,11 @@ export function ProjectCreateWizard({
       {step === 2 && (
         <div className="space-y-4">
           <p className="text-xs text-slate-400">
-            Thông tin có thể chỉnh lại sau trong chi tiết dự án.
+            Điền đủ thông tin bắt buộc — hệ thống tự chuyển bước tiếp theo.
           </p>
           <Field label="Tên dự án *">
             <input
-              required
+              autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="input-field"
@@ -338,149 +313,73 @@ export function ProjectCreateWizard({
               placeholder="Địa điểm lắp đặt, giao hàng"
             />
           </Field>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-400">
-            Thêm hạng mục hoặc sản phẩm — có thể bỏ qua và nhập sau trong tab Hạng mục.
-          </p>
-          <div className="space-y-2">
-            {draftItems.map((row, idx) => (
-              <div key={row.id} className="grid grid-cols-[1fr_4rem_4rem_auto] gap-2 items-center">
-                <input
-                  value={row.name}
-                  onChange={(e) =>
-                    setDraftItems((prev) =>
-                      prev.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r))
-                    )
-                  }
-                  className="input-field text-sm"
-                  placeholder={`Hạng mục ${idx + 1}`}
-                />
-                <input
-                  value={row.quantity}
-                  onChange={(e) =>
-                    setDraftItems((prev) =>
-                      prev.map((r) => (r.id === row.id ? { ...r, quantity: e.target.value } : r))
-                    )
-                  }
-                  className="input-field text-sm text-center tabular-nums"
-                  placeholder="SL"
-                />
-                <input
-                  value={row.unit}
-                  onChange={(e) =>
-                    setDraftItems((prev) =>
-                      prev.map((r) => (r.id === row.id ? { ...r, unit: e.target.value } : r))
-                    )
-                  }
-                  className="input-field text-sm"
-                  placeholder="ĐVT"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDraftItems((prev) =>
-                      prev.length <= 1 ? prev : prev.filter((r) => r.id !== row.id)
-                    )
-                  }
-                  className="text-xs text-slate-500 hover:text-rose-400 px-1"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setDraftItems((prev) => [...prev, { id: uid(), name: "", quantity: "1", unit: "" }])
-            }
-            className="text-xs text-sky hover:underline"
-          >
-            + Thêm dòng
-          </button>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-400">
-            Chọn công đoạn mặc định — có thể bỏ qua và thêm sau trong tab Công đoạn.
-          </p>
-          <div className="space-y-2">
-            {DEFAULT_PHASES.map((p) => (
-              <label
-                key={p.kind}
-                className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedPhaseKinds.has(p.kind)}
-                  onChange={(e) => {
-                    setSelectedPhaseKinds((prev) => {
-                      const next = new Set(prev);
-                      if (e.target.checked) next.add(p.kind);
-                      else next.delete(p.kind);
-                      return next;
-                    });
-                  }}
-                />
-                {p.name}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {step === 5 && (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-400">
-            Mời thêm thành viên (ngoài bạn — chủ trì). Có thể bỏ qua và thêm sau.
-          </p>
-          {draftMembers.length > 0 && (
-            <ul className="space-y-1">
-              {draftMembers.map((m) => (
-                <li
-                  key={m.userId}
-                  className="flex items-center justify-between text-sm bg-white/5 rounded px-2 py-1.5"
-                >
-                  <span>{m.userName}</span>
-                  <span className="text-xs text-slate-400">{MEMBER_ROLE_LABELS[m.role]}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {memberCandidates.length === 0 ? (
-            <p className="text-sm text-slate-500">Không còn thành viên công ty để thêm.</p>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {memberCandidates.slice(0, 12).map((c) => (
-                <div key={c.userId} className="flex items-center gap-2 text-sm">
-                  <span className="flex-1 truncate">{c.userName}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDraftMembers((prev) => [
-                        ...prev,
-                        { userId: c.userId, role: "member", userName: c.userName || c.userEmail || `#${c.userId}` },
-                      ])
-                    }
-                    className="text-xs text-sky hover:underline shrink-0"
-                  >
-                    Thêm
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {companyId && memberCandidates.length > 0 && (
-            <p className="text-[10px] text-slate-600">
-              Vai trò chi tiết chỉnh trong tab Thành viên sau khi tạo.
+          {(busy || step2Ready) && (
+            <p className="text-xs text-sky-light/80">
+              {busy ? "Đang tạo dự án…" : "Đủ thông tin — chuyển bước tiếp…"}
             </p>
           )}
+        </div>
+      )}
+
+      {step === 3 && projectId && workspace && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400">
+            Giống tab Hạng mục trong chi tiết dự án — dán nhiều hàng hoặc thêm từ danh mục SP.
+          </p>
+          <ProjectItemsTab
+            projectId={projectId}
+            items={workspace.items}
+            canEdit
+            onChanged={() => void reload()}
+            linkedPhases={linkedPhases}
+            searchQuery=""
+          />
+          {workspace.items.length > 0 && (
+            <p className="text-[10px] text-sky-light/70">Đã có hạng mục — chuyển bước Công đoạn…</p>
+          )}
+        </div>
+      )}
+
+      {step === 3 && projectId && wsLoading && !workspace && (
+        <p className="text-sm text-slate-400 py-6 text-center">Đang tải…</p>
+      )}
+
+      {step === 4 && projectId && workspace && (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-400">
+            Giống tab Công đoạn — sửa tên, thời gian, xóa, gán theo hạng mục.
+          </p>
+          <WizardPhaseSuggestions
+            projectId={projectId}
+            creationMode={creationMode ?? "free"}
+            phaseCount={workspace.phases.length}
+            hasItems={workspace.items.length > 0}
+            onApplied={() => void reload()}
+          />
+          <ProjectPhasesTab
+            project={workspace.project}
+            phases={workspace.phases}
+            members={workspace.members}
+            canEdit
+            onChanged={() => void reload()}
+          />
+          {workspace.phases.length > 0 && (
+            <p className="text-[10px] text-sky-light/70">Đã có công đoạn — chuyển bước Thành viên…</p>
+          )}
+        </div>
+      )}
+
+      {step === 5 && projectId && workspace && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400">
+            Giống tab Thành viên — có thể bỏ qua và mời sau.
+          </p>
+          <ProjectMembersTab
+            project={workspace.project}
+            members={workspace.members}
+            canEdit
+            onChanged={() => void reload()}
+          />
         </div>
       )}
 
@@ -489,16 +388,16 @@ export function ProjectCreateWizard({
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
         <button
           type="button"
-          onClick={() => (onCancel ? onCancel() : undefined)}
+          onClick={() => onCancel?.()}
           className="px-3 py-1.5 rounded-lg border border-white/20 text-xs text-slate-300 hover:bg-white/10"
         >
           Hủy
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          {step > 1 && (
+          {step > 1 && step !== 2 && (
             <button
               type="button"
-              onClick={() => setStep((s) => s - 1)}
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/15 text-xs text-slate-300 hover:bg-white/5"
             >
               <ChevronLeft size={14} /> Quay lại
@@ -508,7 +407,7 @@ export function ProjectCreateWizard({
             <>
               <button
                 type="button"
-                onClick={skipStep}
+                onClick={skipOrLater}
                 disabled={busy}
                 className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
               >
@@ -516,7 +415,7 @@ export function ProjectCreateWizard({
               </button>
               <button
                 type="button"
-                onClick={skipStep}
+                onClick={skipOrLater}
                 disabled={busy}
                 className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
               >
@@ -524,15 +423,26 @@ export function ProjectCreateWizard({
               </button>
             </>
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void goNext(step >= 3)}
-            className="inline-flex items-center gap-1 bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
-          >
-            {busy ? "Đang lưu…" : step === 5 ? "Hoàn tất" : "Tiếp tục"}
-            {step < 5 && <ChevronRight size={14} />}
-          </button>
+          {step >= 3 && step < 5 && (
+            <button
+              type="button"
+              disabled={busy || wsLoading}
+              onClick={() => void goToStep(step + 1)}
+              className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
+            >
+              Tiếp tục
+            </button>
+          )}
+          {step === 5 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => projectId && onCreated?.(projectId)}
+              className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
+            >
+              Hoàn tất
+            </button>
+          )}
         </div>
       </div>
     </div>
