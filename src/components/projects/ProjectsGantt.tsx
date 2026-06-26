@@ -14,7 +14,7 @@ import {
   type ScheduleAnalysis,
 } from "@/lib/projects/schedule-health";
 import { getPhaseTimeRanges, type PhaseTimeRange } from "@/lib/projects/phase-timeline";
-import { formatDateVi } from "@/lib/dates";
+import { formatDateVi, toLocalDateString } from "@/lib/dates";
 
 export const DEFAULT_DAY_WIDTH = 28;
 export const MIN_GANTT_DAY_WIDTH = 8;
@@ -149,7 +149,7 @@ export function ProjectsGantt({
   function scrollToProjectBar(projectId: number) {
     const p = projects.find((x) => x.id === projectId);
     if (!p || !scrollRef.current) return;
-    const startIso = p.startDate || p.createdAt.slice(0, 10);
+    const startIso = projectStartDay(p, today);
     const idx = indexOfDate(startIso);
     if (idx >= 0) {
       scrollRef.current.scrollLeft = Math.max(0, idx * cellW - 12);
@@ -174,12 +174,8 @@ export function ProjectsGantt({
 
   return (
     <div
-      className={`relative flex-1 min-h-0 w-full overflow-hidden ${className}`}
-      style={{
-        background: "#081229",
-        color: "#e2e8f0",
-        minHeight: "min(100%, calc(100vh - 11.5rem))",
-      }}
+      className={`relative flex flex-col flex-1 min-h-0 w-full overflow-hidden ${className}`}
+      style={{ background: "#081229", color: "#e2e8f0" }}
     >
       <ScheduleLegend />
       <FloatingControls
@@ -190,7 +186,7 @@ export function ProjectsGantt({
 
       <div
         ref={scrollRef}
-        className="absolute inset-0 overflow-auto overscroll-x-contain"
+        className="flex-1 min-h-0 h-0 overflow-auto overscroll-x-contain w-full"
         title="Lăn chuột để cuộn ngang timeline"
       >
         <div
@@ -237,8 +233,11 @@ export function ProjectsGantt({
             }}
           >
             {projects.map((p, i) => {
-              const startIso = p.startDate || p.createdAt?.slice(0, 10) || today;
-              const endIso = p.actualEndDate || p.expectedEndDate || startIso;
+              const startIso = projectStartDay(p, today);
+              const endIso =
+                p.actualEndDate ||
+                p.expectedEndDate ||
+                startIso;
               let sIdx = indexOfDate(startIso);
               let eIdx = indexOfDate(endIso);
               if (sIdx < 0) sIdx = indexOfDate(today);
@@ -990,17 +989,22 @@ function computeRange(projects: ProjectSummary[]): { from: string; to: string } 
     if (p.expectedEndDate) candidates.push(p.expectedEndDate);
     if (p.actualEndDate) candidates.push(p.actualEndDate);
     if (!p.startDate && !p.expectedEndDate) {
-      candidates.push(p.createdAt.slice(0, 10));
+      const created = toLocalDateString(p.createdAt);
+      if (created) candidates.push(created);
     }
     for (const ph of p.phases ?? []) {
-      if (ph.startedAt) candidates.push(ph.startedAt);
-      if (ph.deadlineAt) candidates.push(ph.deadlineAt);
+      const started = toLocalDateString(ph.startedAt);
+      const deadline = toLocalDateString(ph.deadlineAt);
+      if (started) candidates.push(started);
+      if (deadline) candidates.push(deadline);
     }
   }
-  candidates.sort();
+  const valid = [...new Set(candidates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+  const lo = valid[0] ?? today;
+  const hi = valid[valid.length - 1] ?? today;
   return {
-    from: shiftDate(candidates[0], -GANTT_LEFT_PAD_DAYS),
-    to: shiftDate(candidates[candidates.length - 1], 14),
+    from: shiftDate(lo, -GANTT_LEFT_PAD_DAYS),
+    to: shiftDate(hi, 14),
   };
 }
 
@@ -1026,6 +1030,10 @@ function enumerateDays(from: string, to: string): string[] {
   const out: string[] = [];
   const d = new Date(`${from.slice(0, 10)}T12:00:00`);
   const stop = new Date(`${to.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(stop.getTime())) {
+    const today = todayIso();
+    return enumerateDays(shiftDate(today, -GANTT_LEFT_PAD_DAYS), shiftDate(today, 45));
+  }
   while (d <= stop) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -1047,6 +1055,10 @@ function shiftDate(iso: string, deltaDays: number): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function projectStartDay(p: ProjectSummary, fallback: string): string {
+  return p.startDate || toLocalDateString(p.createdAt) || fallback;
 }
 
 function fmtVN(iso: string): string {

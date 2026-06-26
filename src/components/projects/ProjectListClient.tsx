@@ -341,7 +341,10 @@ function ProjectListInner() {
       )}
 
       {timelineFull && (
-        <div className="flex flex-col flex-1 min-h-0 h-0 overflow-hidden border-t border-white/10">
+        <div
+          className="flex flex-col flex-1 min-h-0 overflow-hidden border-t border-white/10"
+          style={{ height: "calc(100svh - 10.5rem)" }}
+        >
           <ProjectsTimelineWorkspace
             projects={ganttProjects}
             dayWidth={dayWidth}
@@ -351,7 +354,7 @@ function ProjectListInner() {
             onOpenProjectPanel={openProjectPanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}
-            className="flex-1 min-h-0"
+            className="h-full min-h-0"
           />
         </div>
       )}

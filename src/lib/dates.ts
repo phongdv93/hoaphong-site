@@ -20,6 +20,19 @@ export function toLocalDateString(value: unknown): string | null {
   return null;
 }
 
+/** Timestamp → ISO string (API / JSON). */
+export function toIsoDateTime(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+  }
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s;
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  return s;
+}
+
 /** ISO → hiển thị dd/mm/yyyy */
 export function isoToVnDate(iso: string | null | undefined): string {
   const s = iso ? toLocalDateString(iso) : null;

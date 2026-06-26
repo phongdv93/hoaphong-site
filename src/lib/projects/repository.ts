@@ -1,5 +1,5 @@
 import { findCatalogProductByName } from "@/lib/factory/products";
-import { toLocalDateString } from "@/lib/dates";
+import { toLocalDateString, toIsoDateTime } from "@/lib/dates";
 import { syncPhasesProgressFromItems } from "./phase-items-progress";
 import { syncTenantUser, syncTenantUsers } from "@/lib/db/sync-tenant-user";
 import { tenantExecute, tenantQuery, tenantQueryOne, tenantWithTransaction, getTenantPool } from "@/lib/db/tenant";
@@ -47,8 +47,8 @@ function mapProject(row: Record<string, unknown>): Project {
     managerUserId: (row.manager_user_id as number | null) ?? null,
     managerName: (row.manager_name as string | undefined) ?? undefined,
     createdBy: (row.created_by as number | null) ?? null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: toIsoDateTime(row.created_at),
+    updatedAt: toIsoDateTime(row.updated_at),
   };
 }
 
@@ -219,16 +219,10 @@ function mapGanttPhases(raw: unknown): ProjectGanttPhase[] {
     id: Number(ph.id),
     name: String(ph.name ?? ""),
     status: ph.status as PhaseStatus,
-    deadlineAt: ph.deadlineAt
-      ? String(ph.deadlineAt).slice(0, 10)
-      : ph.deadline_at
-      ? String(ph.deadline_at).slice(0, 10)
-      : null,
-    startedAt: ph.startedAt
-      ? String(ph.startedAt).slice(0, 10)
-      : ph.started_at
-      ? String(ph.started_at).slice(0, 10)
-      : null,
+    deadlineAt:
+      toLocalDateString(ph.deadlineAt ?? ph.deadline_at) ?? null,
+    startedAt:
+      toLocalDateString(ph.startedAt ?? ph.started_at) ?? null,
     sortOrder: Number(ph.sortOrder ?? ph.sort_order ?? 0),
     progressPercent: Number(ph.progressPercent ?? ph.progress_percent ?? 0),
   }));
