@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarRange, ChevronDown, ChevronUp, Link2, Plus, Trash2, Unlink } from "lucide-react";
-import {
-  computePhaseSortOrder,
-  type PhaseInsertPosition,
-} from "@/lib/projects/phase-sort";
+import { CalendarRange, GripVertical, Link2, Plus, Trash2, Unlink } from "lucide-react";
+import { computePhaseSortOrder } from "@/lib/projects/phase-sort";
 import { ErpSelect } from "@/components/erp/ErpSelect";
 import {
   inclusiveDayCount,
@@ -31,6 +28,8 @@ export function ProjectPhasesTab({
   onChanged: () => void;
 }) {
   const [addingOpen, setAddingOpen] = useState(false);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
   const projectStart = project.startDate;
   const projectEnd = project.expectedEndDate;
 
@@ -69,16 +68,21 @@ export function ProjectPhasesTab({
     if (res.ok) onChanged();
   }
 
-  async function movePhase(id: number, direction: "up" | "down") {
-    const idx = sortedPhases.findIndex((p) => p.id === id);
-    if (idx < 0) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= sortedPhases.length) return;
-    const a = sortedPhases[idx];
-    const b = sortedPhases[swapIdx];
-    const okA = await updatePhase(a.id, { sortOrder: b.sortOrder });
-    if (!okA) return;
-    await updatePhase(b.id, { sortOrder: a.sortOrder });
+  async function reorderPhases(fromId: number, toId: number) {
+    if (fromId === toId) return;
+    const fromIdx = sortedPhases.findIndex((p) => p.id === fromId);
+    const toIdx = sortedPhases.findIndex((p) => p.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = [...sortedPhases];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    for (let i = 0; i < next.length; i++) {
+      const target = i * 10;
+      if (next[i].sortOrder !== target) {
+        const ok = await updatePhase(next[i].id, { sortOrder: target });
+        if (!ok) return;
+      }
+    }
   }
 
   return (
@@ -106,38 +110,50 @@ export function ProjectPhasesTab({
           {sortedPhases.map((p, index) => (
             <li
               key={p.id}
-              className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden"
+              draggable={canEdit}
+              onDragStart={() => canEdit && setDragId(p.id)}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragOver={(e) => {
+                if (!canEdit || dragId == null || dragId === p.id) return;
+                e.preventDefault();
+                setOverId(p.id);
+              }}
+              onDragLeave={() => {
+                if (overId === p.id) setOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragId != null) void reorderPhases(dragId, p.id);
+                setDragId(null);
+                setOverId(null);
+              }}
+              className={`rounded-xl border bg-white/[0.03] overflow-hidden transition-colors ${
+                dragId === p.id
+                  ? "opacity-50 border-sky/40"
+                  : overId === p.id
+                    ? "border-sky/50 ring-1 ring-sky/30"
+                    : "border-white/10"
+              }`}
             >
               {/* Hàng 1: thứ tự + tên + phụ trách */}
               <div className="flex items-center gap-1 px-2 py-1.5 min-h-[34px]">
+                {canEdit && (
+                  <span
+                    className="text-slate-500 shrink-0 cursor-grab active:cursor-grabbing p-0.5"
+                    title="Kéo để sắp xếp"
+                  >
+                    <GripVertical size={14} />
+                  </span>
+                )}
                 <span
                   className="text-[9px] text-slate-500 tabular-nums w-4 shrink-0 text-center"
                   title="Thứ tự trên timeline"
                 >
                   {index + 1}
                 </span>
-                {canEdit && (
-                  <div className="flex flex-col shrink-0 gap-0">
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => void movePhase(p.id, "up")}
-                      className="p-0.5 text-slate-500 hover:text-white disabled:opacity-25"
-                      title="Lên trên"
-                    >
-                      <ChevronUp size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === sortedPhases.length - 1}
-                      onClick={() => void movePhase(p.id, "down")}
-                      className="p-0.5 text-slate-500 hover:text-white disabled:opacity-25"
-                      title="Xuống dưới"
-                    >
-                      <ChevronDown size={12} />
-                    </button>
-                  </div>
-                )}
                 {canEdit ? (
                   <input
                     defaultValue={p.name}
@@ -442,10 +458,6 @@ function AddPhaseForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
-  const [insertPosition, setInsertPosition] = useState<PhaseInsertPosition>("end");
-  const [afterPhaseId, setAfterPhaseId] = useState<number | "">(
-    phases.length ? phases[phases.length - 1].id : ""
-  );
   const [startedAt, setStartedAt] = useState("");
   const [daysDraft, setDaysDraft] = useState("1");
   const [deadlineAt, setDeadlineAt] = useState("");
@@ -474,11 +486,7 @@ function AddPhaseForm({
     e.preventDefault();
     if (!name.trim()) return;
     const r = applySchedule({ days: Number(daysDraft) || 1 }, "days");
-    const sortOrder = computePhaseSortOrder(
-      phases,
-      insertPosition,
-      insertPosition === "after" ? afterPhaseId || null : null
-    );
+    const sortOrder = computePhaseSortOrder(phases, "end");
     setSubmitting(true);
     const res = await fetch(`/api/projects/${projectId}/phases`, {
       method: "POST",
@@ -521,51 +529,6 @@ function AddPhaseForm({
             placeholder="Phụ trách"
           />
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 text-[10px]">
-        <span className="text-slate-500 shrink-0">Chèn vào:</span>
-        <label className="inline-flex items-center gap-1 text-slate-300">
-          <input
-            type="radio"
-            name={`pos-${projectId}`}
-            checked={insertPosition === "end"}
-            onChange={() => setInsertPosition("end")}
-          />
-          Cuối
-        </label>
-        <label className="inline-flex items-center gap-1 text-slate-300">
-          <input
-            type="radio"
-            name={`pos-${projectId}`}
-            checked={insertPosition === "start"}
-            onChange={() => setInsertPosition("start")}
-          />
-          Đầu
-        </label>
-        <label className="inline-flex items-center gap-1 text-slate-300">
-          <input
-            type="radio"
-            name={`pos-${projectId}`}
-            checked={insertPosition === "after"}
-            onChange={() => setInsertPosition("after")}
-          />
-          Sau
-        </label>
-        {insertPosition === "after" && phases.length > 0 && (
-          <select
-            value={afterPhaseId}
-            onChange={(e) =>
-              setAfterPhaseId(e.target.value ? Number(e.target.value) : "")
-            }
-            className="input-field text-[10px] py-0.5 max-w-[10rem] flex-1 min-w-0"
-          >
-            {phases.map((ph, i) => (
-              <option key={ph.id} value={ph.id}>
-                {i + 1}. {ph.name}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
       <div className={SCHEDULE_GRID}>
         <label className="flex flex-col min-w-0">

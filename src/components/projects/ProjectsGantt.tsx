@@ -50,6 +50,59 @@ const ROW_GAP = 4;
 /** Chiều rộng tối thiểu thanh dự án (px) — luôn bấm được Chi tiết. */
 const MIN_BAR_PX = 148;
 
+type GanttRowSlot = { startIdx: number; endIdx: number };
+
+function normalizeProjectIndices(
+  p: ProjectSummary,
+  indexOfDate: (iso: string) => number,
+  today: string
+): { sIdx: number; eIdx: number } | null {
+  const { start: startIso, end: endIso } = resolveProjectTimelineDates(p, today);
+  let sIdx = indexOfDate(startIso);
+  let eIdx = indexOfDate(endIso);
+  if (sIdx < 0) sIdx = indexOfDate(today);
+  if (eIdx < 0) eIdx = sIdx >= 0 ? sIdx + GANTT_MIN_BAR_DAYS - 1 : 0;
+  if (sIdx < 0) return null;
+  if (eIdx < sIdx) eIdx = sIdx;
+  return { sIdx, eIdx };
+}
+
+/** Gán dự án vào hàng — nhiều dự án cùng hàng nếu không trùng thời gian. */
+function packProjectsIntoRows(
+  projects: ProjectSummary[],
+  indexOfDate: (iso: string) => number,
+  today: string
+): Map<number, number> {
+  const rows: GanttRowSlot[][] = [];
+  const projectRow = new Map<number, number>();
+
+  const items = projects
+    .map((p) => {
+      const idx = normalizeProjectIndices(p, indexOfDate, today);
+      return idx ? { projectId: p.id, ...idx } : null;
+    })
+    .filter((x): x is { projectId: number; sIdx: number; eIdx: number } => x != null)
+    .sort((a, b) => a.sIdx - b.sIdx || a.eIdx - b.eIdx);
+
+  for (const item of items) {
+    let rowIdx = 0;
+    while (true) {
+      if (!rows[rowIdx]) rows[rowIdx] = [];
+      const overlaps = rows[rowIdx].some(
+        (slot) => !(item.eIdx < slot.startIdx || item.sIdx > slot.endIdx)
+      );
+      if (!overlaps) {
+        rows[rowIdx].push({ startIdx: item.sIdx, endIdx: item.eIdx });
+        projectRow.set(item.projectId, rowIdx);
+        break;
+      }
+      rowIdx++;
+    }
+  }
+
+  return projectRow;
+}
+
 /** Gantt ngang — màu theo tiến độ; click card mở công đoạn; nút Chi tiết mở panel. */
 export function ProjectsGantt({
   projects,
@@ -92,35 +145,64 @@ export function ProjectsGantt({
     return () => ro.disconnect();
   }, [projects.length, dayWidth]);
 
-  const rowLayout = useMemo(() => {
-    let y = ROW_GAP;
-    return projects.map((p) => {
-      const expanded = expandedId === p.id;
-      const extra = expanded
-        ? Math.min(p.phases?.length ?? 0, EXPANDED_PHASE_ROWS) * EXPAND_LINE_H + 6
-        : 0;
-      const rowTotal = ROW_H + extra;
-      const layout = { top: y, barH: rowTotal - ROW_GAP, expanded };
-      y += rowTotal + ROW_GAP;
-      return layout;
-    });
-  }, [projects, expandedId]);
-
-  const canvasH = rowLayout.length
-    ? rowLayout[rowLayout.length - 1].top +
-      rowLayout[rowLayout.length - 1].barH +
-      ROW_GAP
-    : 0;
-
   const dayIndex = useMemo(() => {
     const m = new Map<string, number>();
     days.forEach((d, i) => m.set(d, i));
     return m;
   }, [days]);
 
-  function indexOfDate(iso: string): number {
-    return dayIndex.get(iso) ?? -1;
-  }
+  const indexOfDate = (iso: string) => dayIndex.get(iso) ?? -1;
+
+  const projectRows = useMemo(
+    () => packProjectsIntoRows(projects, (iso) => dayIndex.get(iso) ?? -1, today),
+    [projects, dayIndex, today]
+  );
+
+  const rowLayout = useMemo(() => {
+    const rowExtras = new Map<number, number>();
+    for (const p of projects) {
+      const row = projectRows.get(p.id) ?? 0;
+      if (expandedId === p.id) {
+        const extra =
+          Math.min(p.phases?.length ?? 0, EXPANDED_PHASE_ROWS) * EXPAND_LINE_H + 6;
+        rowExtras.set(row, Math.max(rowExtras.get(row) ?? 0, extra));
+      }
+    }
+
+    const rowCount =
+      projects.length === 0
+        ? 0
+        : Math.max(...projects.map((p) => projectRows.get(p.id) ?? 0), -1) + 1;
+
+    const rowTops: number[] = [];
+    let y = ROW_GAP;
+    for (let r = 0; r < rowCount; r++) {
+      rowTops[r] = y;
+      const extra = rowExtras.get(r) ?? 0;
+      y += ROW_H + extra + ROW_GAP;
+    }
+
+    return projects.map((p) => {
+      const row = projectRows.get(p.id) ?? 0;
+      const expanded = expandedId === p.id;
+      const rowExtra = rowExtras.get(row) ?? 0;
+      return {
+        top: rowTops[row] ?? ROW_GAP,
+        barH: ROW_H + rowExtra - ROW_GAP,
+        expanded,
+        row,
+      };
+    });
+  }, [projects, expandedId, projectRows]);
+
+  const canvasH = useMemo(() => {
+    if (!rowLayout.length) return 0;
+    let maxBottom = 0;
+    for (const layout of rowLayout) {
+      maxBottom = Math.max(maxBottom, layout.top + layout.barH + ROW_GAP);
+    }
+    return maxBottom;
+  }, [rowLayout]);
 
   function scrollToToday() {
     const idx = indexOfDate(today);
@@ -239,16 +321,10 @@ export function ProjectsGantt({
             }}
           >
             {projects.map((p, i) => {
-              const { start: startIso, end: endIso } = resolveProjectTimelineDates(
-                p,
-                today
-              );
-              let sIdx = indexOfDate(startIso);
-              let eIdx = indexOfDate(endIso);
-              if (sIdx < 0) sIdx = indexOfDate(today);
-              if (eIdx < 0) eIdx = sIdx >= 0 ? sIdx + GANTT_MIN_BAR_DAYS - 1 : 0;
-              if (sIdx < 0) return null;
-              if (eIdx < sIdx) eIdx = sIdx;
+              const { start: startIso, end: endIso } = resolveProjectTimelineDates(p, today);
+              const idx = normalizeProjectIndices(p, indexOfDate, today);
+              if (!idx) return null;
+              const { sIdx, eIdx } = idx;
               const x = sIdx * cellW;
               const daySpan = eIdx - sIdx + 1;
               const w = Math.max(daySpan * cellW, MIN_BAR_PX, GANTT_MIN_BAR_DAYS * cellW);

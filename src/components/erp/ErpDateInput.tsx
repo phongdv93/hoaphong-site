@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Calendar } from "lucide-react";
 import { ErpDateCalendar } from "@/components/erp/ErpDateCalendar";
@@ -32,6 +32,7 @@ export function ErpDateInput({
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [text, setText] = useState(() => isoToVnDate(value));
@@ -54,15 +55,38 @@ export function ErpDateInput({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  function openCalendar() {
+  function positionCalendar() {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) {
-      const w = 252;
-      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
-      setMenuPos({ top: r.bottom + 4, left });
-    }
+    if (!r) return;
+    const w = 252;
+    const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+    const calH = calendarRef.current?.offsetHeight ?? 300;
+    const gap = 4;
+    const spaceBelow = window.innerHeight - r.bottom - gap;
+    const spaceAbove = r.top - gap;
+    const openBelow = spaceBelow >= calH || spaceBelow >= spaceAbove;
+    let top = openBelow ? r.bottom + gap : r.top - calH - gap;
+    top = Math.max(8, Math.min(top, window.innerHeight - calH - 8));
+    setMenuPos({ top, left });
+  }
+
+  function openCalendar() {
     setOpen(true);
   }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    positionCalendar();
+    const id = requestAnimationFrame(() => positionCalendar());
+    const onReflow = () => positionCalendar();
+    window.addEventListener("resize", onReflow);
+    window.addEventListener("scroll", onReflow, true);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("resize", onReflow);
+      window.removeEventListener("scroll", onReflow, true);
+    };
+  }, [open, value]);
 
   function emit(iso: string, commit: boolean) {
     const norm = toLocalDateString(iso) ?? "";
@@ -90,7 +114,7 @@ export function ErpDateInput({
   const iso = toLocalDateString(value) ?? "";
 
   return (
-    <div ref={rootRef} className="relative flex items-center gap-0.5 min-w-0 w-full">
+    <div ref={rootRef} className="relative flex items-stretch gap-0.5 min-w-0 w-full">
       <input
         type="text"
         inputMode="numeric"
@@ -117,7 +141,7 @@ export function ErpDateInput({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && (open ? setOpen(false) : openCalendar())}
-        className={`relative shrink-0 w-7 h-7 flex items-center justify-center rounded-md border transition-colors ${
+        className={`relative shrink-0 aspect-square self-stretch min-h-[22px] min-w-[22px] flex items-center justify-center rounded-md border transition-colors ${
           open
             ? "bg-sky/20 border-sky/50 text-sky-light"
             : "bg-white/5 border-white/15 text-slate-400 hover:bg-white/10 hover:text-slate-200"
@@ -131,6 +155,7 @@ export function ErpDateInput({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={calendarRef}
             data-erp-date-calendar
             className="fixed z-[200]"
             style={{ top: menuPos.top, left: menuPos.left }}

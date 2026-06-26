@@ -182,8 +182,8 @@ export function WizardItemsStep({
 
   return (
     <div className="space-y-3">
-      <div ref={rootRef} className="relative">
-        <div className="flex gap-2 items-stretch">
+      <div ref={rootRef} className="relative min-w-0">
+        <div className="flex gap-2 items-stretch min-w-0">
           <input
             ref={inputRef}
             value={query}
@@ -215,7 +215,7 @@ export function WizardItemsStep({
                 void submitComposer();
               }
             }}
-            className="input-field w-16 text-center font-mono shrink-0"
+            className="input-field !w-11 shrink-0 px-1 text-center text-xs font-mono tabular-nums"
             title="Số lượng"
             inputMode="decimal"
           />
@@ -223,7 +223,7 @@ export function WizardItemsStep({
             type="button"
             disabled={loading || !trimmed}
             onClick={() => void submitComposer()}
-            className="shrink-0 inline-flex items-center gap-1 px-3 rounded-lg bg-sky text-white text-xs hover:bg-sky-light disabled:opacity-50"
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg bg-sky text-white text-xs hover:bg-sky-light disabled:opacity-50"
           >
             <Plus size={14} />
             Thêm

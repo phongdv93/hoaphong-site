@@ -222,8 +222,8 @@ export function ProjectCreateWizard({
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
 
   return (
-    <div className="space-y-4 max-w-none">
-      <nav className="flex gap-1 overflow-x-auto pb-1">
+    <div className="flex flex-col flex-1 min-h-0 max-w-none">
+      <nav className="shrink-0 flex gap-1 overflow-x-auto pb-1">
         {STEPS.map((s) => {
           const Icon = s.icon;
           const active = step === s.n;
@@ -247,6 +247,7 @@ export function ProjectCreateWizard({
         })}
       </nav>
 
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-1">
       {step === 1 && (
         <div className="space-y-3">
           <p className="text-sm text-slate-300">Chọn loại dự án — bấm để tiếp tục.</p>
@@ -421,8 +422,9 @@ export function ProjectCreateWizard({
       )}
 
       {error && <div className="text-sm text-rose-400">{error}</div>}
+      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 pt-3 mt-2 border-t border-white/10 bg-[#0a1120]">
         <button
           type="button"
           onClick={() => onCancel?.()}
@@ -451,24 +453,14 @@ export function ProjectCreateWizard({
             </button>
           )}
           {step >= 3 && (
-            <>
-              <button
-                type="button"
-                onClick={skipOrLater}
-                disabled={busy}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
-              >
-                Bỏ qua
-              </button>
-              <button
-                type="button"
-                onClick={skipOrLater}
-                disabled={busy}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
-              >
-                Cập nhật sau
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={skipOrLater}
+              disabled={busy}
+              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
+            >
+              Bỏ qua
+            </button>
           )}
           {step >= 3 && step < 5 && (
             <button

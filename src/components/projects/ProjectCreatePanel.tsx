@@ -30,7 +30,7 @@ export function ProjectCreatePanel({
           <X size={18} />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      <div className="flex-1 min-h-0 flex flex-col p-4">
         <ProjectCreateWizard
           customers={customers}
           onCreated={onCreated}
