@@ -11,7 +11,7 @@ export default function DuAnPage() {
         <DbSetupBanner />
       ) : (
         <ModuleAccessGuard moduleId="du-an">
-          <div className="flex flex-col flex-1 min-h-0 h-0 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <ProjectListClient />
           </div>
         </ModuleAccessGuard>

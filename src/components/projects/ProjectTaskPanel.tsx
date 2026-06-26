@@ -99,6 +99,7 @@ export function ProjectTaskPanel({
   collapsed,
   onCollapsedChange,
   onProjectUpdated,
+  onProjectDeleted,
 }: {
   projectId: number;
   onClose: () => void;
@@ -108,6 +109,7 @@ export function ProjectTaskPanel({
     projectId: number,
     workspace: { project: Project; phases: ProjectPhase[] }
   ) => void;
+  onProjectDeleted?: (projectId: number) => void;
 }) {
   const [tab, setTab] = useState<TabId>("overview");
   const [data, setData] = useState<WorkspacePayload | null>(null);
@@ -241,7 +243,7 @@ export function ProjectTaskPanel({
     if (
       !p ||
       !confirm(
-        "Xóa dự án? Bạn có 8 giờ để hoàn tác (liên hệ admin hoặc gọi API restore)."
+        "Xóa dự án khỏi timeline? Dự án sẽ chuyển vào danh mục «Đã xóa» — có thể khôi phục sau."
       )
     ) {
       return;
@@ -252,6 +254,7 @@ export function ProjectTaskPanel({
       setError(j.error || "Xóa thất bại");
       return;
     }
+    onProjectDeleted?.(projectId);
     onClose();
   }
 

@@ -22,7 +22,8 @@ import {
   MIN_GANTT_DAY_WIDTH,
 } from "./ProjectsGantt";
 import { ProjectsTimelineWorkspace } from "./ProjectsTimelineWorkspace";
-import { StatusFilterCombo } from "./StatusFilterCombo";
+import { DeletedProjectsCatalog } from "./DeletedProjectsCatalog";
+import { StatusFilterCombo, type ProjectStatusFilter } from "./StatusFilterCombo";
 import { useOnCompanyChanged } from "@/lib/erp/use-on-company-changed";
 
 const DAY_WIDTH_STORAGE_KEY = "hoaphong_gantt_day_width_v1";
@@ -36,7 +37,7 @@ export function ProjectListClient() {
         <div className="text-sm text-slate-400 p-8 pt-4">Đang tải…</div>
       }
     >
-      <div className="flex flex-col flex-1 min-h-0 h-0">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <ProjectListInner />
       </div>
     </Suspense>
@@ -48,7 +49,7 @@ function ProjectListInner() {
   const searchParams = useSearchParams();
   const setHeaderActions = useErpHeaderActionsSlot();
   const [rawItems, setRawItems] = useState<ProjectSummary[] | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
   const [q, setQ] = useState("");
   const [view, setView] = useState<ViewMode>("timeline");
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -57,6 +58,8 @@ function ProjectListInner() {
   const [createOpen, setCreateOpen] = useState(false);
   const [canCreate, setCanCreate] = useState(true);
   const [createBlockedMsg, setCreateBlockedMsg] = useState<string | null>(null);
+  const [deletedItems, setDeletedItems] = useState<ProjectSummary[] | null>(null);
+  const [deletedLoading, setDeletedLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -96,6 +99,20 @@ function ProjectListInner() {
     []
   );
 
+  const loadDeleted = useCallback(async () => {
+    setDeletedLoading(true);
+    const params = new URLSearchParams({ deleted: "1" });
+    if (q.trim()) params.set("q", q.trim());
+    const res = await fetch(`/api/projects?${params.toString()}`);
+    if (!res.ok) {
+      setDeletedItems([]);
+      setDeletedLoading(false);
+      return;
+    }
+    setDeletedItems(await res.json());
+    setDeletedLoading(false);
+  }, [q]);
+
   const load = useCallback(async () => {
     setErrorBanner(null);
     const params = new URLSearchParams();
@@ -123,10 +140,19 @@ function ProjectListInner() {
   }, []);
 
   useEffect(() => {
-    void load();
     void loadCreatePermission();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadCreatePermission]);
+
+  useEffect(() => {
+    if (statusFilter === "deleted") {
+      setPanelProjectId(null);
+      setCreateOpen(false);
+      router.replace("/erp/du-an", { scroll: false });
+      void loadDeleted();
+      return;
+    }
+    void load();
+  }, [statusFilter, load, loadDeleted, router]);
 
   useOnCompanyChanged(() => {
     setRawItems(null);
@@ -163,7 +189,9 @@ function ProjectListInner() {
 
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState !== "visible") return;
+      if (statusFilter === "deleted") void loadDeleted();
+      else void load();
     };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
@@ -172,7 +200,7 @@ function ProjectListInner() {
       document.removeEventListener("visibilitychange", refresh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [statusFilter]);
 
   function openProjectPanel(id: number) {
     setCreateOpen(false);
@@ -203,8 +231,26 @@ function ProjectListInner() {
     void load();
   }
 
+  function handleProjectDeleted(projectId: number) {
+    setRawItems((prev) => prev?.filter((p) => p.id !== projectId) ?? null);
+    closePanel();
+    if (statusFilter === "deleted") void loadDeleted();
+  }
+
+  async function restoreProject(id: number) {
+    const res = await fetch(`/api/projects/${id}/restore`, { method: "POST" });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(typeof j.error === "string" ? j.error : "Không khôi phục được");
+      return;
+    }
+    await loadDeleted();
+    await load();
+  }
+
   const items = useMemo(() => {
     if (!rawItems) return null;
+    if (statusFilter === "deleted") return [];
     return rawItems.filter((p) => projectMatchesStatusFilter(p, statusFilter));
   }, [rawItems, statusFilter]);
 
@@ -256,7 +302,8 @@ function ProjectListInner() {
     return <div className="text-sm text-slate-400 pt-5 px-8">Đang tải…</div>;
   }
 
-  const timelineMode = view === "timeline" && !errorBanner;
+  const timelineMode = view === "timeline" && !errorBanner && statusFilter !== "deleted";
+  const showDeletedCatalog = statusFilter === "deleted" && !errorBanner;
   const panelOpen = panelProjectId !== null || createOpen;
   /** Có panel tạo/sửa thì vẫn mount workspace dù chưa có dự án trên Gantt. */
   const timelineFull = timelineMode && (items.length > 0 || panelOpen);
@@ -265,14 +312,14 @@ function ProjectListInner() {
   return (
     <div
       className={
-        timelineMode
-          ? "flex flex-col flex-1 min-h-0 h-full"
+        timelineMode || showDeletedCatalog
+          ? "flex flex-col flex-1 min-h-0 overflow-hidden"
           : "space-y-4 pt-4 px-8"
       }
     >
       <div
-        className={`flex flex-wrap items-center gap-2 ${
-          timelineMode ? "shrink-0 mb-2 px-8 pt-5 pb-1" : ""
+        className={`flex flex-wrap items-center gap-2 shrink-0 ${
+          timelineMode || showDeletedCatalog ? "px-8 pt-2 pb-2 border-b border-white/10" : ""
         }`}
       >
         <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
@@ -280,7 +327,12 @@ function ProjectListInner() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (statusFilter === "deleted") void loadDeleted();
+                else void load();
+              }
+            }}
             placeholder="Tìm theo mã / tên dự án…"
             className="px-1 text-sm outline-none w-56 sm:w-72 bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
           />
@@ -337,8 +389,16 @@ function ProjectListInner() {
         </div>
       )}
 
+      {showDeletedCatalog && (
+        <DeletedProjectsCatalog
+          items={deletedItems ?? []}
+          loading={deletedLoading || deletedItems === null}
+          onRestore={(id) => void restoreProject(id)}
+        />
+      )}
+
       {timelineFull && (
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden border-t border-white/10">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           <ProjectsTimelineWorkspace
             projects={ganttProjects}
             dayWidth={dayWidth}
@@ -348,7 +408,8 @@ function ProjectListInner() {
             onOpenProjectPanel={openProjectPanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}
-            className="h-full min-h-0"
+            onProjectDeleted={handleProjectDeleted}
+            className="flex-1 min-h-0 h-full w-full"
           />
         </div>
       )}

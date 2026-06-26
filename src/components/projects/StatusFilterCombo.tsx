@@ -4,21 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import type { ProjectStatus } from "@/lib/projects/types";
 
-const OPTIONS: { id: ProjectStatus | "all"; label: string }[] = [
+export type ProjectStatusFilter = ProjectStatus | "all" | "deleted";
+
+const OPTIONS: { id: ProjectStatusFilter; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "open", label: "Mới mở" },
   { id: "in_progress", label: "Đang thi công" },
   { id: "on_hold", label: "Tạm dừng" },
   { id: "done", label: "Hoàn thành" },
   { id: "cancelled", label: "Đã hủy" },
+  { id: "deleted", label: "Đã xóa" },
 ];
 
 export function StatusFilterCombo({
   value,
   onChange,
 }: {
-  value: ProjectStatus | "all";
-  onChange: (v: ProjectStatus | "all") => void;
+  value: ProjectStatusFilter;
+  onChange: (v: ProjectStatusFilter) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);

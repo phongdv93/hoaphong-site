@@ -22,6 +22,7 @@ export function ProjectsTimelineWorkspace({
   onOpenProjectPanel,
   onProjectUpdated,
   onProjectCreated,
+  onProjectDeleted,
   className = "",
 }: {
   projects: ProjectSummary[];
@@ -35,6 +36,7 @@ export function ProjectsTimelineWorkspace({
     workspace: { project: Project; phases: ProjectPhase[] }
   ) => void;
   onProjectCreated?: (projectId: number) => void;
+  onProjectDeleted?: (projectId: number) => void;
   className?: string;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -63,7 +65,7 @@ export function ProjectsTimelineWorkspace({
   }, [panelProjectId]);
 
   return (
-    <div className={`flex flex-row h-full min-h-0 min-w-0 overflow-hidden ${className}`}>
+    <div className={`flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden ${className}`}>
       <ProjectsGantt
         projects={projects}
         expandedId={expandedId}
@@ -76,7 +78,7 @@ export function ProjectsTimelineWorkspace({
 
       {panelOpen && (
         <div
-          className="shrink-0 flex flex-col self-stretch min-h-0 h-full z-40 isolate shadow-2xl shadow-black/60 border-l border-white/10"
+          className="shrink-0 flex flex-col self-stretch min-h-0 h-full overflow-hidden z-40 isolate shadow-2xl shadow-black/60 border-l border-white/10"
           style={{
             width: panelW,
             transition: `width 300ms ${PANEL_EASE}`,
@@ -98,6 +100,7 @@ export function ProjectsTimelineWorkspace({
               collapsed={panelCollapsed}
               onCollapsedChange={setPanelCollapsed}
               onProjectUpdated={onProjectUpdated}
+              onProjectDeleted={onProjectDeleted}
             />
           ) : null}
         </div>

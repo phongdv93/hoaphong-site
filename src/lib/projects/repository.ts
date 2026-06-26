@@ -100,7 +100,7 @@ export async function listProjects(
 ): Promise<ProjectSummary[]> {
   const conds: string[] = [
     `p.company_id = $1`,
-    `(p.deleted_at IS NULL OR p.deleted_at > NOW() - INTERVAL '8 hours')`,
+    `(p.deleted_at IS NULL)`,
   ];
   const params: unknown[] = [companyId];
   if (filter?.status) {
@@ -164,6 +164,51 @@ export async function listProjects(
   }));
 }
 
+/** Dự án đã xóa mềm — không hiển thị trên Gantt. */
+export async function listDeletedProjects(
+  companyId: number,
+  filter?: { q?: string; memberUserId?: number }
+): Promise<ProjectSummary[]> {
+  const conds: string[] = [`p.company_id = $1`, `p.deleted_at IS NOT NULL`];
+  const params: unknown[] = [companyId];
+  if (filter?.q?.trim()) {
+    params.push(`%${filter.q.trim()}%`);
+    conds.push(`(p.name ILIKE $${params.length} OR p.code ILIKE $${params.length})`);
+  }
+  if (filter?.memberUserId != null) {
+    params.push(filter.memberUserId);
+    conds.push(
+      `EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = $${params.length})`
+    );
+  }
+  const where = `WHERE ${conds.join(" AND ")}`;
+  const rows = await tenantQuery<Record<string, unknown>>(
+    `SELECT p.*,
+            c.name AS customer_name,
+            u.name AS manager_name,
+            0::int AS phase_count,
+            0::int AS phase_done_count,
+            0::int AS phase_delayed_count,
+            (SELECT COUNT(*) FROM project_members m WHERE m.project_id = p.id) AS member_count,
+            '[]'::json AS phases_json
+     FROM projects p
+     LEFT JOIN customers c ON c.id = p.customer_id
+     LEFT JOIN erp_users u ON u.id = p.manager_user_id
+     ${where}
+     ORDER BY p.deleted_at DESC NULLS LAST, p.updated_at DESC`,
+    params,
+    companyId
+  );
+  return rows.map((r) => ({
+    ...mapProject(r),
+    phaseCount: 0,
+    phaseDoneCount: 0,
+    phaseDelayedCount: 0,
+    memberCount: Number(r.member_count ?? 0),
+    phases: [],
+  }));
+}
+
 export type PiSourceProject = {
   id: number;
   code: string;
@@ -185,7 +230,7 @@ export async function listPiSourceProjects(companyId: number): Promise<PiSourceP
      FROM projects p
      LEFT JOIN customers c ON c.id = p.customer_id
      WHERE p.company_id = $1
-       AND (p.deleted_at IS NULL OR p.deleted_at > NOW() - INTERVAL '8 hours')
+       AND p.deleted_at IS NULL
      ORDER BY p.updated_at DESC
      LIMIT 100`,
     [companyId],
@@ -392,7 +437,7 @@ function daysBetweenIso(a: string, b: string): number {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-/** Xóa mềm — có thể hoàn tác trong 8 giờ */
+/** Xóa mềm — chuyển vào danh mục đã xóa, không còn trên timeline. */
 export async function softDeleteProject(id: number, companyId: number): Promise<void> {
   await tenantExecute(
     `UPDATE projects SET deleted_at = NOW(), updated_at = NOW()

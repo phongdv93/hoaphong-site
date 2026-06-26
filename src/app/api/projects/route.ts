@@ -5,7 +5,7 @@ import { hasUserModuleAccess } from "@/lib/platform/member-modules";
 import { runWithTenantCompany } from "@/lib/db/tenant-context";
 import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import { canCreateProject } from "@/lib/projects/permissions";
-import { createProject, listPiSourceProjects, listProjects } from "@/lib/projects/repository";
+import { createProject, listDeletedProjects, listPiSourceProjects, listProjects } from "@/lib/projects/repository";
 import { generateFreeProjectCode } from "@/lib/projects/project-code";
 import type { ProjectStatus } from "@/lib/projects/types";
 
@@ -49,11 +49,19 @@ export async function GET(req: Request) {
   const status = (searchParams.get("status") || undefined) as ProjectStatus | undefined;
   const q = searchParams.get("q") || undefined;
   const piSources = searchParams.get("piSources") === "1";
+  const deleted = searchParams.get("deleted") === "1";
   const restrictToMembership =
     !admin && active.role !== "admin" && active.role !== "manager";
   return runWithTenantCompany(active.companyId, async () => {
     if (piSources) {
       const rows = await listPiSourceProjects(active.companyId);
+      return NextResponse.json(rows);
+    }
+    if (deleted) {
+      const rows = await listDeletedProjects(active.companyId, {
+        q,
+        memberUserId: restrictToMembership ? user.id : undefined,
+      });
       return NextResponse.json(rows);
     }
     const rows = await listProjects(active.companyId, {
