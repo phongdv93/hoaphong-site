@@ -139,7 +139,7 @@ export function ProjectPhasesTab({
               }`}
             >
               {/* Hàng 1: thứ tự + tên + phụ trách */}
-              <div className="flex items-center gap-1 px-2 py-1.5 min-h-[34px]">
+              <div className="flex items-center gap-1 px-2 py-1.5">
                 {canEdit && (
                   <span
                     className="text-slate-500 shrink-0 cursor-grab active:cursor-grabbing p-0.5"
@@ -161,7 +161,7 @@ export function ProjectPhasesTab({
                       const v = e.target.value.trim();
                       if (v && v !== p.name) updatePhase(p.id, { name: v });
                     }}
-                    className="input-field text-xs py-0.5 flex-1 min-w-0 font-medium"
+                    className={`${PHASE_FIELD_CLS} flex-1 min-w-0 font-medium`}
                   />
                 ) : (
                   <span className="text-xs font-medium text-slate-200 flex-1 truncate">
@@ -285,11 +285,14 @@ function fmtDate(iso: string | null | undefined) {
   return formatDateVi(iso);
 }
 
+const PHASE_FIELD_CLS =
+  "w-full h-[30px] rounded-md border border-white/15 bg-white/5 px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+
 const SCHEDULE_LABEL = "block text-[9px] text-slate-500 leading-tight mb-0.5";
 const SCHEDULE_DATE_CLS =
-  "text-[9px] leading-tight py-0 px-0.5 h-[22px] w-full min-w-0";
+  "text-[11px] leading-tight py-0 px-1 !h-[30px] w-full min-w-0";
 const SCHEDULE_DAYS_CLS =
-  "input-field text-[9px] py-0 px-0.5 w-full h-[22px] text-center tabular-nums";
+  "input-field text-[11px] py-0 px-1 w-full !h-[30px] text-center tabular-nums";
 const SCHEDULE_GRID =
   "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_60px_minmax(0,1fr)] gap-x-1.5 items-end";
 
@@ -519,7 +522,7 @@ function AddPhaseForm({
           onChange={(e) => setName(e.target.value)}
           required
           placeholder="Tên công đoạn *"
-          className="input-field text-xs py-0.5 flex-1 min-w-0"
+          className={`${PHASE_FIELD_CLS} flex-1 min-w-0`}
         />
         <div className="w-[6.5rem] shrink-0">
           <ErpSelect

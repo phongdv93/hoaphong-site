@@ -115,7 +115,8 @@ export function ProjectMembersTab({
                         [c.userId]: v as ProjectMemberRole,
                       }))
                     }
-                    className="input-field text-xs py-1 w-36 text-left flex items-center justify-between"
+                    size="sm"
+                    className="w-36"
                     options={ROLE_OPTIONS.map((r) => ({ value: r, label: MEMBER_ROLE_LABELS[r] }))}
                   />
                   <button
@@ -141,7 +142,7 @@ export function ProjectMembersTab({
         </div>
       )}
 
-      <div className="erp-card rounded-xl overflow-hidden">
+      <div className="erp-card rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="erp-table-head text-xs">
             <tr>
@@ -172,7 +173,8 @@ export function ProjectMembersTab({
                     <AppSelect
                       value={m.role}
                       onChange={(v) => changeRole(m.userId, v as ProjectMemberRole)}
-                      className="text-xs erp-card rounded px-2 py-1 w-36 text-left flex items-center justify-between"
+                      size="sm"
+                      className="w-36"
                       options={ROLE_OPTIONS.map((r) => ({ value: r, label: MEMBER_ROLE_LABELS[r] }))}
                     />
                   ) : (

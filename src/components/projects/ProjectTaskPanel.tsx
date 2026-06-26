@@ -493,6 +493,9 @@ export function ProjectTaskPanel({
   );
 }
 
+const PANEL_FIELD_CLS =
+  "w-full h-[30px] rounded-md border border-white/15 bg-[#0f1a2e] px-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+
 function OverviewTab({
   project,
   phases,
@@ -512,8 +515,7 @@ function OverviewTab({
         )
       : 0;
 
-  const fieldIn =
-    "w-full rounded-md border border-white/15 bg-[#0f1a2e] px-2 py-1 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+  const fieldIn = PANEL_FIELD_CLS;
 
   return (
     <div className="space-y-4">
@@ -788,8 +790,7 @@ function EditableInfo({
   mono?: boolean;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
-  const fieldIn =
-    "w-full rounded-md border border-white/15 bg-[#0f1a2e] px-2 py-1 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+  const fieldIn = PANEL_FIELD_CLS;
   if (!canEdit) {
     return (
       <Info
@@ -846,7 +847,7 @@ function EditableDate({
           onCommit={(v) => {
             if (v !== value) onCommit(v || null);
           }}
-          className="text-[11px]"
+          className="text-[11px] !h-[30px]"
         />
       </dd>
     </div>

@@ -266,7 +266,7 @@ function ProjectListInner() {
     <div
       className={
         timelineMode
-          ? "flex flex-col flex-1 min-h-0 h-0"
+          ? "flex flex-col flex-1 min-h-0 h-full"
           : "space-y-4 pt-4 px-8"
       }
     >
@@ -287,19 +287,16 @@ function ProjectListInner() {
         </div>
         <StatusFilterCombo value={statusFilter} onChange={setStatusFilter} />
         {timelineMode && (
-          <label className="flex items-center gap-2 text-[11px] text-slate-400 ml-1 h-[30px]">
-            <span className="whitespace-nowrap hidden sm:inline">Độ rộng ngày</span>
-            <input
-              type="range"
-              min={MIN_GANTT_DAY_WIDTH}
-              max={MAX_GANTT_DAY_WIDTH}
-              value={dayWidth}
-              onChange={(e) => onDayWidthChange(Number(e.target.value))}
-              className="w-24 sm:w-32 accent-sky"
-              title="Kéo nhỏ (tối thiểu 8px/ngày) — header tự gom theo tuần khi quá hẹp"
-            />
-            <span className="tabular-nums text-slate-300 w-8">{dayWidth}px</span>
-          </label>
+          <input
+            type="range"
+            min={MIN_GANTT_DAY_WIDTH}
+            max={MAX_GANTT_DAY_WIDTH}
+            value={dayWidth}
+            onChange={(e) => onDayWidthChange(Number(e.target.value))}
+            className="w-24 sm:w-32 h-[30px] accent-sky cursor-pointer"
+            title="Độ rộng ngày trên timeline"
+            aria-label="Độ rộng ngày trên timeline"
+          />
         )}
         <div className="flex-1" />
       </div>
@@ -341,10 +338,7 @@ function ProjectListInner() {
       )}
 
       {timelineFull && (
-        <div
-          className="flex flex-col flex-1 min-h-0 overflow-hidden border-t border-white/10"
-          style={{ height: "calc(100svh - 10.5rem)" }}
-        >
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden border-t border-white/10">
           <ProjectsTimelineWorkspace
             projects={ganttProjects}
             dayWidth={dayWidth}

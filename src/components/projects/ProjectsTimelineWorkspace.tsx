@@ -76,7 +76,7 @@ export function ProjectsTimelineWorkspace({
 
       {panelOpen && (
         <div
-          className="shrink-0 flex flex-col h-full min-h-0 z-40 isolate shadow-2xl shadow-black/60 border-l border-white/10"
+          className="shrink-0 flex flex-col self-stretch min-h-0 h-full z-40 isolate shadow-2xl shadow-black/60 border-l border-white/10"
           style={{
             width: panelW,
             transition: `width 300ms ${PANEL_EASE}`,

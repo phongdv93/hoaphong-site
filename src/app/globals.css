@@ -610,7 +610,7 @@
   }
 
   .app-select-trigger-sm {
-    @apply px-2 py-1 text-xs min-h-[2rem];
+    @apply px-2 py-0 text-xs h-[30px] min-h-[30px];
   }
 
   .app-select-trigger-light {
@@ -620,7 +620,7 @@
   }
 
   .app-select-menu {
-    @apply absolute z-50 mt-1.5 w-full min-w-[10rem] rounded-xl border border-white/15
+    @apply z-50 min-w-[10rem] rounded-xl border border-white/15
       bg-[#0f1f42] py-1 shadow-xl shadow-black/50 ring-1 ring-white/5
       max-h-64 overflow-y-auto overscroll-contain;
   }
