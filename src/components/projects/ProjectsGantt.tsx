@@ -15,6 +15,10 @@ import {
 } from "@/lib/projects/schedule-health";
 import { getPhaseTimeRanges, type PhaseTimeRange } from "@/lib/projects/phase-timeline";
 import { formatDateVi, toLocalDateString } from "@/lib/dates";
+import {
+  GANTT_MIN_BAR_DAYS,
+  resolveProjectTimelineDates,
+} from "@/lib/projects/project-timeline";
 
 export const DEFAULT_DAY_WIDTH = 28;
 export const MIN_GANTT_DAY_WIDTH = 8;
@@ -43,6 +47,8 @@ function rangeToTimelinePx(
 }
 const HEADER_H = 56;
 const ROW_GAP = 4;
+/** Chiều rộng tối thiểu thanh dự án (px) — luôn bấm được Chi tiết. */
+const MIN_BAR_PX = 148;
 
 /** Gantt ngang — màu theo tiến độ; click card mở công đoạn; nút Chi tiết mở panel. */
 export function ProjectsGantt({
@@ -149,7 +155,7 @@ export function ProjectsGantt({
   function scrollToProjectBar(projectId: number) {
     const p = projects.find((x) => x.id === projectId);
     if (!p || !scrollRef.current) return;
-    const startIso = projectStartDay(p, today);
+    const { start: startIso } = resolveProjectTimelineDates(p, today);
     const idx = indexOfDate(startIso);
     if (idx >= 0) {
       scrollRef.current.scrollLeft = Math.max(0, idx * cellW - 12);
@@ -233,19 +239,19 @@ export function ProjectsGantt({
             }}
           >
             {projects.map((p, i) => {
-              const startIso = projectStartDay(p, today);
-              const endIso =
-                p.actualEndDate ||
-                p.expectedEndDate ||
-                startIso;
+              const { start: startIso, end: endIso } = resolveProjectTimelineDates(
+                p,
+                today
+              );
               let sIdx = indexOfDate(startIso);
               let eIdx = indexOfDate(endIso);
               if (sIdx < 0) sIdx = indexOfDate(today);
-              if (eIdx < 0) eIdx = sIdx >= 0 ? sIdx : 0;
+              if (eIdx < 0) eIdx = sIdx >= 0 ? sIdx + GANTT_MIN_BAR_DAYS - 1 : 0;
               if (sIdx < 0) return null;
               if (eIdx < sIdx) eIdx = sIdx;
               const x = sIdx * cellW;
-              const w = Math.max(cellW, (eIdx - sIdx + 1) * cellW);
+              const daySpan = eIdx - sIdx + 1;
+              const w = Math.max(daySpan * cellW, MIN_BAR_PX, GANTT_MIN_BAR_DAYS * cellW);
               const { top, barH, expanded } = rowLayout[i];
               const panelOpen = panelProjectId === p.id;
               const cardMainH = ROW_H - ROW_GAP;
@@ -788,7 +794,7 @@ function ProjectBar({
             e.stopPropagation();
             onOpenPanel();
           }}
-          className="shrink-0 text-[11px] px-2.5 py-0.5 rounded-full border border-white/15 text-sky-light/95 hover:bg-white/10 hover:border-sky/40 font-medium transition-colors"
+          className="shrink-0 text-[11px] px-2.5 py-0.5 rounded-full border border-white/15 text-sky-light/95 hover:bg-white/10 hover:border-sky/40 font-medium transition-colors ml-auto"
           title="Mở panel chi tiết dự án"
         >
           Chi tiết
@@ -985,12 +991,11 @@ function computeRange(projects: ProjectSummary[]): { from: string; to: string } 
   const today = todayIso();
   const candidates: string[] = [today];
   for (const p of projects) {
-    if (p.startDate) candidates.push(p.startDate);
-    if (p.expectedEndDate) candidates.push(p.expectedEndDate);
-    if (p.actualEndDate) candidates.push(p.actualEndDate);
-    if (!p.startDate && !p.expectedEndDate) {
-      const created = toLocalDateString(p.createdAt);
-      if (created) candidates.push(created);
+    const { start, end } = resolveProjectTimelineDates(p, today);
+    candidates.push(start, end);
+    if (p.actualEndDate) {
+      const actual = toLocalDateString(p.actualEndDate);
+      if (actual) candidates.push(actual);
     }
     for (const ph of p.phases ?? []) {
       const started = toLocalDateString(ph.startedAt);
@@ -1055,10 +1060,6 @@ function shiftDate(iso: string, deltaDays: number): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function projectStartDay(p: ProjectSummary, fallback: string): string {
-  return p.startDate || toLocalDateString(p.createdAt) || fallback;
 }
 
 function fmtVN(iso: string): string {

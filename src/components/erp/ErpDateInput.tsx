@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar } from "lucide-react";
+import { ErpDateCalendar } from "@/components/erp/ErpDateCalendar";
 import { isoToVnDate, toLocalDateString, vnDateToIso } from "@/lib/dates";
 
 type Props = {
@@ -17,9 +19,7 @@ type Props = {
   placeholder?: string;
 };
 
-/**
- * Ô ngày dd/mm/yyyy — lịch native phủ lên nút calendar (đổi tháng không đóng picker).
- */
+/** Ô ngày dd/mm/yyyy + lịch tiếng Việt (giao diện tối). */
 export function ErpDateInput({
   value,
   onChange,
@@ -30,7 +30,10 @@ export function ErpDateInput({
   className = "",
   placeholder = "dd/mm/yyyy",
 }: Props) {
-  const nativeRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [text, setText] = useState(() => isoToVnDate(value));
   const [invalid, setInvalid] = useState(false);
 
@@ -38,6 +41,28 @@ export function ErpDateInput({
     setText(isoToVnDate(value));
     setInvalid(false);
   }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !(t as Element).closest?.("[data-erp-date-calendar]")) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  function openCalendar() {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const w = 252;
+      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+      setMenuPos({ top: r.bottom + 4, left });
+    }
+    setOpen(true);
+  }
 
   function emit(iso: string, commit: boolean) {
     const norm = toLocalDateString(iso) ?? "";
@@ -65,7 +90,7 @@ export function ErpDateInput({
   const iso = toLocalDateString(value) ?? "";
 
   return (
-    <div className="flex items-center gap-0.5 min-w-0 w-full">
+    <div ref={rootRef} className="relative flex items-center gap-0.5 min-w-0 w-full">
       <input
         type="text"
         inputMode="numeric"
@@ -87,26 +112,44 @@ export function ErpDateInput({
         }}
         className={`flex-1 min-w-0 input-field ${className} ${invalid ? "!border-rose-500/60" : ""}`}
       />
-      <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
-        <Calendar size={13} className="text-slate-400 pointer-events-none" />
-        <input
-          ref={nativeRef}
-          type="date"
-          tabIndex={-1}
-          disabled={disabled}
-          aria-label="Chọn ngày"
-          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-          value={iso}
-          min={min}
-          max={max}
-          onChange={(e) => {
-            const v = e.target.value;
-            setText(isoToVnDate(v));
-            setInvalid(false);
-            emit(v, true);
-          }}
-        />
-      </div>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && (open ? setOpen(false) : openCalendar())}
+        className={`relative shrink-0 w-7 h-7 flex items-center justify-center rounded-md border transition-colors ${
+          open
+            ? "bg-sky/20 border-sky/50 text-sky-light"
+            : "bg-white/5 border-white/15 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+        }`}
+        aria-label="Mở lịch chọn ngày"
+        aria-expanded={open}
+      >
+        <Calendar size={14} />
+      </button>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            data-erp-date-calendar
+            className="fixed z-[200]"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            <ErpDateCalendar
+              value={iso}
+              min={min}
+              max={max}
+              onSelect={(v) => {
+                setText(isoToVnDate(v));
+                setInvalid(false);
+                emit(v, true);
+                setOpen(false);
+              }}
+              onClose={() => setOpen(false)}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

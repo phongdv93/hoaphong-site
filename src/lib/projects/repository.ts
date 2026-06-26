@@ -1,5 +1,6 @@
 import { findCatalogProductByName } from "@/lib/factory/products";
 import { toLocalDateString, toIsoDateTime } from "@/lib/dates";
+import { defaultProjectScheduleDates } from "./project-timeline";
 import { syncPhasesProgressFromItems } from "./phase-items-progress";
 import { syncTenantUser, syncTenantUsers } from "@/lib/db/sync-tenant-user";
 import { tenantExecute, tenantQuery, tenantQueryOne, tenantWithTransaction, getTenantPool } from "@/lib/db/tenant";
@@ -270,6 +271,10 @@ export async function createProject(input: {
   return tenantWithTransaction(async (client) => {
     const code = input.code?.trim();
     if (!code) throw new Error("Mã dự án (PI / hợp đồng) bắt buộc");
+    const scheduleDefaults = defaultProjectScheduleDates();
+    const startDate = input.startDate?.trim() || scheduleDefaults.startDate;
+    const expectedEndDate =
+      input.expectedEndDate?.trim() || scheduleDefaults.expectedEndDate;
     const res = await client.query<{ id: number }>(
       `INSERT INTO projects
        (company_id, code, name, customer_id, contract_value, contract_signed_at, status,
@@ -284,8 +289,8 @@ export async function createProject(input: {
         input.contractValue ?? 0,
         input.contractSignedAt || null,
         input.status || "open",
-        input.startDate || null,
-        input.expectedEndDate || null,
+        startDate,
+        expectedEndDate,
         input.address || "",
         input.notes || "",
         input.supplierAddress || "",
