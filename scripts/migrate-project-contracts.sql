@@ -17,3 +17,13 @@ CREATE TABLE IF NOT EXISTS project_contracts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_contracts_project ON project_contracts(project_id);
+
+-- Migration chạy bằng postgres: chuyển owner sang role app (hoaphong) để ensureTenantSchema không lỗi quyền
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hoaphong') THEN
+    ALTER TABLE project_contracts OWNER TO hoaphong;
+    GRANT ALL ON TABLE project_contracts TO hoaphong;
+    GRANT USAGE, SELECT ON SEQUENCE project_contracts_id_seq TO hoaphong;
+  END IF;
+END $$;
