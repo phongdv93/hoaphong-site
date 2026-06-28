@@ -317,6 +317,18 @@ CREATE TABLE IF NOT EXISTS project_files (
 
 CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS project_file_sections (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_file_sections_project ON project_file_sections(project_id, sort_order);
+
+ALTER TABLE project_files ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES project_file_sections(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS project_items (
   id SERIAL PRIMARY KEY,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

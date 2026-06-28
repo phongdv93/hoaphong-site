@@ -197,12 +197,22 @@ export interface ProjectMessage {
 export interface ProjectFile {
   id: number;
   projectId: number;
+  sectionId: number | null;
   fileName: string;
   fileUrl: string;
   fileSize: number;
   mimeType: string;
   uploadedBy: number | null;
   uploaderName?: string;
+  createdAt: string;
+}
+
+export interface ProjectFileSection {
+  id: number;
+  projectId: number;
+  title: string;
+  sortOrder: number;
+  files: ProjectFile[];
   createdAt: string;
 }
 

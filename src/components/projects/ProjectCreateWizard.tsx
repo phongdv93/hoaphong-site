@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ClipboardList, FileText, Package, Users, Workflow } from "lucide-react";
+import { ChevronLeft, ClipboardList, FileText, Package, Paperclip, Users, Workflow } from "lucide-react";
+import { WizardFilesStep } from "./WizardFilesStep";
 import type { Customer } from "@/lib/marketing/customer-types";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { ErpSelect } from "@/components/erp/ErpSelect";
@@ -31,7 +32,8 @@ const STEPS = [
   { n: 2, title: "Thông tin chính", icon: ClipboardList },
   { n: 3, title: "Hạng mục / SP", icon: Package },
   { n: 4, title: "Công đoạn", icon: Workflow },
-  { n: 5, title: "Thành viên", icon: Users },
+  { n: 5, title: "Tài liệu", icon: Paperclip },
+  { n: 6, title: "Thành viên", icon: Users },
 ] as const;
 
 function useWizardWorkspace(projectId: number | null) {
@@ -204,7 +206,7 @@ export function ProjectCreateWizard({
       const id = await ensureProject();
       if (!id) return;
     }
-    if (target > 5) {
+    if (target > 6) {
       if (projectId) onCreated?.(projectId);
       return;
     }
@@ -212,7 +214,7 @@ export function ProjectCreateWizard({
   }
 
   function skipOrLater() {
-    if (step < 5) setStep(step + 1);
+    if (step < 6) setStep(step + 1);
     else if (projectId) onCreated?.(projectId);
   }
 
@@ -407,10 +409,14 @@ export function ProjectCreateWizard({
         </div>
       )}
 
-      {step === 5 && projectId && workspace && (
+      {step === 5 && projectId && (
+        <WizardFilesStep projectId={projectId} />
+      )}
+
+      {step === 6 && projectId && workspace && (
         <div className="space-y-2">
           <p className="text-xs text-slate-400">
-            Giống tab Thành viên — có thể bỏ qua và mời sau.
+            Mời thành viên tham gia dự án — có thể bỏ qua và thêm sau.
           </p>
           <ProjectMembersTab
             project={workspace.project}
@@ -462,7 +468,7 @@ export function ProjectCreateWizard({
               Bỏ qua
             </button>
           )}
-          {step >= 3 && step < 5 && (
+          {step >= 3 && step < 6 && (
             <button
               type="button"
               disabled={busy || wsLoading}
@@ -472,7 +478,7 @@ export function ProjectCreateWizard({
               Tiếp tục
             </button>
           )}
-          {step === 5 && (
+          {step === 6 && (
             <button
               type="button"
               disabled={busy}

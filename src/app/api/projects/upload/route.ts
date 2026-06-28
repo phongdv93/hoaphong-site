@@ -13,6 +13,8 @@ const IMAGE_TYPES = new Set([
   "image/heif",
 ]);
 
+const DOC_EXT = /\.(jpe?g|png|webp|gif|heic|pdf|docx?|xlsx?|pptx?|txt|csv|zip|rar)$/i;
+
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,8 +24,13 @@ export async function POST(request: Request) {
   if (!file) return NextResponse.json({ error: "Không có file" }, { status: 400 });
 
   const mime = file.type || "application/octet-stream";
-  if (!IMAGE_TYPES.has(mime) && !file.name.match(/\.(jpe?g|png|webp|gif|heic)$/i)) {
-    return NextResponse.json({ error: "Chỉ chấp nhận file ảnh" }, { status: 400 });
+  const okMime =
+    IMAGE_TYPES.has(mime) ||
+    mime.startsWith("application/") ||
+    mime.startsWith("text/") ||
+    DOC_EXT.test(file.name);
+  if (!okMime) {
+    return NextResponse.json({ error: "Định dạng file không được hỗ trợ" }, { status: 400 });
   }
 
   if (!fs.existsSync(UPLOAD_DIR)) {

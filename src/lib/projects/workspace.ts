@@ -48,6 +48,7 @@ function mapFile(row: Record<string, unknown>): ProjectFile {
   return {
     id: row.id as number,
     projectId: row.project_id as number,
+    sectionId: row.section_id != null ? Number(row.section_id) : null,
     fileName: row.file_name as string,
     fileUrl: (row.file_url as string) ?? "",
     fileSize: Number(row.file_size ?? 0),

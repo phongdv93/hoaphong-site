@@ -14,14 +14,16 @@ import {
   projectMatchesStatusFilter,
   projectProgressPercent,
 } from "@/lib/projects/project-filters";
+import type { Customer } from "@/lib/marketing/customer-types";
 import type { Project, ProjectPhase } from "@/lib/projects/types";
-import type { ProjectStatus, ProjectSummary } from "@/lib/projects/types";
+import type { ProjectSummary } from "@/lib/projects/types";
 import {
   DEFAULT_DAY_WIDTH,
   MAX_GANTT_DAY_WIDTH,
   MIN_GANTT_DAY_WIDTH,
 } from "./ProjectsGantt";
 import { ProjectsTimelineWorkspace } from "./ProjectsTimelineWorkspace";
+import { ProjectPanelColumn } from "./ProjectPanelColumn";
 import { DeletedProjectsCatalog } from "./DeletedProjectsCatalog";
 import { StatusFilterCombo, type ProjectStatusFilter } from "./StatusFilterCombo";
 import { useOnCompanyChanged } from "@/lib/erp/use-on-company-changed";
@@ -60,6 +62,7 @@ function ProjectListInner() {
   const [createBlockedMsg, setCreateBlockedMsg] = useState<string | null>(null);
   const [deletedItems, setDeletedItems] = useState<ProjectSummary[] | null>(null);
   const [deletedLoading, setDeletedLoading] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   useEffect(() => {
     try {
@@ -98,6 +101,14 @@ function ProjectListInner() {
     },
     []
   );
+
+  useEffect(() => {
+    if (!createOpen) return;
+    fetch("/api/marketing/customers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setCustomers(Array.isArray(rows) ? rows : []))
+      .catch(() => setCustomers([]));
+  }, [createOpen]);
 
   const loadDeleted = useCallback(async () => {
     setDeletedLoading(true);
@@ -309,6 +320,40 @@ function ProjectListInner() {
   const timelineFull = timelineMode && (items.length > 0 || panelOpen);
   const ganttProjects = items.length > 0 ? items : rawItems ?? [];
 
+  const searchToolbar = (
+    <div className="flex flex-wrap items-center gap-2 shrink-0 px-8 pt-2 pb-2 border-b border-white/10">
+      <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
+        <Search size={14} className="text-slate-500 shrink-0" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (statusFilter === "deleted") void loadDeleted();
+              else void load();
+            }
+          }}
+          placeholder="Tìm theo mã / tên dự án…"
+          className="px-1 text-sm outline-none w-56 sm:w-72 bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
+        />
+      </div>
+      <StatusFilterCombo value={statusFilter} onChange={setStatusFilter} />
+      {timelineMode && (
+        <input
+          type="range"
+          min={MIN_GANTT_DAY_WIDTH}
+          max={MAX_GANTT_DAY_WIDTH}
+          value={dayWidth}
+          onChange={(e) => onDayWidthChange(Number(e.target.value))}
+          className="w-24 sm:w-32 h-[30px] accent-sky cursor-pointer"
+          title="Độ rộng ngày trên timeline"
+          aria-label="Độ rộng ngày trên timeline"
+        />
+      )}
+      <div className="flex-1" />
+    </div>
+  );
+
   return (
     <div
       className={
@@ -317,41 +362,28 @@ function ProjectListInner() {
           : "space-y-4 pt-4 px-8"
       }
     >
-      <div
-        className={`flex flex-wrap items-center gap-2 shrink-0 ${
-          timelineMode || showDeletedCatalog ? "px-8 pt-2 pb-2 border-b border-white/10" : ""
-        }`}
-      >
-        <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
-          <Search size={14} className="text-slate-500 shrink-0" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (statusFilter === "deleted") void loadDeleted();
-                else void load();
-              }
-            }}
-            placeholder="Tìm theo mã / tên dự án…"
-            className="px-1 text-sm outline-none w-56 sm:w-72 bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
-          />
+      {!(timelineFull && panelOpen) && (timelineMode || showDeletedCatalog) && searchToolbar}
+      {!timelineMode && !showDeletedCatalog && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
+            <Search size={14} className="text-slate-500 shrink-0" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (statusFilter === "deleted") void loadDeleted();
+                  else void load();
+                }
+              }}
+              placeholder="Tìm theo mã / tên dự án…"
+              className="px-1 text-sm outline-none w-56 sm:w-72 bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
+            />
+          </div>
+          <StatusFilterCombo value={statusFilter} onChange={setStatusFilter} />
+          <div className="flex-1" />
         </div>
-        <StatusFilterCombo value={statusFilter} onChange={setStatusFilter} />
-        {timelineMode && (
-          <input
-            type="range"
-            min={MIN_GANTT_DAY_WIDTH}
-            max={MAX_GANTT_DAY_WIDTH}
-            value={dayWidth}
-            onChange={(e) => onDayWidthChange(Number(e.target.value))}
-            className="w-24 sm:w-32 h-[30px] accent-sky cursor-pointer"
-            title="Độ rộng ngày trên timeline"
-            aria-label="Độ rộng ngày trên timeline"
-          />
-        )}
-        <div className="flex-1" />
-      </div>
+      )}
 
       {errorBanner && (
         <div className="bg-amber-500/15 border border-amber-500/40 text-amber-100 rounded p-3 text-sm mx-8">
@@ -399,17 +431,24 @@ function ProjectListInner() {
 
       {timelineFull && (
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          <ProjectsTimelineWorkspace
-            projects={ganttProjects}
-            dayWidth={dayWidth}
-            panelProjectId={panelProjectId}
+          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            {panelOpen && searchToolbar}
+            <ProjectsTimelineWorkspace
+              projects={ganttProjects}
+              dayWidth={dayWidth}
+              panelProjectId={panelProjectId}
+              onOpenProjectPanel={openProjectPanel}
+              className="flex-1 min-h-0 h-full w-full"
+            />
+          </div>
+          <ProjectPanelColumn
             createOpen={createOpen}
+            panelProjectId={panelProjectId}
+            customers={customers}
             onClosePanel={closePanel}
-            onOpenProjectPanel={openProjectPanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}
             onProjectDeleted={handleProjectDeleted}
-            className="flex-1 min-h-0 h-full w-full"
           />
         </div>
       )}

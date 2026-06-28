@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   X,
   LayoutDashboard,
@@ -11,15 +11,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Send,
-  FileText,
-  Download,
   Gauge,
   GitBranch,
   Inbox,
+  MoreVertical,
+  Pause,
+  Play,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
 import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
+import { ProjectFilesTab } from "./tabs/ProjectFilesTab";
 import { ProjectItemsTab, ProjectItemsSearch, filterProjectItems } from "./tabs/ProjectItemsTab";
 import {
   ProgressTab,
@@ -121,6 +124,8 @@ export function ProjectTaskPanel({
     null
   );
   const [itemsSearch, setItemsSearch] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Partial<Record<TabId, HTMLElement | null>>>({});
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -168,9 +173,37 @@ export function ProjectTaskPanel({
     }
   }
 
-  function pickTab(id: TabId) {
+  function scrollToSection(id: TabId) {
     setTab(id);
     if (collapsed) onCollapsedChange(false);
+    requestAnimationFrame(() => {
+      sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || loading || !data) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hit = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!hit?.target.id.startsWith("section-")) return;
+        const id = hit.target.id.replace("section-", "") as TabId;
+        setTab(id);
+      },
+      { root, threshold: [0.2, 0.45, 0.7], rootMargin: "0px 0px -40% 0px" }
+    );
+    for (const t of TABS) {
+      const el = sectionRefs.current[t.id];
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [data, loading]);
+
+  function pickTab(id: TabId) {
+    scrollToSection(id);
   }
 
   function toggleCollapsed() {
@@ -360,30 +393,14 @@ export function ProjectTaskPanel({
                       {schedule.label}
                     </span>
                   )}
-                  {p.status === "on_hold" ? (
-                    <button
-                      type="button"
-                      onClick={resumeProject}
-                      className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/15"
-                    >
-                      Tiếp tục
-                    </button>
-                  ) : p.status !== "done" && p.status !== "cancelled" ? (
-                    <button
-                      type="button"
-                      onClick={pauseProject}
-                      className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-500/15"
-                    >
-                      Tạm dừng
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={deleteProject}
-                    className="text-[10px] px-1.5 py-0.5 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-500/15 ml-auto"
-                  >
-                    Xóa
-                  </button>
+                  {canEdit && (
+                    <ProjectHeaderMenu
+                      status={p.status}
+                      onPause={pauseProject}
+                      onResume={resumeProject}
+                      onDelete={deleteProject}
+                    />
+                  )}
                 </div>
               </>
             ) : (
@@ -391,93 +408,137 @@ export function ProjectTaskPanel({
             )}
           </div>
 
-          {/* Tab label */}
-          <div className="shrink-0 px-3 py-1.5 text-xs font-medium text-slate-300 border-b border-white/5 flex items-center gap-2 min-h-[30px]">
-            <span className="shrink-0 uppercase tracking-wide">
-              {TABS.find((t) => t.id === tab)?.label}
-            </span>
-            {tab === "items" && data && (
-              <ProjectItemsSearch
-                value={itemsSearch}
-                onChange={setItemsSearch}
-                total={data.items.length}
-                filtered={filterProjectItems(data.items, itemsSearch).length}
-              />
-            )}
-          </div>
-
-          {/* Body */}
-          <div className="flex-1 overflow-y-auto min-h-0 px-3 py-2 text-xs">
-            {loading && <p className="text-slate-400">Đang tải…</p>}
-            {!loading && error && (
-              <p className="text-rose-300">{error}</p>
-            )}
-            {!loading && data && tab === "overview" && (
-              <OverviewTab
-                project={data.project}
-                phases={data.phases}
-                canEditMeta={canEditMeta}
-                onSave={patchProject}
-              />
-            )}
-            {!loading && data && tab === "phases" && (
-              <ProjectPhasesTab
-                project={data.project}
-                phases={data.phases}
-                members={data.members}
-                canEdit={canEdit}
-                onChanged={() => load({ silent: true })}
-              />
-            )}
-            {!loading && data && tab === "progress" && (
-              <ProgressTab
-                projectId={projectId}
-                phases={data.phases}
-                progressLogs={data.progressLogs ?? []}
-                canUpdate={canUpdate}
-                onSaved={() => load({ silent: true })}
-              />
-            )}
-            {!loading && data && tab === "submissions" && (
-              <SubmissionsTab
-                projectId={projectId}
-                phases={data.phases}
-                submissions={data.submissions ?? []}
-                canSubmit={canSubmit}
-                onCreated={load}
-                onOpen={setDetailSubmission}
-              />
-            )}
-            {!loading && data && tab === "items" && (
-              <ProjectItemsTab
-                projectId={projectId}
-                items={data.items}
-                canEdit={canEdit}
-                searchQuery={itemsSearch}
-                linkedPhases={data.phases.filter((p) => p.progressFromItems)}
-                onChanged={() => load({ silent: true })}
-              />
-            )}
-            {!loading && data && tab === "chat" && (
-              <ChatTab
-                messages={data.messages}
-                draft={chatDraft}
-                onDraftChange={setChatDraft}
-                onSend={sendChat}
-                sending={sending}
-                onOpenSubmission={openSubmission}
-              />
-            )}
-            {!loading && data && tab === "files" && (
-              <FilesTab files={data.files} />
-            )}
-            {!loading && data && tab === "members" && (
-              <ProjectMembersTab
-                project={data.project}
-                members={data.members}
-                canEdit={canEdit}
-                onChanged={() => load({ silent: true })}
-              />
+          {/* Body — cuộn liên tục qua các mục */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 px-3 py-1 text-xs">
+            {loading && <p className="text-slate-400 py-4">Đang tải…</p>}
+            {!loading && error && <p className="text-rose-300 py-4">{error}</p>}
+            {!loading && data && (
+              <>
+                <PanelSection
+                  id="overview"
+                  label="Tổng quan"
+                  setRef={(el) => {
+                    sectionRefs.current.overview = el;
+                  }}
+                >
+                  <OverviewTab
+                    project={data.project}
+                    phases={data.phases}
+                    canEditMeta={canEditMeta}
+                    onSave={patchProject}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="phases"
+                  label="Công đoạn"
+                  setRef={(el) => {
+                    sectionRefs.current.phases = el;
+                  }}
+                >
+                  <ProjectPhasesTab
+                    project={data.project}
+                    phases={data.phases}
+                    members={data.members}
+                    canEdit={canEdit}
+                    onChanged={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="progress"
+                  label="Tiến độ"
+                  setRef={(el) => {
+                    sectionRefs.current.progress = el;
+                  }}
+                >
+                  <ProgressTab
+                    projectId={projectId}
+                    phases={data.phases}
+                    progressLogs={data.progressLogs ?? []}
+                    canUpdate={canUpdate}
+                    onSaved={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="submissions"
+                  label="Yêu cầu"
+                  setRef={(el) => {
+                    sectionRefs.current.submissions = el;
+                  }}
+                >
+                  <SubmissionsTab
+                    projectId={projectId}
+                    phases={data.phases}
+                    submissions={data.submissions ?? []}
+                    canSubmit={canSubmit}
+                    onCreated={load}
+                    onOpen={setDetailSubmission}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="items"
+                  label="Hạng mục"
+                  setRef={(el) => {
+                    sectionRefs.current.items = el;
+                  }}
+                  extra={
+                    <ProjectItemsSearch
+                      value={itemsSearch}
+                      onChange={setItemsSearch}
+                      total={data.items.length}
+                      filtered={filterProjectItems(data.items, itemsSearch).length}
+                    />
+                  }
+                >
+                  <ProjectItemsTab
+                    projectId={projectId}
+                    items={data.items}
+                    canEdit={canEdit}
+                    searchQuery={itemsSearch}
+                    linkedPhases={data.phases.filter((p) => p.progressFromItems)}
+                    onChanged={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="files"
+                  label="Tệp"
+                  setRef={(el) => {
+                    sectionRefs.current.files = el;
+                  }}
+                >
+                  <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
+                </PanelSection>
+                <PanelSection
+                  id="members"
+                  label="Thành viên"
+                  setRef={(el) => {
+                    sectionRefs.current.members = el;
+                  }}
+                >
+                  <ProjectMembersTab
+                    project={data.project}
+                    members={data.members}
+                    canEdit={canEdit}
+                    onChanged={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                <PanelSection
+                  id="chat"
+                  label="Chat"
+                  setRef={(el) => {
+                    sectionRefs.current.chat = el;
+                  }}
+                  className="min-h-[280px]"
+                >
+                  <ChatTab
+                    messages={data.messages}
+                    draft={chatDraft}
+                    onDraftChange={setChatDraft}
+                    onSend={sendChat}
+                    sending={sending}
+                    onOpenSubmission={openSubmission}
+                  />
+                </PanelSection>
+              </>
             )}
           </div>
 
@@ -498,6 +559,119 @@ export function ProjectTaskPanel({
 
 const PANEL_FIELD_CLS =
   "w-full h-[30px] rounded-md border border-white/15 bg-[#0f1a2e] px-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+
+function PanelSection({
+  id,
+  label,
+  children,
+  extra,
+  className = "",
+  setRef,
+}: {
+  id: TabId;
+  label: string;
+  children: React.ReactNode;
+  extra?: React.ReactNode;
+  className?: string;
+  setRef: (el: HTMLElement | null) => void;
+}) {
+  return (
+    <section
+      id={`section-${id}`}
+      ref={setRef}
+      className={`py-3 border-b border-white/10 scroll-mt-0 ${className}`}
+    >
+      <div className="flex items-center gap-2 mb-2 sticky top-0 z-[2] bg-[#0a1120]/95 backdrop-blur-sm py-1 -mx-1 px-1">
+        <h3 className="text-[10px] uppercase tracking-wide text-sky-light/90 font-semibold">
+          {label}
+        </h3>
+        {extra}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ProjectHeaderMenu({
+  status,
+  onPause,
+  onResume,
+  onDelete,
+}: {
+  status: Project["status"];
+  onPause: () => void;
+  onResume: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const showPause = status !== "done" && status !== "cancelled" && status !== "on_hold";
+  const showResume = status === "on_hold";
+
+  return (
+    <div ref={rootRef} className="relative ml-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="p-1.5 rounded-lg border border-white/15 text-slate-400 hover:text-white hover:bg-white/10"
+        aria-label="Thao tác dự án"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-[calc(100%+4px)] z-[100] min-w-[10.5rem] py-1 rounded-xl border border-white/15 shadow-2xl shadow-black/60"
+          style={{ background: "linear-gradient(180deg, #121d33 0%, #0c1426 100%)" }}
+        >
+          {showPause && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onPause();
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-amber-200 hover:bg-white/8 flex items-center gap-2"
+            >
+              <Pause size={14} /> Tạm dừng
+            </button>
+          )}
+          {showResume && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onResume();
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-emerald-200 hover:bg-white/8 flex items-center gap-2"
+            >
+              <Play size={14} /> Tiếp tục
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/10 flex items-center gap-2 border-t border-white/10"
+          >
+            <Trash2 size={14} /> Xóa dự án
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function OverviewTab({
   project,
@@ -734,48 +908,6 @@ function ChatTab({
   );
 }
 
-function FilesTab({ files }: { files: ProjectFile[] }) {
-  if (files.length === 0) {
-    return (
-      <p className="text-slate-400">
-        Chưa có file đính kèm. Tải lên sẽ có trong trang chi tiết (sắp có).
-      </p>
-    );
-  }
-
-  return (
-    <ul className="space-y-2">
-      {files.map((f) => (
-        <li
-          key={f.id}
-          className="flex items-start gap-2 bg-white/5 rounded-lg px-2.5 py-2"
-        >
-          <FileText size={16} className="text-sky shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-white truncate">{f.fileName}</div>
-            <div className="text-[10px] text-slate-400">
-              {formatBytes(f.fileSize)}
-              {f.uploaderName && ` · ${f.uploaderName}`}
-              {` · ${fmtDateTime(f.createdAt)}`}
-            </div>
-          </div>
-          {f.fileUrl && (
-            <a
-              href={f.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 text-sky hover:bg-white/10 rounded"
-              title="Tải xuống"
-            >
-              <Download size={14} />
-            </a>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function EditableInfo({
   label,
   value,
@@ -886,10 +1018,4 @@ function fmtDateTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
