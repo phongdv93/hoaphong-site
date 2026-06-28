@@ -137,11 +137,6 @@ export function ProjectCreateWizard({
     setStep(3);
   }
 
-  function skipOrLater() {
-    if (step < 6) setStep(step + 1);
-    else void finishWizard();
-  }
-
   async function finishWizard() {
     if (!name.trim()) {
       setError("Tên dự án bắt buộc");
@@ -515,24 +510,14 @@ export function ProjectCreateWizard({
             </button>
           )}
           {step >= 3 && step < 6 && (
-            <>
-              <button
-                type="button"
-                onClick={skipOrLater}
-                disabled={busy}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
-              >
-                Bỏ qua
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setStep(step + 1)}
-                className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
-              >
-                Tiếp tục
-              </button>
-            </>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStep(step + 1)}
+              className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
+            >
+              Tiếp tục
+            </button>
           )}
           {step === 6 && (
             <button

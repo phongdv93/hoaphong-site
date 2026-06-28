@@ -114,7 +114,12 @@ export function ErpDateInput({
   const iso = toLocalDateString(value) ?? "";
 
   return (
-    <div ref={rootRef} className="relative flex items-stretch gap-0.5 min-w-0 w-full">
+    <div
+      ref={rootRef}
+      className={`relative flex items-stretch min-w-0 w-full min-h-[2.5rem] rounded-lg border border-white/15 bg-white/5 focus-within:ring-2 focus-within:ring-sky/30 focus-within:border-sky ${
+        invalid ? "!border-rose-500/60" : ""
+      } ${disabled ? "opacity-50" : ""} ${className}`}
+    >
       <input
         type="text"
         inputMode="numeric"
@@ -134,22 +139,20 @@ export function ErpDateInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={`flex-1 min-w-0 input-field ${className} ${invalid ? "!border-rose-500/60" : ""}`}
+        className="flex-1 min-w-0 h-full border-0 bg-transparent px-3 py-2 text-inherit text-white placeholder:text-slate-muted/60 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
       <button
         ref={btnRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && (open ? setOpen(false) : openCalendar())}
-        className={`relative shrink-0 aspect-square self-stretch min-h-[22px] min-w-[22px] flex items-center justify-center rounded-md border transition-colors ${
-          open
-            ? "bg-sky/20 border-sky/50 text-sky-light"
-            : "bg-white/5 border-white/15 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+        className={`shrink-0 self-stretch flex items-center justify-center px-2 border-0 bg-transparent transition-colors disabled:cursor-not-allowed ${
+          open ? "text-sky-light" : "text-slate-400 hover:text-slate-200"
         }`}
         aria-label="Mở lịch chọn ngày"
         aria-expanded={open}
       >
-        <Calendar size={14} />
+        <Calendar size={14} className="shrink-0" />
       </button>
       {open &&
         typeof document !== "undefined" &&
