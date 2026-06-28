@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
-import { Download, FileText, Plus, Trash2, Upload } from "lucide-react";
+import { Download, FileText, Maximize2, Plus, Trash2, Upload } from "lucide-react";
 import type { ProjectFileSection } from "@/lib/projects/types";
 import type { WizardDraftFileSection } from "@/lib/projects/wizard-draft";
 import { isImageMime, newTempId } from "@/lib/projects/wizard-draft";
@@ -98,14 +98,25 @@ function ImageThumb({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={file.fileUrl} alt={file.fileName} className="w-full h-full object-cover" />
       </button>
-      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-none group-hover:pointer-events-auto">
+      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-none">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          className="p-1.5 rounded-full bg-white/15 text-white hover:bg-white/25 pointer-events-auto"
+          title="Phóng to"
+        >
+          <Maximize2 size={13} />
+        </button>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             void downloadOne(file);
           }}
-          className="p-1.5 rounded-full bg-white/15 text-white hover:bg-white/25"
+          className="p-1.5 rounded-full bg-white/15 text-white hover:bg-white/25 pointer-events-auto"
           title="Tải ảnh"
         >
           <Download size={13} />
@@ -117,7 +128,7 @@ function ImageThumb({
               e.stopPropagation();
               onDelete();
             }}
-            className="p-1.5 rounded-full bg-rose-500/80 text-white hover:bg-rose-500"
+            className="p-1.5 rounded-full bg-rose-500/80 text-white hover:bg-rose-500 pointer-events-auto"
             title="Xóa"
           >
             <Trash2 size={13} />

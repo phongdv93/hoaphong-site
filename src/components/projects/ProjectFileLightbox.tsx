@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export type LightboxImage = { url: string; name: string };
@@ -20,6 +21,14 @@ export function ProjectFileLightbox({
   const hasMany = images.length > 1;
 
   useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && hasMany) {
@@ -35,9 +44,9 @@ export function ProjectFileLightbox({
 
   if (!img) return null;
 
-  return (
+  const node = (
     <div
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/92 p-4"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/92 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -94,4 +103,7 @@ export function ProjectFileLightbox({
       </p>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(node, document.body);
 }
