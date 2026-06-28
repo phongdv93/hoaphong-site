@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, FileText, Plus, Trash2, Upload } from "lucide-react";
+import JSZip from "jszip";
+import { Download, FileText, Plus, Trash2, Upload } from "lucide-react";
 import type { ProjectFileSection } from "@/lib/projects/types";
 import type { WizardDraftFileSection } from "@/lib/projects/wizard-draft";
 import { isImageMime, newTempId } from "@/lib/projects/wizard-draft";
@@ -28,6 +29,108 @@ type SectionRow = {
   files: FileRow[];
 };
 
+async function downloadOne(file: FileRow) {
+  try {
+    const res = await fetch(file.fileUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    window.open(file.fileUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
+async function downloadAllAsZip(sectionTitle: string, files: FileRow[]) {
+  if (!files.length) return;
+  if (files.length === 1) {
+    await downloadOne(files[0]!);
+    return;
+  }
+  const zip = new JSZip();
+  let added = 0;
+  for (const f of files) {
+    try {
+      const res = await fetch(f.fileUrl);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      zip.file(f.fileName, blob);
+      added++;
+    } catch {
+      // skip
+    }
+  }
+  if (added === 0) {
+    alert("Không tải được file nào");
+    return;
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${sectionTitle.replace(/[^\w\u00C0-\u024f.-]+/gi, "_") || "tai-lieu"}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ImageThumb({
+  file,
+  canEdit,
+  onOpen,
+  onDelete,
+}: {
+  file: FileRow;
+  canEdit: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group relative w-[4.75rem] h-[4.75rem] rounded-lg overflow-hidden border border-white/15 bg-black/20">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="absolute inset-0 w-full h-full focus:outline-none focus:ring-1 focus:ring-sky/50"
+        title={file.fileName}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={file.fileUrl} alt={file.fileName} className="w-full h-full object-cover" />
+      </button>
+      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-none group-hover:pointer-events-auto">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void downloadOne(file);
+          }}
+          className="p-1.5 rounded-full bg-white/15 text-white hover:bg-white/25"
+          title="Tải ảnh"
+        >
+          <Download size={13} />
+        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 rounded-full bg-rose-500/80 text-white hover:bg-rose-500"
+            title="Xóa"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+      <span className="absolute bottom-0 inset-x-0 px-1 py-0.5 text-[8px] text-white/90 truncate bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        {file.fileName}
+      </span>
+    </div>
+  );
+}
+
 export function ProjectFilesTab({
   projectId,
   canEdit,
@@ -46,6 +149,7 @@ export function ProjectFilesTab({
   const [adding, setAdding] = useState(false);
   const [uploadingSection, setUploadingSection] = useState<string | number | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [downloadingSection, setDownloadingSection] = useState<string | number | null>(null);
 
   const reload = useCallback(async () => {
     if (draftMode || !projectId) return;
@@ -102,10 +206,7 @@ export function ProjectFilesTab({
     const title = newTitle.trim();
     if (!title) return;
     if (draftMode && onDraftChange) {
-      onDraftChange([
-        ...(draftSections ?? []),
-        { tempId: newTempId(), title, files: [] },
-      ]);
+      onDraftChange([...(draftSections ?? []), { tempId: newTempId(), title, files: [] }]);
       setNewTitle("");
       return;
     }
@@ -131,9 +232,7 @@ export function ProjectFilesTab({
     if (!t) return;
     if (draftMode && onDraftChange) {
       onDraftChange(
-        (draftSections ?? []).map((s) =>
-          s.tempId === sectionId ? { ...s, title: t } : s
-        )
+        (draftSections ?? []).map((s) => (s.tempId === sectionId ? { ...s, title: t } : s))
       );
       return;
     }
@@ -153,9 +252,7 @@ export function ProjectFilesTab({
       return;
     }
     if (typeof sectionId !== "number" || !projectId) return;
-    await fetch(`/api/projects/${projectId}/file-sections/${sectionId}`, {
-      method: "DELETE",
-    });
+    await fetch(`/api/projects/${projectId}/file-sections/${sectionId}`, { method: "DELETE" });
     await reload();
   }
 
@@ -167,6 +264,7 @@ export function ProjectFilesTab({
       for (const file of Array.from(fileList)) {
         const fd = new FormData();
         fd.append("file", file);
+        if (projectId) fd.append("projectId", String(projectId));
         const up = await fetch("/api/projects/upload", { method: "POST", body: fd });
         if (!up.ok) continue;
         const { url } = (await up.json()) as { url: string };
@@ -222,7 +320,6 @@ export function ProjectFilesTab({
   }
 
   async function removeFile(sectionId: string | number, fileId: string | number) {
-    if (!confirm("Xóa file này?")) return;
     if (draftMode && onDraftChange) {
       onDraftChange(
         (draftSections ?? []).map((s) =>
@@ -233,6 +330,7 @@ export function ProjectFilesTab({
       );
       return;
     }
+    if (!confirm("Xóa file này?")) return;
     if (typeof fileId !== "number" || !projectId) return;
     await fetch(`/api/projects/${projectId}/files/${fileId}`, { method: "DELETE" });
     await reload();
@@ -250,8 +348,8 @@ export function ProjectFilesTab({
   return (
     <div className="space-y-3">
       <p className="text-[10px] text-slate-500">
-        Nhóm theo tiêu đề — mỗi tiêu đề có thể đính kèm một hoặc nhiều file. Ảnh xem trực tiếp,
-        bấm để phóng to.
+        Ảnh xem dạng lưới — bấm phóng to, di chuột để tải/xóa. File khác (PDF, tài liệu) ở danh sách
+        bên dưới.
       </p>
 
       {canEdit && (
@@ -281,9 +379,10 @@ export function ProjectFilesTab({
       ) : (
         <ul className="space-y-3">
           {displaySections.map((sec) => {
-            const imageFiles = sec.files.filter((f) =>
-              isImageMime(f.mimeType, f.fileName)
-            );
+            const imageFiles = sec.files.filter((f) => isImageMime(f.mimeType, f.fileName));
+            const otherFiles = sec.files.filter((f) => !isImageMime(f.mimeType, f.fileName));
+            const hasFiles = sec.files.length > 0;
+
             return (
               <li
                 key={sec.id}
@@ -303,6 +402,23 @@ export function ProjectFilesTab({
                     <span className="text-xs font-semibold text-slate-200 flex-1 truncate">
                       {sec.title}
                     </span>
+                  )}
+                  {hasFiles && (
+                    <button
+                      type="button"
+                      disabled={downloadingSection === sec.id}
+                      onClick={() => {
+                        setDownloadingSection(sec.id);
+                        void downloadAllAsZip(sec.title, sec.files).finally(() =>
+                          setDownloadingSection(null)
+                        );
+                      }}
+                      className="shrink-0 inline-flex items-center gap-1 px-2 h-[28px] rounded-md border border-white/15 text-[10px] text-slate-300 hover:bg-white/10 disabled:opacity-50"
+                      title="Tải tất cả file trong nhóm"
+                    >
+                      <Download size={12} />
+                      {downloadingSection === sec.id ? "…" : "Tải tất cả"}
+                    </button>
                   )}
                   {canEdit && (
                     <>
@@ -335,31 +451,24 @@ export function ProjectFilesTab({
                 {imageFiles.length > 0 && (
                   <div className="flex flex-wrap gap-2 p-2.5 border-b border-white/5">
                     {imageFiles.map((f) => (
-                      <button
+                      <ImageThumb
                         key={f.id}
-                        type="button"
-                        onClick={() => openLightbox(f.fileUrl)}
-                        className="relative w-20 h-20 rounded-lg overflow-hidden border border-white/15 hover:border-sky/50 focus:outline-none focus:ring-1 focus:ring-sky/50"
-                        title={f.fileName}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={f.fileUrl}
-                          alt={f.fileName}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
+                        file={f}
+                        canEdit={canEdit}
+                        onOpen={() => openLightbox(f.fileUrl)}
+                        onDelete={() => void removeFile(sec.id, f.id)}
+                      />
                     ))}
                   </div>
                 )}
 
-                {sec.files.length === 0 ? (
+                {!hasFiles ? (
                   <p className="text-[10px] text-slate-500 px-3 py-2">Chưa có file trong nhóm này.</p>
-                ) : (
+                ) : otherFiles.length > 0 ? (
                   <ul className="divide-y divide-white/5">
-                    {sec.files.map((f) => {
-                      const isImg = isImageMime(f.mimeType, f.fileName);
-                      const isPdf = /\.pdf$/i.test(f.fileName) || f.mimeType === "application/pdf";
+                    {otherFiles.map((f) => {
+                      const isPdf =
+                        /\.pdf$/i.test(f.fileName) || f.mimeType === "application/pdf";
                       return (
                         <li key={f.id} className="px-2.5 py-2 space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -371,21 +480,14 @@ export function ProjectFilesTab({
                                 {f.uploaderName ? ` · ${f.uploaderName}` : ""}
                               </div>
                             </div>
-                            {f.fileUrl && (
-                              <a
-                                href={f.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 text-sky hover:bg-white/10 rounded"
-                                title="Mở / tải"
-                              >
-                                {isImg ? (
-                                  <ExternalLink size={13} />
-                                ) : (
-                                  <Download size={13} />
-                                )}
-                              </a>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => void downloadOne(f)}
+                              className="p-1 text-sky hover:bg-white/10 rounded"
+                              title="Tải xuống"
+                            >
+                              <Download size={13} />
+                            </button>
                             {canEdit && (
                               <button
                                 type="button"
@@ -407,7 +509,7 @@ export function ProjectFilesTab({
                       );
                     })}
                   </ul>
-                )}
+                ) : null}
               </li>
             );
           })}

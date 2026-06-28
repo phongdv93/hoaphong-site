@@ -1,4 +1,5 @@
 import { tenantExecute, tenantQuery, tenantQueryOne } from "@/lib/db/tenant";
+import { deleteFromS3 } from "@/lib/storage/s3";
 import type { ProjectFile, ProjectFileSection } from "./types";
 
 function mapFile(row: Record<string, unknown>): ProjectFile {
@@ -104,6 +105,23 @@ export async function deleteProjectFileSection(
   sectionId: number,
   projectId: number
 ): Promise<void> {
+  const files = await tenantQuery<{ file_url: string }>(
+    `SELECT file_url FROM project_files WHERE section_id = $1 AND project_id = $2`,
+    [sectionId, projectId],
+    projectId
+  );
+  for (const f of files) {
+    try {
+      await deleteFromS3(f.file_url);
+    } catch {
+      // continue
+    }
+  }
+  await tenantExecute(
+    `DELETE FROM project_files WHERE section_id = $1 AND project_id = $2`,
+    [sectionId, projectId],
+    projectId
+  );
   await tenantExecute(
     `DELETE FROM project_file_sections WHERE id = $1 AND project_id = $2`,
     [sectionId, projectId],
@@ -143,6 +161,18 @@ export async function deleteProjectFileRecord(
   fileId: number,
   projectId: number
 ): Promise<void> {
+  const row = await tenantQueryOne<{ file_url: string }>(
+    `SELECT file_url FROM project_files WHERE id = $1 AND project_id = $2`,
+    [fileId, projectId],
+    projectId
+  );
+  if (row?.file_url) {
+    try {
+      await deleteFromS3(row.file_url);
+    } catch {
+      // continue
+    }
+  }
   await tenantExecute(
     `DELETE FROM project_files WHERE id = $1 AND project_id = $2`,
     [fileId, projectId],
