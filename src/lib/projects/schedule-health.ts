@@ -38,7 +38,7 @@ function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / (24 * 3600 * 1000));
 }
 
-function isPhaseDelayed(
+export function isPhaseDelayed(
   ph: Pick<ProjectGanttPhase, "status" | "deadlineAt">,
   today: string
 ): boolean {

@@ -7,6 +7,7 @@ import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import { canCreateProject } from "@/lib/projects/permissions";
 import { createProject, listDeletedProjects, listPiSourceProjects, listProjects } from "@/lib/projects/repository";
 import { generateFreeProjectCode } from "@/lib/projects/project-code";
+import { normalizeProjectTemplate } from "@/lib/projects/project-templates";
 import type { ProjectStatus } from "@/lib/projects/types";
 
 async function requireActiveCompany(userId: number) {
@@ -50,24 +51,23 @@ export async function GET(req: Request) {
   const q = searchParams.get("q") || undefined;
   const piSources = searchParams.get("piSources") === "1";
   const deleted = searchParams.get("deleted") === "1";
-  const restrictToMembership =
-    !admin && active.role !== "admin" && active.role !== "manager";
+  const memberUserId = admin ? undefined : user.id;
   return runWithTenantCompany(active.companyId, async () => {
     if (piSources) {
-      const rows = await listPiSourceProjects(active.companyId);
+      const rows = await listPiSourceProjects(active.companyId, memberUserId);
       return NextResponse.json(rows);
     }
     if (deleted) {
       const rows = await listDeletedProjects(active.companyId, {
         q,
-        memberUserId: restrictToMembership ? user.id : undefined,
+        memberUserId,
       });
       return NextResponse.json(rows);
     }
     const rows = await listProjects(active.companyId, {
       status,
       q,
-      memberUserId: restrictToMembership ? user.id : undefined,
+      memberUserId,
     });
     return NextResponse.json(rows);
   });
@@ -93,6 +93,9 @@ export async function POST(req: Request) {
   }
 
   const creationMode = body.creationMode === "pi" ? "pi" : "free";
+  const template = normalizeProjectTemplate(
+    body.template ?? (creationMode === "pi" ? "pi" : "project")
+  );
   let code = String(body.code ?? "").trim();
   if (!code) {
     if (creationMode === "pi") {
@@ -122,6 +125,7 @@ export async function POST(req: Request) {
       exportCountry: body.exportCountry || "",
       managerUserId: body.managerUserId ?? null,
       createdBy: user.id,
+      template,
       seedPhases: body.seedPhases === true,
     })
     );

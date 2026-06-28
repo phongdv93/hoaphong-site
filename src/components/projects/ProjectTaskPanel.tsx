@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
   LayoutDashboard,
@@ -18,11 +18,15 @@ import {
   Pause,
   Play,
   Trash2,
+  FileSignature,
+  LayoutList,
+  Maximize2,
   type LucideIcon,
 } from "lucide-react";
 import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
 import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
 import { ProjectFilesTab } from "./tabs/ProjectFilesTab";
+import { ProjectContractsTab } from "./tabs/ProjectContractsTab";
 import { ProjectItemsTab, ProjectItemsSearch, filterProjectItems } from "./tabs/ProjectItemsTab";
 import {
   ProgressTab,
@@ -54,34 +58,35 @@ import type {
   ProjectMemberRole,
   ProjectMessage,
   ProjectSubmission,
+  ProjectContract,
 } from "@/lib/projects/types";
+import {
+  PROJECT_TEMPLATE_LABELS,
+  visiblePanelTabs,
+  type ProjectPanelMode,
+  type ProjectPanelTabId,
+} from "@/lib/projects/project-templates";
+
+const PANEL_MODE_KEY = "hoaphong_project_panel_mode";
 
 export const PROJECT_PANEL_W = 620;
 export const PROJECT_PANEL_RAIL_W = 52;
 const CONTENT_W = PROJECT_PANEL_W - PROJECT_PANEL_RAIL_W;
 const PANEL_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
 
-type TabId =
-  | "overview"
-  | "phases"
-  | "progress"
-  | "submissions"
-  | "items"
-  | "chat"
-  | "files"
-  | "members";
+type TabId = ProjectPanelTabId;
 
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] =
-  [
-    { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
-    { id: "phases", label: "Công đoạn", icon: GitBranch },
-    { id: "progress", label: "Tiến độ", icon: Gauge },
-    { id: "submissions", label: "Yêu cầu", icon: Inbox },
-    { id: "items", label: "Hạng mục", icon: ListChecks },
-    { id: "files", label: "Tệp", icon: Paperclip },
-    { id: "members", label: "Thành viên", icon: Users },
-    { id: "chat", label: "Chat", icon: MessageSquare },
-  ];
+const ALL_TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
+  { id: "phases", label: "Công đoạn", icon: GitBranch },
+  { id: "progress", label: "Tiến độ", icon: Gauge },
+  { id: "submissions", label: "Yêu cầu", icon: Inbox },
+  { id: "items", label: "Hạng mục", icon: ListChecks },
+  { id: "contracts", label: "Hợp đồng", icon: FileSignature },
+  { id: "files", label: "Tệp", icon: Paperclip },
+  { id: "members", label: "Thành viên", icon: Users },
+  { id: "chat", label: "Chat", icon: MessageSquare },
+];
 
 interface WorkspacePayload {
   project: Project;
@@ -92,6 +97,7 @@ interface WorkspacePayload {
   progressLogs?: import("@/lib/projects/types").PhaseProgressLog[];
   files: ProjectFile[];
   items: ProjectItem[];
+  contracts?: ProjectContract[];
   myRole?: ProjectMemberRole | null;
   canEditMeta?: boolean;
 }
@@ -124,9 +130,19 @@ export function ProjectTaskPanel({
     null
   );
   const [itemsSearch, setItemsSearch] = useState("");
+  const [panelMode, setPanelMode] = useState<ProjectPanelMode>("simple");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Partial<Record<TabId, HTMLElement | null>>>({});
   const [chatViewportH, setChatViewportH] = useState(0);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PANEL_MODE_KEY);
+      if (saved === "simple" || saved === "full") setPanelMode(saved);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -191,27 +207,6 @@ export function ProjectTaskPanel({
     });
   }
 
-  useEffect(() => {
-    const root = scrollRef.current;
-    if (!root || loading || !data) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const hit = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!hit?.target.id.startsWith("section-")) return;
-        const id = hit.target.id.replace("section-", "") as TabId;
-        setTab(id);
-      },
-      { root, threshold: [0.2, 0.45, 0.7], rootMargin: "0px 0px -40% 0px" }
-    );
-    for (const t of TABS) {
-      const el = sectionRefs.current[t.id];
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, [data, loading]);
-
   function pickTab(id: TabId) {
     scrollToSection(id);
   }
@@ -256,6 +251,51 @@ export function ProjectTaskPanel({
   const canUpdate = roleCanUpdateProgress(myRole);
   const canSubmit = roleCanSubmit(myRole);
   const canReview = roleCanReview(myRole);
+
+  const activeTabs = useMemo(() => {
+    const template = p?.template ?? "project";
+    const ids = visiblePanelTabs(template, panelMode);
+    return ALL_TABS.filter((t) => ids.includes(t.id));
+  }, [p?.template, panelMode]);
+
+  useEffect(() => {
+    if (!activeTabs.some((t) => t.id === tab)) {
+      setTab(activeTabs[0]?.id ?? "overview");
+    }
+  }, [activeTabs, tab]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || loading || !data) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hit = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!hit?.target.id.startsWith("section-")) return;
+        const id = hit.target.id.replace("section-", "") as TabId;
+        setTab(id);
+      },
+      { root, threshold: [0.2, 0.45, 0.7], rootMargin: "0px 0px -40% 0px" }
+    );
+    for (const t of activeTabs) {
+      const el = sectionRefs.current[t.id];
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [data, loading, activeTabs]);
+
+  function togglePanelMode() {
+    setPanelMode((m) => {
+      const next: ProjectPanelMode = m === "simple" ? "full" : "simple";
+      try {
+        localStorage.setItem(PANEL_MODE_KEY, next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
 
   async function patchProject(body: Record<string, unknown>) {
     const res = await fetch(`/api/projects/${projectId}`, {
@@ -333,7 +373,7 @@ export function ProjectTaskPanel({
         >
           <X size={16} />
         </button>
-        {TABS.map((t) => {
+        {activeTabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
           return (
@@ -398,6 +438,25 @@ export function ProjectTaskPanel({
                   >
                     {PROJECT_STATUS_LABELS[p.status]}
                   </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400">
+                    {PROJECT_TEMPLATE_LABELS[p.template ?? "project"]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={togglePanelMode}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-white/15 text-slate-300 hover:bg-white/10 inline-flex items-center gap-1"
+                    title={panelMode === "simple" ? "Mở rộng panel" : "Thu gọn panel"}
+                  >
+                    {panelMode === "simple" ? (
+                      <>
+                        <Maximize2 size={11} /> Đầy đủ
+                      </>
+                    ) : (
+                      <>
+                        <LayoutList size={11} /> Gọn
+                      </>
+                    )}
+                  </button>
                   {schedule && schedule.daysOverdue > 0 && (
                     <span className="text-[10px] text-orange-300">
                       {schedule.label}
@@ -424,6 +483,7 @@ export function ProjectTaskPanel({
             {!loading && error && <p className="text-rose-300 py-4">{error}</p>}
             {!loading && data && (
               <>
+                {activeTabs.some((t) => t.id === "overview") && (
                 <PanelSection
                   id="overview"
                   label="Tổng quan"
@@ -436,8 +496,11 @@ export function ProjectTaskPanel({
                     phases={data.phases}
                     canEditMeta={canEditMeta}
                     onSave={patchProject}
+                    compact={panelMode === "simple"}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "phases") && (
                 <PanelSection
                   id="phases"
                   label="Công đoạn"
@@ -453,6 +516,8 @@ export function ProjectTaskPanel({
                     onChanged={() => load({ silent: true })}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "progress") && (
                 <PanelSection
                   id="progress"
                   label="Tiến độ"
@@ -468,6 +533,8 @@ export function ProjectTaskPanel({
                     onSaved={() => load({ silent: true })}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "submissions") && (
                 <PanelSection
                   id="submissions"
                   label="Yêu cầu"
@@ -484,6 +551,8 @@ export function ProjectTaskPanel({
                     onOpen={setDetailSubmission}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "items") && (
                 <PanelSection
                   id="items"
                   label="Hạng mục"
@@ -508,6 +577,24 @@ export function ProjectTaskPanel({
                     onChanged={() => load({ silent: true })}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "contracts") && (
+                <PanelSection
+                  id="contracts"
+                  label="Hợp đồng"
+                  setRef={(el) => {
+                    sectionRefs.current.contracts = el;
+                  }}
+                >
+                  <ProjectContractsTab
+                    projectId={projectId}
+                    contracts={data.contracts ?? []}
+                    canEdit={canEdit}
+                    onChanged={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "files") && (
                 <PanelSection
                   id="files"
                   label="Tệp"
@@ -517,6 +604,8 @@ export function ProjectTaskPanel({
                 >
                   <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "members") && (
                 <PanelSection
                   id="members"
                   label="Thành viên"
@@ -531,6 +620,8 @@ export function ProjectTaskPanel({
                     onChanged={() => load({ silent: true })}
                   />
                 </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "chat") && (
                 <PanelSection
                   id="chat"
                   label="Chat"
@@ -549,6 +640,7 @@ export function ProjectTaskPanel({
                     onOpenSubmission={openSubmission}
                   />
                 </PanelSection>
+                )}
               </>
             )}
           </div>
@@ -692,11 +784,13 @@ function OverviewTab({
   phases,
   canEditMeta,
   onSave,
+  compact = false,
 }: {
   project: Project;
   phases: ProjectPhase[];
   canEditMeta: boolean;
   onSave: (body: Record<string, unknown>) => Promise<boolean>;
+  compact?: boolean;
 }) {
   const progress =
     phases.length > 0
@@ -710,12 +804,13 @@ function OverviewTab({
 
   return (
     <div className="space-y-4">
-      {canEditMeta && (
+      {canEditMeta && !compact && (
         <p className="text-[10px] text-sky-200/80 bg-sky-500/10 border border-sky-500/25 rounded px-2 py-1.5">
           Bạn có quyền quản trị — có thể sửa thông tin dự án bên dưới.
         </p>
       )}
 
+      {phases.length > 0 && (
       <div className="rounded-lg bg-white/5 border border-white/10 p-2.5">
         <div className="flex justify-between text-[11px] mb-1.5">
           <span className="text-slate-400">Tiến độ tổng (công đoạn)</span>
@@ -724,12 +819,16 @@ function OverviewTab({
         <div className="h-1.5 bg-white/10 rounded overflow-hidden">
           <div className="h-full bg-sky transition-all" style={{ width: `${progress}%` }} />
         </div>
-        <p className="text-[10px] text-slate-500 mt-1.5">
-          Cập nhật % từng công đoạn ở tab <strong className="text-slate-300">Tiến độ</strong>.
-        </p>
+        {!compact && (
+          <p className="text-[10px] text-slate-500 mt-1.5">
+            Cập nhật % từng công đoạn ở tab <strong className="text-slate-300">Tiến độ</strong>.
+          </p>
+        )}
       </div>
+      )}
 
-      <dl className="grid grid-cols-2 gap-2">
+      <dl className={`grid gap-2 ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
+        {!compact && (
         <EditableInfo
           label="Mã dự án"
           canEdit={canEditMeta}
@@ -737,12 +836,13 @@ function OverviewTab({
           onCommit={(v) => onSave({ code: v })}
           mono
         />
+        )}
         <EditableInfo
           label="Tên dự án"
           canEdit={canEditMeta}
           value={project.name}
           onCommit={(v) => onSave({ name: v })}
-          className="col-span-2"
+          className={compact ? "" : "col-span-2"}
         />
         <EditableDate
           label="Bắt đầu"
@@ -756,6 +856,8 @@ function OverviewTab({
           value={project.expectedEndDate}
           onCommit={(v) => onSave({ expectedEndDate: v })}
         />
+        {!compact && (
+        <>
         <EditableDate
           label="HT thực tế"
           canEdit={canEditMeta}
@@ -796,6 +898,11 @@ function OverviewTab({
           value={project.exportCountry || ""}
           onCommit={(v) => onSave({ exportCountry: v })}
         />
+        </>
+        )}
+        {compact && (
+          <Info label="Quản lý" value={project.managerName || "—"} />
+        )}
         {project.completedLateDays > 0 && (
           <Info
             label="Trễ khi hoàn thành"

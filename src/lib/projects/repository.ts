@@ -20,8 +20,10 @@ import type {
   ProjectStatus,
   ProjectGanttPhase,
   ProjectSummary,
+  ProjectTemplate,
 } from "./types";
 import { DEFAULT_PHASES } from "./constants";
+import { normalizeProjectTemplate } from "./project-templates";
 
 // ============ MAPPERS ============
 
@@ -47,6 +49,7 @@ function mapProject(row: Record<string, unknown>): Project {
     deletedAt: row.deleted_at ? String(row.deleted_at) : null,
     managerUserId: (row.manager_user_id as number | null) ?? null,
     managerName: (row.manager_name as string | undefined) ?? undefined,
+    template: normalizeProjectTemplate(row.template as string | undefined),
     createdBy: (row.created_by as number | null) ?? null,
     createdAt: toIsoDateTime(row.created_at),
     updatedAt: toIsoDateTime(row.updated_at),
@@ -222,18 +225,28 @@ export type PiSourceProject = {
 };
 
 /** Dự án có thể chọn làm mẫu PI / đơn hàng khi tạo dự án mới. */
-export async function listPiSourceProjects(companyId: number): Promise<PiSourceProject[]> {
+export async function listPiSourceProjects(
+  companyId: number,
+  memberUserId?: number
+): Promise<PiSourceProject[]> {
+  const conds = [`p.company_id = $1`, `p.deleted_at IS NULL`];
+  const params: unknown[] = [companyId];
+  if (memberUserId != null) {
+    params.push(memberUserId);
+    conds.push(
+      `EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = $${params.length})`
+    );
+  }
   const rows = await tenantQuery<Record<string, unknown>>(
     `SELECT p.id, p.code, p.name, p.customer_id, c.name AS customer_name,
             p.start_date, p.expected_end_date, p.address,
             (SELECT COUNT(*)::int FROM project_items i WHERE i.project_id = p.id) AS item_count
      FROM projects p
      LEFT JOIN customers c ON c.id = p.customer_id
-     WHERE p.company_id = $1
-       AND p.deleted_at IS NULL
+     WHERE ${conds.join(" AND ")}
      ORDER BY p.updated_at DESC
      LIMIT 100`,
-    [companyId],
+    params,
     companyId
   );
   return rows.map((r) => ({
@@ -310,6 +323,7 @@ export async function createProject(input: {
   exportCountry?: string;
   managerUserId?: number | null;
   createdBy: number;
+  template?: ProjectTemplate;
   /** Tự sinh 7 công đoạn mặc định nếu true (mặc định bật) */
   seedPhases?: boolean;
 }): Promise<number> {
@@ -320,12 +334,14 @@ export async function createProject(input: {
     const startDate = input.startDate?.trim() || scheduleDefaults.startDate;
     const expectedEndDate =
       input.expectedEndDate?.trim() || scheduleDefaults.expectedEndDate;
+    const template = normalizeProjectTemplate(input.template);
+    const seedPhases = input.seedPhases ?? template !== "task";
     const res = await client.query<{ id: number }>(
       `INSERT INTO projects
        (company_id, code, name, customer_id, contract_value, contract_signed_at, status,
         start_date, expected_end_date, address, notes, supplier_address, export_country,
-        manager_user_id, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+        manager_user_id, created_by, template)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [
         input.companyId,
         code,
@@ -342,6 +358,7 @@ export async function createProject(input: {
         input.exportCountry || "",
         input.managerUserId ?? null,
         input.createdBy,
+        template,
       ]
     );
     const projectId = res.rows[0].id;
@@ -360,7 +377,7 @@ export async function createProject(input: {
       );
     }
 
-    if (input.seedPhases !== false) {
+    if (input.seedPhases !== false && seedPhases) {
       for (let i = 0; i < DEFAULT_PHASES.length; i++) {
         const p = DEFAULT_PHASES[i];
         await client.query(
@@ -407,8 +424,8 @@ export async function updateProject(
        code=$1, name=$2, customer_id=$3, contract_value=$4, contract_signed_at=$5,
        status=$6, start_date=$7, expected_end_date=$8, actual_end_date=$9,
        address=$10, notes=$11, supplier_address=$12, export_country=$13,
-       completed_late_days=$14, manager_user_id=$15, updated_at=NOW()
-     WHERE id=$16 AND company_id=$17`,
+       completed_late_days=$14, manager_user_id=$15, template=$16, updated_at=NOW()
+     WHERE id=$17 AND company_id=$18`,
     [
       input.code ?? cur.code,
       input.name ?? cur.name,
@@ -425,6 +442,7 @@ export async function updateProject(
       input.exportCountry ?? cur.exportCountry,
       completedLateDays,
       input.managerUserId === undefined ? cur.managerUserId : input.managerUserId,
+      input.template === undefined ? cur.template : normalizeProjectTemplate(input.template),
       id,
       companyId,
     ],

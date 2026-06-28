@@ -9,6 +9,7 @@ import {
   listProjectMessages,
 } from "@/lib/projects/workspace";
 import { listProjectItems } from "@/lib/projects/repository";
+import { listProjectContracts } from "@/lib/projects/contracts";
 
 export async function GET(
   _req: Request,
@@ -29,7 +30,7 @@ export async function GET(
       return NextResponse.json({ error: "Không có quyền xem" }, { status: 403 });
     }
 
-    const [phases, members, messages, submissions, progressLogs, files, items, canEditMeta] =
+    const [phases, members, messages, submissions, progressLogs, files, items, contracts, canEditMeta] =
       await Promise.all([
         listPhases(id),
         listMembers(id),
@@ -38,6 +39,7 @@ export async function GET(
         listPhaseProgressLogs(id, undefined, 40).catch(() => []),
         listProjectFiles(id).catch(() => []),
         listProjectItems(id).catch(() => []),
+        listProjectContracts(id).catch(() => []),
         canEditProjectMeta(id, ctx.user.id),
       ]);
 
@@ -50,6 +52,7 @@ export async function GET(
       progressLogs,
       files,
       items,
+      contracts,
       myRole: view.role,
       canEditMeta,
     });

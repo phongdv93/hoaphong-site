@@ -5,6 +5,9 @@ import type {
   ProjectStatus,
   ProjectSummary,
 } from "./types";
+import { isPhaseDelayed } from "./schedule-health";
+
+export type ProjectListFilter = ProjectStatus | "all" | "overdue" | "deleted";
 
 export function projectProgressPercent(project: ProjectSummary): number {
   const phases = project.phases ?? [];
@@ -61,11 +64,27 @@ export function patchProjectSummaryFromWorkspace(
   return { ...merged, status };
 }
 
+export function projectIsOverdue(
+  project: Pick<
+    ProjectSummary,
+    "status" | "expectedEndDate" | "phaseDelayedCount" | "phases"
+  >,
+  today: string = new Date().toISOString().slice(0, 10)
+): boolean {
+  if (project.status === "done" || project.status === "cancelled") return false;
+  if (project.expectedEndDate && project.expectedEndDate < today) return true;
+  if ((project.phaseDelayedCount ?? 0) > 0) return true;
+  const phases = project.phases ?? [];
+  return phases.some((ph) => isPhaseDelayed(ph, today));
+}
+
 export function projectMatchesStatusFilter(
   project: ProjectSummary,
-  filter: ProjectStatus | "all"
+  filter: ProjectListFilter
 ): boolean {
   if (filter === "all") return true;
+  if (filter === "deleted") return false;
+  if (filter === "overdue") return projectIsOverdue(project);
 
   const progress = projectProgressPercent(project);
   const status = project.status;

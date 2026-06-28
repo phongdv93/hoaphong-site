@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import type { ProjectStatus } from "@/lib/projects/types";
 
-export type ProjectStatusFilter = ProjectStatus | "all" | "deleted";
+export type ProjectStatusFilter = ProjectStatus | "all" | "deleted" | "overdue";
 
 const OPTIONS: { id: ProjectStatusFilter; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "open", label: "Mới mở" },
   { id: "in_progress", label: "Đang thi công" },
+  { id: "overdue", label: "Quá hạn" },
   { id: "on_hold", label: "Tạm dừng" },
   { id: "done", label: "Hoàn thành" },
   { id: "cancelled", label: "Đã hủy" },

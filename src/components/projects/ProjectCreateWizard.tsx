@@ -21,6 +21,9 @@ import type {
   WizardDraftPhase,
 } from "@/lib/projects/wizard-draft";
 
+import type { ProjectTemplate } from "@/lib/projects/types";
+import { PROJECT_TEMPLATE_LABELS } from "@/lib/projects/project-templates";
+
 type CreationMode = "free" | "pi";
 
 const STEPS = [
@@ -42,6 +45,7 @@ export function ProjectCreateWizard({
   onCancel?: () => void;
 }) {
   const [step, setStep] = useState(1);
+  const [projectTemplate, setProjectTemplate] = useState<ProjectTemplate | null>(null);
   const [creationMode, setCreationMode] = useState<CreationMode | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -78,8 +82,9 @@ export function ProjectCreateWizard({
       .finally(() => setPiSourcesLoading(false));
   }, [creationMode, step]);
 
-  function pickMode(mode: CreationMode) {
-    setCreationMode(mode);
+  function pickTemplate(template: ProjectTemplate) {
+    setProjectTemplate(template);
+    setCreationMode(template === "pi" ? "pi" : "free");
     setError("");
     setStep(2);
   }
@@ -157,6 +162,7 @@ export function ProjectCreateWizard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           creationMode: creationMode ?? "free",
+          template: projectTemplate ?? (creationMode === "pi" ? "pi" : "project"),
           name: name.trim(),
           code: code.trim() || undefined,
           customerId: creationMode === "pi" ? customerId : null,
@@ -303,28 +309,42 @@ export function ProjectCreateWizard({
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-1">
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-300">Chọn loại dự án — bấm để tiếp tục.</p>
-          <div className="grid gap-3">
-            <button
-              type="button"
-              onClick={() => pickMode("free")}
-              className="text-left rounded-xl border border-white/15 hover:border-sky/50 hover:bg-sky/10 p-4 transition-colors"
-            >
-              <p className="font-semibold text-white text-sm">Dự án tự do</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Mã tự sinh nếu để trống. Phù hợp dự án nội bộ, khảo sát.
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => pickMode("pi")}
-              className="text-left rounded-xl border border-white/15 hover:border-sky/50 hover:bg-sky/10 p-4 transition-colors"
-            >
-              <p className="font-semibold text-white text-sm">Theo đơn hàng / PI</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Gắn mã PI, chọn khách hàng. Có thể chọn PI có sẵn để lấy hạng mục.
-              </p>
-            </button>
+          <p className="text-sm text-slate-300">Chọn loại — quyết định mức độ chi tiết khi làm việc.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                {
+                  id: "task" as const,
+                  title: PROJECT_TEMPLATE_LABELS.task,
+                  desc: "Giao việc nhanh: tên, hạn, chat, file.",
+                },
+                {
+                  id: "job" as const,
+                  title: PROJECT_TEMPLATE_LABELS.job,
+                  desc: "Nhóm nhỏ: thêm thành viên, chat, tài liệu.",
+                },
+                {
+                  id: "project" as const,
+                  title: PROJECT_TEMPLATE_LABELS.project,
+                  desc: "Dự án đầy đủ: công đoạn, hạng mục, tiến độ.",
+                },
+                {
+                  id: "pi" as const,
+                  title: PROJECT_TEMPLATE_LABELS.pi,
+                  desc: "PI / hợp đồng: khách hàng, hạng mục, module HĐ.",
+                },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => pickTemplate(opt.id)}
+                className="text-left rounded-xl border border-white/15 hover:border-sky/50 hover:bg-sky/10 p-4 transition-colors"
+              >
+                <p className="font-semibold text-white text-sm">{opt.title}</p>
+                <p className="text-xs text-slate-400 mt-1">{opt.desc}</p>
+              </button>
+            ))}
           </div>
         </div>
       )}

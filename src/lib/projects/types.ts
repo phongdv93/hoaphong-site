@@ -67,6 +67,25 @@ export type PhaseStatus = "pending" | "in_progress" | "done" | "delayed";
 
 export type ProjectMemberRole = "owner" | "manager" | "member" | "viewer";
 
+export type ProjectTemplate = "task" | "job" | "project" | "pi";
+
+export type ProjectContractStatus = "draft" | "signed" | "active" | "closed" | "cancelled";
+
+export interface ProjectContract {
+  id: number;
+  projectId: number;
+  contractNo: string;
+  title: string;
+  partyName: string;
+  value: number;
+  signedAt: string | null;
+  status: ProjectContractStatus;
+  notes: string;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: number;
   companyId: number;
@@ -88,6 +107,7 @@ export interface Project {
   deletedAt: string | null;
   managerUserId: number | null;
   managerName?: string;
+  template: ProjectTemplate;
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;
