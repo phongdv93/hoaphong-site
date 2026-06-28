@@ -8,6 +8,7 @@ import {
   getProject,
   listMembers,
   listPhases,
+  purgeProject,
   updateProject,
 } from "@/lib/projects/repository";
 
@@ -103,6 +104,8 @@ export async function DELETE(req: Request) {
   const ctx = await resolveProject(req);
   if ("error" in ctx) return ctx.error;
 
+  const permanent = new URL(req.url).searchParams.get("permanent") === "1";
+
   return runWithTenantCompany(ctx.companyId, async () => {
     const project = await getProject(ctx.projectId, ctx.companyId);
     if (!project) {
@@ -111,7 +114,22 @@ export async function DELETE(req: Request) {
     if (!(await canEditProject(project.id, ctx.user.id))) {
       return NextResponse.json({ error: "Không có quyền xóa" }, { status: 403 });
     }
-    await deleteProject(project.id, ctx.companyId);
+    if (permanent) {
+      if (!project.deletedAt) {
+        return NextResponse.json(
+          { error: "Chỉ xóa vĩnh viễn được dự án trong danh mục đã xóa" },
+          { status: 400 }
+        );
+      }
+      try {
+        await purgeProject(project.id, ctx.companyId);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Không xóa được";
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+    } else {
+      await deleteProject(project.id, ctx.companyId);
+    }
     return NextResponse.json({ ok: true });
   });
 }

@@ -460,6 +460,22 @@ export async function deleteProject(id: number, companyId: number): Promise<void
   await softDeleteProject(id, companyId);
 }
 
+/** Xóa vĩnh viễn — chỉ dự án đã nằm trong thùng rác. */
+export async function purgeProject(id: number, companyId: number): Promise<void> {
+  const row = await tenantQueryOne<{ deleted_at: string | null }>(
+    `SELECT deleted_at FROM projects WHERE id = $1 AND company_id = $2`,
+    [id, companyId],
+    companyId
+  );
+  if (!row) throw new Error("Không tìm thấy dự án");
+  if (!row.deleted_at) throw new Error("Chỉ xóa vĩnh viễn được dự án đã xóa mềm trước đó");
+  await tenantExecute(
+    `DELETE FROM projects WHERE id = $1 AND company_id = $2`,
+    [id, companyId],
+    companyId
+  );
+}
+
 // ============ PHASES ============
 
 export async function listPhases(projectId: number): Promise<ProjectPhase[]> {

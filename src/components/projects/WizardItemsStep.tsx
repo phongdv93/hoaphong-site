@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProjectItem } from "@/lib/projects/types";
+import type { WizardDraftItem } from "@/lib/projects/wizard-draft";
+import { newTempId } from "@/lib/projects/wizard-draft";
 import {
   parseItemQuantity,
   parseProjectItemPaste,
@@ -20,11 +22,19 @@ export function WizardItemsStep({
   projectId,
   items,
   onChanged,
+  draftItems,
+  onDraftChange,
 }: {
-  projectId: number;
-  items: ProjectItem[];
-  onChanged: () => void;
+  projectId?: number;
+  items?: ProjectItem[];
+  onChanged?: () => void;
+  draftItems?: WizardDraftItem[];
+  onDraftChange?: (items: WizardDraftItem[]) => void;
 }) {
+  const draftMode = Boolean(onDraftChange);
+  const draftList = draftItems ?? [];
+  const apiList = items ?? [];
+  const list = draftMode ? draftList : apiList;
   const [query, setQuery] = useState("");
   const [qty, setQty] = useState("1");
   const [open, setOpen] = useState(false);
@@ -70,6 +80,24 @@ export function WizardItemsStep({
   const showNewOption = trimmed.length > 0;
 
   async function addFromCatalog(factoryProductId: number, quantity?: number) {
+    const cat = catalog.find((p) => p.id === factoryProductId);
+    const q = quantity ?? parseItemQuantity(qty);
+    if (draftMode && onDraftChange) {
+      onDraftChange([
+        ...draftList,
+        {
+          tempId: newTempId(),
+          name: cat?.name ?? `#${factoryProductId}`,
+          quantity: q,
+          factoryProductId,
+        },
+      ]);
+      setQuery("");
+      setQty("1");
+      setOpen(false);
+      return;
+    }
+    if (!projectId) return;
     setLoading(true);
     setMsg("");
     const res = await fetch(`/api/projects/${projectId}/items`, {
@@ -77,8 +105,8 @@ export function WizardItemsStep({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         factoryProductId,
-        sortOrder: items.length,
-        quantity: quantity ?? parseItemQuantity(qty),
+        sortOrder: list.length,
+        quantity: q,
       }),
     });
     setLoading(false);
@@ -86,7 +114,7 @@ export function WizardItemsStep({
       setQuery("");
       setQty("1");
       setOpen(false);
-      onChanged();
+      onChanged?.();
     } else {
       const j = await res.json().catch(() => ({}));
       setMsg(typeof j.error === "string" ? j.error : "Không thêm được hạng mục");
@@ -94,6 +122,17 @@ export function WizardItemsStep({
   }
 
   async function addNewProduct(name: string, quantity: number) {
+    if (draftMode && onDraftChange) {
+      onDraftChange([
+        ...draftList,
+        { tempId: newTempId(), name: name.trim(), quantity },
+      ]);
+      setQuery("");
+      setQty("1");
+      setOpen(false);
+      return;
+    }
+    if (!projectId) return;
     setLoading(true);
     setMsg("");
     const createRes = await fetch("/api/factory/products", {
@@ -112,6 +151,23 @@ export function WizardItemsStep({
 
   async function addRows(rows: ParsedProjectItemRow[]) {
     if (!rows.length) return;
+    if (draftMode && onDraftChange) {
+      onDraftChange([
+        ...draftList,
+        ...rows.map((r) => ({
+          tempId: newTempId(),
+          name: r.name,
+          quantity: r.quantity,
+          unit: r.unit,
+          description: r.description,
+        })),
+      ]);
+      setQuery("");
+      setQty("1");
+      setOpen(false);
+      return;
+    }
+    if (!projectId) return;
     setLoading(true);
     setMsg("");
     const res = await fetch(`/api/projects/${projectId}/items`, {
@@ -124,7 +180,7 @@ export function WizardItemsStep({
           quantity: r.quantity,
           unit: r.unit,
         })),
-        baseSortOrder: items.length,
+        baseSortOrder: list.length,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -140,7 +196,7 @@ export function WizardItemsStep({
         setQty("1");
         setOpen(false);
       }
-      onChanged();
+      onChanged?.();
     } else {
       setMsg(typeof data.error === "string" ? data.error : "Không thêm được");
     }
@@ -174,10 +230,17 @@ export function WizardItemsStep({
     await addNewProduct(trimmed, quantity);
   }
 
-  async function deleteItem(id: number) {
+  function deleteItem(key: number | string) {
+    if (draftMode && onDraftChange) {
+      onDraftChange(draftList.filter((it) => it.tempId !== key));
+      return;
+    }
+    if (!projectId) return;
     if (!confirm("Xóa hạng mục này?")) return;
-    const res = await fetch(`/api/projects/${projectId}/items/${id}`, { method: "DELETE" });
-    if (res.ok) onChanged();
+    void (async () => {
+      const res = await fetch(`/api/projects/${projectId}/items/${key}`, { method: "DELETE" });
+      if (res.ok) onChanged?.();
+    })();
   }
 
   return (
@@ -274,28 +337,32 @@ export function WizardItemsStep({
 
       {msg && <p className="text-xs text-amber-300/90">{msg}</p>}
 
-      {items.length > 0 ? (
+      {list.length > 0 ? (
         <ul className="divide-y divide-white/10 rounded-lg border border-white/10 overflow-hidden">
-          {items.map((it) => (
+          {list.map((it) => {
+            const key = draftMode ? (it as WizardDraftItem).tempId : (it as ProjectItem).id;
+            const unit = "unit" in it ? it.unit : undefined;
+            return (
             <li
-              key={it.id}
+              key={key}
               className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] hover:bg-white/[0.04]"
             >
               <span className="flex-1 min-w-0 text-sm text-white truncate">{it.name}</span>
               <span className="text-xs text-slate-400 font-mono tabular-nums shrink-0">
                 ×{it.quantity}
-                {it.unit ? ` ${it.unit}` : ""}
+                {unit ? ` ${unit}` : ""}
               </span>
               <button
                 type="button"
-                onClick={() => void deleteItem(it.id)}
+                onClick={() => deleteItem(key)}
                 className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose/10 shrink-0"
                 title="Xóa"
               >
                 <Trash2 size={14} />
               </button>
             </li>
-          ))}
+          );
+          })}
         </ul>
       ) : (
         <p className="text-sm text-slate-500 py-4 text-center border border-dashed border-white/10 rounded-lg">

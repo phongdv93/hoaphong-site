@@ -259,6 +259,16 @@ function ProjectListInner() {
     await load();
   }
 
+  async function purgeProject(id: number) {
+    const res = await fetch(`/api/projects/${id}?permanent=1`, { method: "DELETE" });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(typeof j.error === "string" ? j.error : "Không xóa vĩnh viễn được");
+      return;
+    }
+    await loadDeleted();
+  }
+
   const items = useMemo(() => {
     if (!rawItems) return null;
     if (statusFilter === "deleted") return [];
@@ -426,6 +436,7 @@ function ProjectListInner() {
           items={deletedItems ?? []}
           loading={deletedLoading || deletedItems === null}
           onRestore={(id) => void restoreProject(id)}
+          onPurge={(id) => void purgeProject(id)}
         />
       )}
 

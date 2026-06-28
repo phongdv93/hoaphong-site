@@ -78,9 +78,9 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] =
     { id: "progress", label: "Tiến độ", icon: Gauge },
     { id: "submissions", label: "Yêu cầu", icon: Inbox },
     { id: "items", label: "Hạng mục", icon: ListChecks },
-    { id: "chat", label: "Chat", icon: MessageSquare },
     { id: "files", label: "Tệp", icon: Paperclip },
     { id: "members", label: "Thành viên", icon: Users },
+    { id: "chat", label: "Chat", icon: MessageSquare },
   ];
 
 interface WorkspacePayload {
@@ -126,6 +126,17 @@ export function ProjectTaskPanel({
   const [itemsSearch, setItemsSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Partial<Record<TabId, HTMLElement | null>>>({});
+  const [chatViewportH, setChatViewportH] = useState(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setChatViewportH(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, collapsed, data]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -168,8 +179,7 @@ export function ProjectTaskPanel({
     setSending(false);
     if (res.ok) {
       setChatDraft("");
-      await load();
-      setTab("chat");
+      await load({ silent: true });
     }
   }
 
@@ -527,7 +537,8 @@ export function ProjectTaskPanel({
                   setRef={(el) => {
                     sectionRefs.current.chat = el;
                   }}
-                  className="min-h-[280px]"
+                  className="flex flex-col !border-b-0"
+                  style={chatViewportH > 0 ? { minHeight: chatViewportH } : undefined}
                 >
                   <ChatTab
                     messages={data.messages}
@@ -566,6 +577,7 @@ function PanelSection({
   children,
   extra,
   className = "",
+  style,
   setRef,
 }: {
   id: TabId;
@@ -573,12 +585,14 @@ function PanelSection({
   children: React.ReactNode;
   extra?: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
   setRef: (el: HTMLElement | null) => void;
 }) {
   return (
     <section
       id={`section-${id}`}
       ref={setRef}
+      style={style}
       className={`py-3 border-b border-white/10 scroll-mt-0 ${className}`}
     >
       <div className="flex items-center gap-2 mb-2 sticky top-0 z-[2] bg-[#0a1120]/95 backdrop-blur-sm py-1 -mx-1 px-1">
@@ -587,7 +601,7 @@ function PanelSection({
         </h3>
         {extra}
       </div>
-      {children}
+      <div className="flex flex-col flex-1 min-h-0">{children}</div>
     </section>
   );
 }
@@ -853,11 +867,11 @@ function ChatTab({
   onOpenSubmission: (id: number) => void;
 }) {
   return (
-    <div className="flex flex-col h-full min-h-[280px]">
+    <div className="flex flex-col flex-1 min-h-0">
       <p className="text-[10px] text-slate-500 mb-2 shrink-0">
         Tin có phiếu đính kèm — bấm &quot;Xem chi tiết&quot; để duyệt yêu cầu / báo cáo.
       </p>
-      <div className="flex-1 space-y-2 mb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 mb-3 pr-0.5">
         {messages.length === 0 ? (
           <p className="text-slate-400">Chưa có tin nhắn. Gửi tin đầu tiên bên dưới.</p>
         ) : (

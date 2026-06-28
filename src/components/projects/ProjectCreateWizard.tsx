@@ -1,31 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ClipboardList, FileText, Package, Paperclip, Users, Workflow } from "lucide-react";
 import { WizardFilesStep } from "./WizardFilesStep";
+import { WizardPhasesDraft } from "./WizardPhasesDraft";
+import { WizardMembersDraft } from "./WizardMembersDraft";
 import type { Customer } from "@/lib/marketing/customer-types";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { ErpSelect } from "@/components/erp/ErpSelect";
-import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
-import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
-import { WizardPhaseSuggestions } from "./WizardPhaseSuggestions";
 import { WizardItemsStep } from "./WizardItemsStep";
-import type {
-  Project,
-  ProjectItem,
-  ProjectMember,
-  ProjectPhase,
-} from "@/lib/projects/types";
 import type { PiSourceProject } from "@/lib/projects/repository";
+import {
+  endDateFromDuration,
+  inclusiveDayCount,
+} from "@/lib/dates";
+import type {
+  WizardDraftFileSection,
+  WizardDraftItem,
+  WizardDraftMember,
+  WizardDraftPhase,
+} from "@/lib/projects/wizard-draft";
 
 type CreationMode = "free" | "pi";
-
-type WorkspacePayload = {
-  project: Project;
-  phases: ProjectPhase[];
-  members: ProjectMember[];
-  items: ProjectItem[];
-};
 
 const STEPS = [
   { n: 1, title: "Loại dự án", icon: FileText },
@@ -35,39 +31,6 @@ const STEPS = [
   { n: 5, title: "Tài liệu", icon: Paperclip },
   { n: 6, title: "Thành viên", icon: Users },
 ] as const;
-
-function useWizardWorkspace(projectId: number | null) {
-  const [data, setData] = useState<WorkspacePayload | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const reload = useCallback(async () => {
-    if (!projectId) {
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/workspace`);
-      if (res.ok) {
-        const ws = await res.json();
-        setData({
-          project: ws.project,
-          phases: ws.phases ?? [],
-          members: ws.members ?? [],
-          items: ws.items ?? [],
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  return { data, loading, reload };
-}
 
 export function ProjectCreateWizard({
   customers,
@@ -84,18 +47,26 @@ export function ProjectCreateWizard({
   const [code, setCode] = useState("");
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState("");
+  const [durationDays, setDurationDays] = useState("");
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [address, setAddress] = useState("");
-  const [projectId, setProjectId] = useState<number | null>(null);
   const [sourcePiId, setSourcePiId] = useState<number | null>(null);
   const [piSources, setPiSources] = useState<PiSourceProject[]>([]);
   const [piSourcesLoading, setPiSourcesLoading] = useState(false);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [draftItems, setDraftItems] = useState<WizardDraftItem[]>([]);
+  const [draftPhases, setDraftPhases] = useState<WizardDraftPhase[]>([]);
+  const [draftFileSections, setDraftFileSections] = useState<WizardDraftFileSection[]>([]);
+  const [draftMembers, setDraftMembers] = useState<WizardDraftMember[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const itemsCopiedRef = useRef(false);
-
-  const { data: workspace, loading: wsLoading, reload } = useWizardWorkspace(projectId);
+  useEffect(() => {
+    fetch("/api/companies/active")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setCompanyId(j?.companyId ?? j?.id ?? null))
+      .catch(() => setCompanyId(null));
+  }, []);
 
   useEffect(() => {
     if (creationMode !== "pi" || step !== 2) return;
@@ -123,20 +94,66 @@ export function ProjectCreateWizard({
     setCustomerId(pi.customerId);
     setStartDate(pi.startDate ?? "");
     setExpectedEndDate(pi.expectedEndDate ?? "");
+    if (pi.startDate && pi.expectedEndDate) {
+      setDurationDays(String(inclusiveDayCount(pi.startDate, pi.expectedEndDate)));
+    }
     setAddress(pi.address);
     setError("");
   }
 
-  async function ensureProject(): Promise<number | null> {
-    if (projectId) return projectId;
+  function onStartDateChange(v: string) {
+    setStartDate(v);
+    const n = parseInt(durationDays, 10);
+    if (v && Number.isFinite(n) && n > 0) {
+      setExpectedEndDate(endDateFromDuration(v, n));
+    }
+  }
+
+  function onDurationChange(v: string) {
+    setDurationDays(v);
+    const n = parseInt(v, 10);
+    if (startDate && Number.isFinite(n) && n > 0) {
+      setExpectedEndDate(endDateFromDuration(startDate, n));
+    }
+  }
+
+  function onExpectedEndChange(v: string) {
+    setExpectedEndDate(v);
+    if (startDate && v) {
+      setDurationDays(String(inclusiveDayCount(startDate, v)));
+    }
+  }
+
+  function continueFromStep2() {
     if (!name.trim()) {
       setError("Tên dự án bắt buộc");
-      return null;
+      return;
     }
     if (creationMode === "pi" && !code.trim()) {
       setError("Mã đơn hàng / PI bắt buộc");
-      return null;
+      return;
     }
+    setError("");
+    setStep(3);
+  }
+
+  function skipOrLater() {
+    if (step < 6) setStep(step + 1);
+    else void finishWizard();
+  }
+
+  async function finishWizard() {
+    if (!name.trim()) {
+      setError("Tên dự án bắt buộc");
+      setStep(2);
+      return;
+    }
+    if (creationMode === "pi" && !code.trim()) {
+      setError("Mã đơn hàng / PI bắt buộc");
+      setStep(2);
+      return;
+    }
+
     setBusy(true);
     setError("");
     try {
@@ -157,65 +174,104 @@ export function ProjectCreateWizard({
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Không tạo được dự án");
-        return null;
-      }
-      setProjectId(data.id);
-      return data.id as number;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Lỗi mạng");
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyItemsFromPi(targetId: number) {
-    if (!sourcePiId || itemsCopiedRef.current) return;
-    const pi = piSources.find((p) => p.id === sourcePiId);
-    if (!pi?.itemCount) return;
-
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/projects/${targetId}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ copyFromProjectId: sourcePiId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Không sao chép được hạng mục");
         return;
       }
-      itemsCopiedRef.current = true;
-      await reload();
+      const projectId = data.id as number;
+
+      if (sourcePiId) {
+        await fetch(`/api/projects/${projectId}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ copyFromProjectId: sourcePiId }),
+        });
+      } else if (draftItems.length > 0) {
+        const withFactory = draftItems.filter((i) => i.factoryProductId);
+        const rows = draftItems.filter((i) => !i.factoryProductId);
+        for (const it of withFactory) {
+          await fetch(`/api/projects/${projectId}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              factoryProductId: it.factoryProductId,
+              quantity: it.quantity,
+            }),
+          });
+        }
+        if (rows.length > 0) {
+          await fetch(`/api/projects/${projectId}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rows: rows.map((r) => ({
+                name: r.name,
+                description: r.description,
+                quantity: r.quantity,
+                unit: r.unit,
+              })),
+            }),
+          });
+        }
+      }
+
+      for (const ph of draftPhases) {
+        const phRes = await fetch(`/api/projects/${projectId}/phases`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: ph.kind,
+            name: ph.name,
+            sortOrder: ph.sortOrder,
+          }),
+        });
+        if (phRes.ok && ph.progressFromItems) {
+          const { id: phaseId } = await phRes.json();
+          if (phaseId) {
+            await fetch(`/api/projects/${projectId}/phases/${phaseId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ progressFromItems: true }),
+            });
+          }
+        }
+      }
+
+      for (const sec of draftFileSections) {
+        const secRes = await fetch(`/api/projects/${projectId}/file-sections`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: sec.title }),
+        });
+        if (!secRes.ok) continue;
+        const { id: sectionId } = await secRes.json();
+        for (const f of sec.files) {
+          await fetch(`/api/projects/${projectId}/files`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sectionId,
+              fileName: f.fileName,
+              fileUrl: f.fileUrl,
+              fileSize: f.fileSize,
+              mimeType: f.mimeType,
+            }),
+          });
+        }
+      }
+
+      for (const m of draftMembers) {
+        await fetch(`/api/projects/${projectId}/members`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: m.userId, role: m.role }),
+        });
+      }
+
+      onCreated?.(projectId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi mạng");
     } finally {
       setBusy(false);
     }
-  }
-
-  async function continueFromStep2() {
-    const id = await ensureProject();
-    if (!id) return;
-    await copyItemsFromPi(id);
-    setStep(3);
-  }
-
-  async function goToStep(target: number) {
-    setError("");
-    if (target > 2 && !projectId) {
-      const id = await ensureProject();
-      if (!id) return;
-    }
-    if (target > 6) {
-      if (projectId) onCreated?.(projectId);
-      return;
-    }
-    setStep(target);
-  }
-
-  function skipOrLater() {
-    if (step < 6) setStep(step + 1);
-    else if (projectId) onCreated?.(projectId);
   }
 
   const step2Ready =
@@ -317,7 +373,7 @@ export function ProjectCreateWizard({
               )}
               {sourcePiId != null && (
                 <p className="text-[10px] text-sky-light/80">
-                  Đã chọn mẫu — hạng mục sẽ được sao chép khi bấm Tiếp tục (nếu PI có hạng mục).
+                  Đã chọn mẫu — hạng mục sẽ được sao chép khi hoàn tất wizard.
                 </p>
               )}
             </div>
@@ -351,12 +407,23 @@ export function ProjectCreateWizard({
               />
             </Field>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Field label="Ngày bắt đầu">
-              <ErpDateInput value={startDate} onChange={setStartDate} className="text-sm" />
+              <ErpDateInput value={startDate} onChange={onStartDateChange} className="text-sm" />
+            </Field>
+            <Field label="Thời gian (ngày)">
+              <input
+                type="number"
+                min={1}
+                value={durationDays}
+                onChange={(e) => onDurationChange(e.target.value)}
+                className="input-field text-sm tabular-nums"
+                placeholder="VD: 30"
+                title="Số ngày dự án (tính cả ngày bắt đầu)"
+              />
             </Field>
             <Field label="Ngày kết thúc dự kiến">
-              <ErpDateInput value={expectedEndDate} onChange={setExpectedEndDate} className="text-sm" />
+              <ErpDateInput value={expectedEndDate} onChange={onExpectedEndChange} className="text-sm" />
             </Field>
           </div>
           <Field label="Địa chỉ giao hàng / công trình">
@@ -370,59 +437,48 @@ export function ProjectCreateWizard({
         </div>
       )}
 
-      {step === 3 && projectId && workspace && (
+      {step === 3 && (
         <div className="space-y-2">
           <p className="text-xs text-slate-400">
             Nhập hoặc dán hạng mục — gõ tên để tìm danh mục SP, hoặc thêm mới.
           </p>
           <WizardItemsStep
-            projectId={projectId}
-            items={workspace.items}
-            onChanged={() => void reload()}
+            draftItems={draftItems}
+            onDraftChange={setDraftItems}
           />
         </div>
       )}
 
-      {step === 3 && projectId && wsLoading && !workspace && (
-        <p className="text-sm text-slate-400 py-6 text-center">Đang tải…</p>
-      )}
-
-      {step === 4 && projectId && workspace && (
+      {step === 4 && (
         <div className="space-y-3">
           <p className="text-xs text-slate-400">
-            Giống tab Công đoạn — sửa tên, thời gian, xóa, gán theo hạng mục.
+            Chọn gợi ý công đoạn hoặc bỏ qua — chi tiết chỉnh sau trong panel dự án.
           </p>
-          <WizardPhaseSuggestions
-            projectId={projectId}
+          <WizardPhasesDraft
             creationMode={creationMode ?? "free"}
-            phaseCount={workspace.phases.length}
-            hasItems={workspace.items.length > 0}
-            onApplied={() => void reload()}
-          />
-          <ProjectPhasesTab
-            project={workspace.project}
-            phases={workspace.phases}
-            members={workspace.members}
-            canEdit
-            onChanged={() => void reload()}
+            phases={draftPhases}
+            hasItems={draftItems.length > 0 || sourcePiId != null}
+            onChange={setDraftPhases}
           />
         </div>
       )}
 
-      {step === 5 && projectId && (
-        <WizardFilesStep projectId={projectId} />
+      {step === 5 && (
+        <WizardFilesStep
+          draftSections={draftFileSections}
+          onDraftChange={setDraftFileSections}
+        />
       )}
 
-      {step === 6 && projectId && workspace && (
+      {step === 6 && (
         <div className="space-y-2">
           <p className="text-xs text-slate-400">
-            Mời thành viên tham gia dự án — có thể bỏ qua và thêm sau.
+            Mời thành viên tham gia dự án — có thể bỏ qua và thêm sau. Dự án chỉ được tạo khi bấm Hoàn tất.
           </p>
-          <ProjectMembersTab
-            project={workspace.project}
-            members={workspace.members}
-            canEdit
-            onChanged={() => void reload()}
+          <WizardMembersDraft
+            companyId={companyId}
+            members={draftMembers}
+            onChange={setDraftMembers}
           />
         </div>
       )}
@@ -452,40 +508,40 @@ export function ProjectCreateWizard({
             <button
               type="button"
               disabled={busy || !step2Ready}
-              onClick={() => void continueFromStep2()}
-              className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
-            >
-              {busy ? "Đang xử lý…" : "Tiếp tục"}
-            </button>
-          )}
-          {step >= 3 && (
-            <button
-              type="button"
-              onClick={skipOrLater}
-              disabled={busy}
-              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
-            >
-              Bỏ qua
-            </button>
-          )}
-          {step >= 3 && step < 6 && (
-            <button
-              type="button"
-              disabled={busy || wsLoading}
-              onClick={() => void goToStep(step + 1)}
+              onClick={continueFromStep2}
               className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
             >
               Tiếp tục
             </button>
           )}
+          {step >= 3 && step < 6 && (
+            <>
+              <button
+                type="button"
+                onClick={skipOrLater}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5"
+              >
+                Bỏ qua
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setStep(step + 1)}
+                className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
+              >
+                Tiếp tục
+              </button>
+            </>
+          )}
           {step === 6 && (
             <button
               type="button"
               disabled={busy}
-              onClick={() => projectId && onCreated?.(projectId)}
+              onClick={() => void finishWizard()}
               className="bg-sky text-white px-4 py-1.5 rounded-lg text-xs hover:bg-sky-light disabled:opacity-50"
             >
-              Hoàn tất
+              {busy ? "Đang tạo…" : "Hoàn tất"}
             </button>
           )}
         </div>
