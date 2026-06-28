@@ -73,10 +73,16 @@ function resolveTenantCode(request: NextRequest, pathname: string): string | nul
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const companyCode = getCompanyCodeFromHost(request.headers.get("host"));
+  const tenantCode = resolveTenantCode(request, pathname);
 
-  if (companyCode && pathname === "/") {
-    return NextResponse.redirect(new URL("/erp/login", request.url));
+  if (pathname === "/" && tenantCode) {
+    const loginUrl = new URL("/erp/login", request.url);
+    if (!getCompanyCodeFromHost(request.headers.get("host"))) {
+      loginUrl.searchParams.set(TENANT_QUERY_PARAM, tenantCode);
+    }
+    const redirect = NextResponse.redirect(loginUrl);
+    setTenantCookie(redirect, tenantCode);
+    return redirect;
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -86,7 +92,6 @@ export async function middleware(request: NextRequest) {
     request: { headers: requestHeaders },
   });
 
-  const tenantCode = resolveTenantCode(request, pathname);
   if (tenantCode) {
     setTenantCookie(response, tenantCode);
   } else {

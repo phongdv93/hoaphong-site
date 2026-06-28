@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Building2, Loader2, LogIn } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { Loader2, LogIn } from "lucide-react";
 import { ERP } from "@/lib/paths";
+import { companyErpRegisterUrl } from "@/lib/tenant-host";
 
 type Phase = "form" | "redirecting";
+
+type TenantInfo = {
+  name: string;
+  code: string;
+  subdomain: string;
+};
 
 export default function ErpLoginPage() {
   const router = useRouter();
@@ -15,8 +22,28 @@ export default function ErpLoginPage() {
   const [redirectLabel, setRedirectLabel] = useState("Đang xác định quyền truy cập…");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tenant, setTenant] = useState<TenantInfo | null>(null);
+
+  const registerUrl = useMemo(() => {
+    if (!tenant) return "/erp/dang-ky";
+    const host = typeof window !== "undefined" ? window.location.host : undefined;
+    return companyErpRegisterUrl(tenant.subdomain || tenant.code, host);
+  }, [tenant]);
 
   useEffect(() => {
+    fetch("/api/auth/tenant")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.company) {
+          setTenant({
+            name: j.company.name,
+            code: j.company.code,
+            subdomain: j.company.subdomain ?? j.company.code,
+          });
+        }
+      })
+      .catch(() => {});
+
     fetch("/api/auth/session")
       .then((r) => r.json())
       .then((session) => {
@@ -99,9 +126,16 @@ export default function ErpLoginPage() {
           <div className="flex flex-col items-center mb-8">
             <Logo light />
             <h1 className="font-display text-2xl font-bold text-white mt-4">Đăng nhập ERP</h1>
-            <p className="text-sm text-slate-400 text-center mt-1">
-              Một cửa cho admin Hoa Phong, quản trị công ty và nhân viên
-            </p>
+            {tenant ? (
+              <p className="text-sm text-slate-400 text-center mt-1 flex items-center gap-1">
+                <Building2 size={14} />
+                {tenant.name}
+              </p>
+            ) : (
+              <p className="text-sm text-slate-400 text-center mt-1">
+                Một cửa cho admin Hoa Phong, quản trị công ty và nhân viên
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -137,10 +171,21 @@ export default function ErpLoginPage() {
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
             <p className="text-xs text-slate-400 text-center pt-2">
-              Doanh nghiệp mới?{" "}
-              <Link href="/erp/register" className="text-emerald font-medium hover:underline">
-                Đăng ký công ty
-              </Link>
+              {tenant ? (
+                <>
+                  Chưa có tài khoản?{" "}
+                  <Link href={registerUrl} className="text-emerald font-medium hover:underline">
+                    Đăng ký nhân viên
+                  </Link>
+                </>
+              ) : (
+                <>
+                  Doanh nghiệp mới?{" "}
+                  <Link href="/erp/register" className="text-emerald font-medium hover:underline">
+                    Đăng ký công ty
+                  </Link>
+                </>
+              )}
             </p>
           </form>
         </div>

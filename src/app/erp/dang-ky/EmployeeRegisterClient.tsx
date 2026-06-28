@@ -77,9 +77,10 @@ export function EmployeeRegisterPage() {
       <div className="min-h-screen bg-midnight flex items-center justify-center p-4">
         <div className="glass-dark rounded-2xl p-8 max-w-md text-center text-slate-300">
           <p className="mb-4">
-            Đăng ký nhân viên chỉ qua link công ty — subdomain{" "}
-            <span className="font-mono text-sky-light">ten-cty.hoaphong.com.vn</span> hoặc khi
-            test bằng IP:{" "}
+            Đăng ký nhân viên qua link công ty — ví dụ{" "}
+            <span className="font-mono text-sky-light">0318313318.hoaphong.com.vn</span> hoặc{" "}
+            <span className="font-mono text-sky-light">ten-cty.hoaphong.com.vn</span>. Khi test bằng
+            IP:{" "}
             <span className="font-mono text-sky-light">http://IP/erp/dang-ky?tenant=ma-cty</span>
           </p>
           <Link href={loginUrl} className="text-sky-light hover:underline text-sm">

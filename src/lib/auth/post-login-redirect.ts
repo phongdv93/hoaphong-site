@@ -29,12 +29,56 @@ async function loadMemberships(userId: number): Promise<MembershipRow[]> {
   );
 }
 
+function redirectForMembership(m: MembershipRow): PostLoginRedirect {
+  if (m.status === "pending") {
+    return {
+      url: "/erp/cho-duyet",
+      label: "Chờ duyệt",
+      activeCompanyId: m.company_id,
+    };
+  }
+  if (m.status === "rejected") {
+    return {
+      url: "/erp/dang-ky?rejected=1",
+      label: "Đăng ký lại",
+      activeCompanyId: m.company_id,
+    };
+  }
+  if (m.role === "admin") {
+    return {
+      url: `/erp/cong-ty/${m.company_id}`,
+      label: `Quản trị ${m.name}`,
+      activeCompanyId: m.company_id,
+    };
+  }
+  return {
+    url: `/erp/c/${companyPublicCode({ code: m.code, taxCode: m.tax_code })}`,
+    label: m.name,
+    activeCompanyId: m.company_id,
+  };
+}
+
 /** Xác định trang đích sau đăng nhập — một cửa /erp/login cho mọi vai trò. */
-export async function resolvePostLoginRedirect(userId: number): Promise<PostLoginRedirect> {
+export async function resolvePostLoginRedirect(
+  userId: number,
+  options?: { tenantCompanyId?: number }
+): Promise<PostLoginRedirect> {
   const [platformAdmin, rows] = await Promise.all([
     isPlatformAdmin(userId),
     loadMemberships(userId),
   ]);
+
+  if (options?.tenantCompanyId != null) {
+    const tenantMembership = rows.find((r) => r.company_id === options.tenantCompanyId);
+    if (tenantMembership) {
+      return redirectForMembership(tenantMembership);
+    }
+    return {
+      url: "/erp/dang-ky",
+      label: "Đăng ký nhân viên",
+      activeCompanyId: options.tenantCompanyId,
+    };
+  }
 
   const pending = rows.filter((r) => r.status === "pending");
   if (pending.length > 0) {

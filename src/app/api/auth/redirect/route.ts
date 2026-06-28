@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { resolvePostLoginRedirect } from "@/lib/auth/post-login-redirect";
+import { resolveTenantCompany } from "@/lib/tenant-context";
 import { ACTIVE_COMPANY_COOKIE, setActiveCompanyId } from "@/lib/projects/companies";
 
 export async function GET() {
@@ -9,7 +10,10 @@ export async function GET() {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
 
-  const redirect = await resolvePostLoginRedirect(user.id);
+  const tenant = await resolveTenantCompany();
+  const redirect = await resolvePostLoginRedirect(user.id, {
+    tenantCompanyId: tenant?.id,
+  });
 
   if (redirect.activeCompanyId != null) {
     await setActiveCompanyId(redirect.activeCompanyId);

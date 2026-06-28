@@ -7,6 +7,7 @@ import {
   COOKIE_NAME,
 } from "@/lib/auth";
 import { resolvePostLoginRedirect } from "@/lib/auth/post-login-redirect";
+import { resolveTenantCompany } from "@/lib/tenant-context";
 import {
   ACTIVE_COMPANY_COOKIE,
   setActiveCompanyId,
@@ -39,7 +40,10 @@ export async function POST(request: Request) {
     }
 
     const token = await createSession(user.id, user.email);
-    const redirect = await resolvePostLoginRedirect(user.id);
+    const tenant = await resolveTenantCompany();
+    const redirect = await resolvePostLoginRedirect(user.id, {
+      tenantCompanyId: tenant?.id,
+    });
 
     if (redirect.activeCompanyId != null) {
       await setActiveCompanyId(redirect.activeCompanyId);
