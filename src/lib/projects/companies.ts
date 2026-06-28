@@ -43,7 +43,17 @@ import type {
 
 const ACTIVE_COMPANY_COOKIE = "hoaphong_active_company";
 
-
+/** Subdomain ERP — tránh hiển thị MST khi đã có slug `code`. */
+function resolveCompanySubdomain(row: Record<string, unknown>): string {
+  const code = ((row.code as string) || "").trim();
+  const raw = ((row.subdomain as string) || code).trim();
+  const tax = normalizeTaxCode((row.tax_code as string) ?? "");
+  const rawDigits = normalizeTaxCode(raw);
+  if (tax.length >= 10 && rawDigits === tax && code && normalizeTaxCode(code) !== tax) {
+    return code;
+  }
+  return raw || code;
+}
 
 function mapCompany(row: Record<string, unknown>): Company {
 
@@ -53,7 +63,7 @@ function mapCompany(row: Record<string, unknown>): Company {
 
     code: row.code as string,
 
-    subdomain: ((row.subdomain as string) || (row.code as string)).trim(),
+    subdomain: resolveCompanySubdomain(row),
 
     name: row.name as string,
 

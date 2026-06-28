@@ -7,7 +7,7 @@ import { initPlatformDb, platformExecute, platformQuery } from "../src/lib/db/pl
 const SUBDOMAIN_BY_ID: Record<number, string> = {
   1: "hoaphong-test-1",
   2: "test-cty-2",
-  3: "hoa-phong",
+  3: "cong-ty-tnhh-dau-tu-thuo",
 };
 
 async function main() {
