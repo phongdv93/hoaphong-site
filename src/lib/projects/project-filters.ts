@@ -5,7 +5,12 @@ import type {
   ProjectStatus,
   ProjectSummary,
 } from "./types";
-import { isPhaseDelayed } from "./schedule-health";
+import { PROJECT_STATUS_LABELS, PROJECT_STATUS_TONES } from "./constants";
+import {
+  analyzeProjectSchedule,
+  isPhaseDelayed,
+  scheduleHealthColors,
+} from "./schedule-health";
 
 export type ProjectListFilter = ProjectStatus | "all" | "overdue" | "deleted";
 
@@ -76,6 +81,71 @@ export function projectIsOverdue(
   if ((project.phaseDelayedCount ?? 0) > 0) return true;
   const phases = project.phases ?? [];
   return phases.some((ph) => isPhaseDelayed(ph, today));
+}
+
+/** Nhãn số ngày cho cột danh sách: còn / trễ / tổng thời lượng */
+export function projectListDayLabel(
+  project: ProjectSummary,
+  today: string = new Date().toISOString().slice(0, 10)
+): { text: string; tone: "danger" | "warn" | "ok" | "muted" } {
+  const schedule = analyzeProjectSchedule(project, today);
+  if (schedule.daysOverdue > 0) {
+    return { text: `Trễ ${schedule.daysOverdue} ngày`, tone: "danger" };
+  }
+  if (project.status !== "done" && project.expectedEndDate) {
+    const a = Date.parse(`${today}T00:00:00`);
+    const b = Date.parse(`${project.expectedEndDate}T00:00:00`);
+    const remaining = Math.round((b - a) / (24 * 3600 * 1000));
+    if (remaining >= 0) {
+      return {
+        text: `Còn ${remaining} ngày`,
+        tone: remaining <= 7 ? "warn" : "ok",
+      };
+    }
+  }
+  if (project.startDate && project.expectedEndDate) {
+    const a = Date.parse(`${project.startDate}T00:00:00`);
+    const b = Date.parse(`${project.expectedEndDate}T00:00:00`);
+    const total = Math.round((b - a) / (24 * 3600 * 1000));
+    if (total > 0) return { text: `${total} ngày`, tone: "muted" };
+  }
+  return { text: "—", tone: "muted" };
+}
+
+/** Trạng thái hiển thị trên danh sách — ưu tiên phân tích lịch (trễ, rủi ro) */
+export function projectListStatusDisplay(
+  project: ProjectSummary,
+  today: string = new Date().toISOString().slice(0, 10)
+): {
+  label: string;
+  toneClass?: string;
+  badgeStyle?: { background: string; color: string };
+} {
+  const schedule = analyzeProjectSchedule(project, today);
+  const hc = scheduleHealthColors(schedule.health);
+
+  if (
+    schedule.health === "overdue" ||
+    schedule.health === "at_risk" ||
+    schedule.health === "done" ||
+    schedule.health === "done_late" ||
+    schedule.health === "on_track"
+  ) {
+    return {
+      label: schedule.label,
+      badgeStyle: { background: hc.badgeBg, color: hc.badgeText },
+    };
+  }
+
+  const progress = projectProgressPercent(project);
+  let status: ProjectStatus = project.status;
+  if (progress >= 100) status = "done";
+  else if (progress > 0 && status === "open") status = "in_progress";
+
+  return {
+    label: PROJECT_STATUS_LABELS[status],
+    toneClass: PROJECT_STATUS_TONES[status],
+  };
 }
 
 export function projectMatchesStatusFilter(

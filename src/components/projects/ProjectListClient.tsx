@@ -6,11 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, FolderKanban, List, Plus, Search } from "lucide-react";
 import { useErpHeaderActionsSlot } from "@/components/erp/ErpPageHeader";
 import {
-  PROJECT_STATUS_LABELS,
-  PROJECT_STATUS_TONES,
-} from "@/lib/projects/constants";
-import {
   patchProjectSummaryFromWorkspace,
+  projectListDayLabel,
+  projectListStatusDisplay,
   projectMatchesStatusFilter,
   projectProgressPercent,
 } from "@/lib/projects/project-filters";
@@ -324,11 +322,14 @@ function ProjectListInner() {
   }
 
   const timelineMode = view === "timeline" && !errorBanner && statusFilter !== "deleted";
+  const listMode = view === "list" && !errorBanner && statusFilter !== "deleted";
   const showDeletedCatalog = statusFilter === "deleted" && !errorBanner;
   const panelOpen = panelProjectId !== null || createOpen;
   /** Có panel tạo/sửa thì vẫn mount workspace dù chưa có dự án trên Gantt. */
   const timelineFull = timelineMode && (items.length > 0 || panelOpen);
+  const listWithPanel = listMode && items.length > 0 && panelOpen;
   const ganttProjects = items.length > 0 ? items : rawItems ?? [];
+  const today = new Date().toISOString().slice(0, 10);
 
   const searchToolbar = (
     <div className="flex flex-wrap items-center gap-2 shrink-0 px-8 pt-2 pb-2 border-b border-white/10">
@@ -367,7 +368,7 @@ function ProjectListInner() {
   return (
     <div
       className={
-        timelineMode || showDeletedCatalog
+        timelineMode || showDeletedCatalog || listWithPanel
           ? "flex flex-col flex-1 min-h-0 overflow-hidden"
           : "space-y-4 pt-4 px-8"
       }
@@ -465,76 +466,129 @@ function ProjectListInner() {
       )}
 
       {items.length > 0 && view === "list" && (
-        <div className="bg-[#141e32] border border-white/10 rounded-xl overflow-hidden">
-          <table className="w-full text-sm text-slate-200">
-            <thead className="bg-white/5 text-slate-400">
-              <tr>
-                <Th>Mã</Th>
-                <Th>Tên dự án</Th>
-                <Th>Khách hàng</Th>
-                <Th>Giá HĐ</Th>
-                <Th>Tiến độ</Th>
-                <Th>Trạng thái</Th>
-                <Th>Deadline</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => {
-                const progress = projectProgressPercent(p);
-                return (
-                  <tr key={p.id} className="border-t border-white/10 hover:bg-white/5">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      <button
-                        type="button"
-                        onClick={() => openProjectPanel(p.id)}
-                        className="text-sky hover:underline font-mono text-xs"
-                      >
-                        {p.code}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => openProjectPanel(p.id)}
-                        className="hover:underline text-white text-left"
-                      >
-                        {p.name}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2 text-slate-400">{p.customerName ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {p.contractValue
-                        ? new Intl.NumberFormat("vi-VN").format(p.contractValue)
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/10 rounded overflow-hidden min-w-16">
-                          <div
-                            className="h-full bg-sky"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <span className="text-slate-400 tabular-nums">{progress}%</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`text-[11px] px-2 py-0.5 rounded ${PROJECT_STATUS_TONES[p.status]}`}
-                      >
-                        {PROJECT_STATUS_LABELS[p.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-400">
-                      {p.expectedEndDate
-                        ? new Date(p.expectedEndDate).toLocaleDateString("vi-VN")
-                        : "—"}
-                    </td>
+        <div
+          className={
+            panelOpen
+              ? "flex flex-1 min-h-0 overflow-hidden border-t border-white/10"
+              : "px-8"
+          }
+        >
+          <div
+            className={
+              panelOpen
+                ? "flex-1 min-w-0 overflow-auto px-8 py-4"
+                : "w-full"
+            }
+          >
+            <div className="bg-[#141e32] border border-white/10 rounded-xl overflow-hidden">
+              <table className="w-full text-sm text-slate-200">
+                <thead className="bg-white/5 text-slate-400">
+                  <tr>
+                    <Th>Mã</Th>
+                    <Th>Tên dự án</Th>
+                    <Th>Khách hàng</Th>
+                    <Th>Giá HĐ</Th>
+                    <Th>Tiến độ</Th>
+                    <Th>Số ngày</Th>
+                    <Th>Trạng thái</Th>
+                    <Th>Deadline</Th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {items.map((p) => {
+                    const progress = projectProgressPercent(p);
+                    const days = projectListDayLabel(p, today);
+                    const statusDisplay = projectListStatusDisplay(p, today);
+                    const isActive = panelProjectId === p.id;
+                    return (
+                      <tr
+                        key={p.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openProjectPanel(p.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openProjectPanel(p.id);
+                          }
+                        }}
+                        className={`border-t border-white/10 cursor-pointer transition-colors ${
+                          isActive
+                            ? "bg-sky/10 hover:bg-sky/15"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <td className="px-3 py-2 font-mono text-xs text-sky">
+                          {p.code}
+                        </td>
+                        <td className="px-3 py-2 text-white">{p.name}</td>
+                        <td className="px-3 py-2 text-slate-400">{p.customerName ?? "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {p.contractValue
+                            ? new Intl.NumberFormat("vi-VN").format(p.contractValue)
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-white/10 rounded overflow-hidden min-w-16">
+                              <div
+                                className="h-full bg-sky"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <span className="text-slate-400 tabular-nums">{progress}%</span>
+                          </div>
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap ${
+                            days.tone === "danger"
+                              ? "text-rose-300 font-medium"
+                              : days.tone === "warn"
+                                ? "text-amber-200"
+                                : days.tone === "ok"
+                                  ? "text-emerald-200"
+                                  : "text-slate-500"
+                          }`}
+                        >
+                          {days.text}
+                        </td>
+                        <td className="px-3 py-2">
+                          {statusDisplay.badgeStyle ? (
+                            <span
+                              className="text-[11px] px-2 py-0.5 rounded whitespace-nowrap"
+                              style={statusDisplay.badgeStyle}
+                            >
+                              {statusDisplay.label}
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[11px] px-2 py-0.5 rounded whitespace-nowrap ${statusDisplay.toneClass ?? ""}`}
+                            >
+                              {statusDisplay.label}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-400">
+                          {p.expectedEndDate
+                            ? new Date(p.expectedEndDate).toLocaleDateString("vi-VN")
+                            : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <ProjectPanelColumn
+            createOpen={createOpen}
+            panelProjectId={panelProjectId}
+            customers={customers}
+            onClosePanel={closePanel}
+            onProjectUpdated={handleProjectUpdated}
+            onProjectCreated={handleProjectCreated}
+            onProjectDeleted={handleProjectDeleted}
+          />
         </div>
       )}
     </div>
