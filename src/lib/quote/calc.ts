@@ -18,7 +18,7 @@ export function guessColumnRole(label: string): ColumnRole {
   if (/don gia|đơn giá|unit price|gia\b/.test(n) && !/thanh/.test(n)) return "unitPrice";
   if (/^(sl|so luong|số lượng|qty|quantity)\b/.test(n)) return "quantity";
   if (/^(dvt|đvt|unit)\b/.test(n)) return "unit";
-  if (/noi dung|nội dung|mo ta|mô tả|description|ten hang|tên hàng/.test(n)) return "description";
+  if (/noi dung|nội dung|mo ta|mô tả|description|ten hang|tên hàng|danh muc|danh mục|hang hoa|hạng mục/.test(n)) return "description";
   return "custom";
 }
 

@@ -33,7 +33,7 @@ import {
   parseVatRate,
   SEAL_DIAMETER_MM,
 } from "@/lib/quote/calc";
-import { applyPasteToGrid, parseClipboardMatrix } from "@/lib/quote/paste";
+import { applyPasteToGrid, isPasteHeaderRow, parseClipboardMatrix } from "@/lib/quote/paste";
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
   applyTemplate,
@@ -334,8 +334,14 @@ export function QuoteBuilder({
     e.preventDefault();
     const matrix = parseClipboardMatrix(text);
     if (matrix.length === 0) return;
+    const usedHeader = matrix.length > 0 && isPasteHeaderRow(matrix[0]);
+    const dataRows = usedHeader ? matrix.length - 1 : matrix.length;
     const colCount = Math.max(...matrix.map((r) => r.length));
-    showToast(`Đã dán ${matrix.length} dòng × ${colCount} cột`);
+    showToast(
+      usedHeader
+        ? `Đã dán ${dataRows} dòng (nhận header Excel)`
+        : `Đã dán ${matrix.length} dòng × ${colCount} cột`
+    );
     setDoc((prev) => {
       const result = applyPasteToGrid(prev.columns, prev.rows, anchor.rowIndex, anchor.colIndex, matrix);
       return { ...prev, ...result, updatedAt: new Date().toISOString() };
@@ -343,16 +349,40 @@ export function QuoteBuilder({
   };
 
   const handleSaveQuote = () => {
-    const name  = saveName.trim() || doc.savedName || "Báo giá";
+    const name  = saveName.trim() || doc.savedName || (isErp ? "Báo giá" : "Bản lưu");
     const saved = storage.saveQuote({ ...doc, savedName: name });
     setDoc(saved); setSaveName(name);
-    showToast("Đã lưu báo giá");
+    showToast(isErp ? "Đã lưu báo giá" : "Đã lưu trên trình duyệt");
+    // Chỉ ERP: đồng bộ dòng hàng vào danh mục SP tenant (mini tool = khách vãng lai, localStorage only).
+    if (isErp) void syncCatalogFromQuote(saved, name);
+  };
+
+  const syncCatalogFromQuote = async (quoteDoc: typeof doc, quoteName: string) => {
+    const lines = extractCatalogLinesFromQuote(quoteDoc);
+    if (!lines.length) return;
+    try {
+      const res = await fetch("/api/factory/products/import-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quoteNumber: quoteDoc.quoteNumber,
+          quoteName,
+          lines,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(j.message || `Đã đồng bộ ${lines.length} dòng vào danh mục SP`);
+      }
+    } catch {
+      // im lặng — lưu local vẫn thành công
+    }
   };
 
   const handleSaveToCatalog = async () => {
     const lines = extractCatalogLinesFromQuote(doc);
     if (!lines.length) {
-      showToast("Không có dòng hàng (cột Nội dung)");
+      showToast("Không có dòng hàng — cần cột Tên/Danh mục hoặc Nội dung");
       return;
     }
     setExporting(true);
@@ -371,7 +401,7 @@ export function QuoteBuilder({
         showToast(j.error || "Cần đăng nhập ERP và chọn công ty");
         return;
       }
-      showToast(j.message || `Đã lưu ${j.created} sản phẩm`);
+      showToast(j.message || `Đã lưu danh mục SP`);
     } catch {
       showToast("Không kết nối được server");
     } finally {
@@ -587,7 +617,7 @@ export function QuoteBuilder({
 
           <div className="mt-auto pt-3 space-y-1.5">
             <button type="button" onClick={handleSaveQuote} className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
-              <Save size={14} /> Lưu báo giá
+              <Save size={14} /> {isErp ? "Lưu báo giá" : "Lưu trên máy"}
             </button>
             {isErp && (
               <button

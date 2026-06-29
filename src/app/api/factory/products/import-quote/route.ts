@@ -30,10 +30,13 @@ export async function POST(request: Request) {
         body.quoteName?.trim() ||
         `BG-${new Date().toISOString().slice(0, 10)}`;
       const result = await importQuoteLinesToCatalog(quoteRef, body.lines);
+      const parts: string[] = [];
+      if (result.created > 0) parts.push(`${result.created} mới`);
+      if (result.updated > 0) parts.push(`${result.updated} cập nhật`);
       return NextResponse.json({
         ok: true,
         ...result,
-        message: `Đã lưu ${result.created} sản phẩm vào danh mục.`,
+        message: `Đã lưu danh mục SP (${parts.join(", ") || "0 dòng"}).`,
       });
     } catch (err) {
       if (err instanceof z.ZodError) {

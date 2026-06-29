@@ -273,22 +273,63 @@ export async function importQuoteLinesToCatalog(
     description?: string;
     unit?: string;
     price?: string;
+    quantity?: string;
   }>
-): Promise<{ created: number; ids: number[] }> {
+): Promise<{ created: number; updated: number; ids: number[] }> {
   const ids: number[] = [];
+  let created = 0;
+  let updated = 0;
+  const ref = quoteRef.trim();
+
   for (const line of lines) {
     if (!line.name?.trim()) continue;
-    const noteParts = [line.unit?.trim() ? `ĐVT: ${line.unit.trim()}` : ""].filter(Boolean);
-    const id = await createCatalogProduct({
-      name: line.name.trim(),
-      description: line.description?.trim() ?? "",
-      price: line.price?.trim() ?? "",
-      sourceQuoteRef: quoteRef,
-      notes: noteParts.join(" · "),
-    });
-    ids.push(id);
+    const name = line.name.trim();
+    const description = line.description?.trim() ?? "";
+    const price = line.price?.trim() ?? "";
+    const noteParts = [
+      line.unit?.trim() ? `ĐVT: ${line.unit.trim()}` : "",
+      line.quantity?.trim() && line.quantity.trim() !== "1"
+        ? `SL: ${line.quantity.trim()}`
+        : "",
+    ].filter(Boolean);
+
+    const existing = ref
+      ? await tenantQueryOne<{ id: number }>(
+          `SELECT id FROM factory_products
+           WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+             AND source_quote_ref = $2
+           ORDER BY id DESC LIMIT 1`,
+          [name, ref]
+        )
+      : await tenantQueryOne<{ id: number }>(
+          `SELECT id FROM factory_products
+           WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+           ORDER BY id DESC LIMIT 1`,
+          [name]
+        );
+
+    if (existing) {
+      await tenantExecute(
+        `UPDATE factory_products SET
+           description = $1, price = $2, notes = $3, source_quote_ref = $4, updated_at = NOW()
+         WHERE id = $5`,
+        [description, price, noteParts.join(" · "), ref, existing.id]
+      );
+      ids.push(existing.id);
+      updated++;
+    } else {
+      const id = await createCatalogProduct({
+        name,
+        description,
+        price,
+        sourceQuoteRef: ref,
+        notes: noteParts.join(" · "),
+      });
+      ids.push(id);
+      created++;
+    }
   }
-  return { created: ids.length, ids };
+  return { created, updated, ids };
 }
 
 export async function updateCatalogProductMeta(
