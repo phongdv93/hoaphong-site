@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["imapflow", "mailparser"],
   // Tránh lỗi dev "SegmentViewNode ... React Client Manifest" / chunk .next lệch trên Windows khi HMR nhiều.
   experimental: {
     devtoolSegmentExplorer: false,

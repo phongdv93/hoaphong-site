@@ -27,6 +27,7 @@ import {
   Award,
   FolderKanban,
   ListChecks,
+  Mail,
 } from "lucide-react";
 import { ERP } from "@/lib/paths";
 import type { Department } from "@/lib/erp/departments";
@@ -206,6 +207,15 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
         href: "/erp/marketing/bao-gia",
         status: "active",
         icon: FileText,
+        ownerDepartmentId: "marketing",
+      },
+      {
+        id: "hop-thu",
+        title: "Hộp thư",
+        description: "Đọc và gửi email công ty (contact@…)",
+        href: "/erp/marketing/hop-thu",
+        status: "active",
+        icon: Mail,
         ownerDepartmentId: "marketing",
       },
       {
