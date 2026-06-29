@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Eye,
+  EyeOff,
   FolderOpen,
   ImagePlus,
   Layers,
@@ -25,11 +26,13 @@ import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import {
   calcGrandTotal,
   calcTotalVat,
+  exportShowsLineTotal,
   formatVnMoney,
   getLineTotalDisplay,
   getSttDisplay,
   getVatDisplay,
   guessColumnRole,
+  isColumnHiddenOnExport,
   parseVatRate,
   SEAL_DIAMETER_MM,
 } from "@/lib/quote/calc";
@@ -315,11 +318,38 @@ export function QuoteBuilder({
     showToast(`Đã thêm cột "${label}"`);
   };
 
-  const removeColumn = () => setDoc((prev) => {
-    if (prev.columns.length <= 1) return prev;
-    const columns = prev.columns.slice(0, -1);
-    return { ...prev, columns, rows: syncRowsWithColumns(prev.rows, columns), updatedAt: new Date().toISOString() };
-  });
+  const deleteSelectedColumns = useCallback(() => {
+    const { colMin, colMax } = normalizeCellRange(cellRangeRef.current);
+    const removeCount = colMax - colMin + 1;
+    setDoc((prev) => {
+      if (prev.columns.length <= removeCount) return prev;
+      const remove = new Set(Array.from({ length: removeCount }, (_, i) => colMin + i));
+      const columns = prev.columns.filter((_, i) => !remove.has(i));
+      return { ...prev, columns, rows: syncRowsWithColumns(prev.rows, columns), updatedAt: new Date().toISOString() };
+    });
+    const nextCol = Math.min(colMin, doc.columns.length - removeCount - 1);
+    setCellRange({
+      start: { rowIndex: cellRangeRef.current.start.rowIndex, colIndex: Math.max(0, nextCol) },
+      end: { rowIndex: cellRangeRef.current.end.rowIndex, colIndex: Math.max(0, nextCol) },
+    });
+    setToast(`Đã xóa ${removeCount} cột`);
+    setTimeout(() => setToast(null), 2800);
+  }, [doc.columns.length]);
+
+  const toggleColumnHiddenOnExport = (colIndex: number) => {
+    setDoc((prev) => ({
+      ...prev,
+      columns: prev.columns.map((col, i) =>
+        i === colIndex ? { ...col, hiddenOnExport: !col.hiddenOnExport } : col
+      ),
+      updatedAt: new Date().toISOString(),
+    }));
+  };
+
+  const selectionCols = useMemo(() => {
+    const { colMin, colMax } = normalizeCellRange(cellRange);
+    return colMax - colMin + 1;
+  }, [cellRange]);
 
   const setCell = (rowIndex: number, colId: string, value: string) => {
     setDoc((prev) => {
@@ -334,6 +364,20 @@ export function QuoteBuilder({
   useEffect(() => {
     cellRangeRef.current = cellRange;
   }, [cellRange]);
+
+  const shouldInterceptGridDelete = useCallback((el: Element | null, key: string) => {
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return false;
+    if (!el.closest("[data-quote-grid]")) return false;
+    if (el instanceof HTMLInputElement && el.closest("thead")) return false;
+    if (!isSingleCellRange(cellRangeRef.current)) return true;
+    if (!(el instanceof HTMLTextAreaElement)) return false;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    if (start !== end) return false;
+    if (key === "Backspace" && start > 0) return false;
+    if (key === "Delete" && end < el.value.length) return false;
+    return true;
+  }, []);
 
   const focusGrid = useCallback(() => {
     gridFocusRef.current?.focus({ preventScroll: true });
@@ -455,24 +499,13 @@ export function QuoteBuilder({
 
   const isExternalTextInput = (el: Element | null) => {
     if (!el || !(el instanceof HTMLElement)) return false;
-    if (tableRef.current?.contains(el)) return false;
+    if (el.closest("[data-quote-grid]")) return false;
     return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable;
   };
 
   const handleGridKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Delete" && e.key !== "Backspace") return;
-    const range = cellRangeRef.current;
-    const multi = !isSingleCellRange(range);
-    const active = document.activeElement;
-
-    if (!multi && active instanceof HTMLTextAreaElement && tableRef.current?.contains(active)) {
-      const start = active.selectionStart ?? 0;
-      const end = active.selectionEnd ?? 0;
-      if (start !== end) return;
-      if (e.key === "Backspace" && start > 0) return;
-      if (e.key === "Delete" && end < active.value.length) return;
-    }
-
+    if (!shouldInterceptGridDelete(document.activeElement, e.key)) return;
     e.preventDefault();
     handleClearSelection();
   };
@@ -481,19 +514,13 @@ export function QuoteBuilder({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (isExternalTextInput(document.activeElement)) return;
-      if (isSingleCellRange(cellRangeRef.current)) return;
+      if (!shouldInterceptGridDelete(document.activeElement, e.key)) return;
       e.preventDefault();
       handleClearSelection();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleClearSelection]);
-
-  const hasMultiSelection = !isSingleCellRange(cellRange);
-  const editableInSelection = useMemo(
-    () => countEditableCellsInRange(cellRange, doc.columns.length, (ci) => doc.columns[ci]?.role),
-    [cellRange, doc.columns]
-  );
+  }, [handleClearSelection, shouldInterceptGridDelete]);
 
   const selectionRows = useMemo(() => selectedRowCount(cellRange), [cellRange]);
   const pasteAnchor = useMemo(() => pasteAnchorFromRange(cellRange), [cellRange]);
@@ -624,9 +651,7 @@ export function QuoteBuilder({
     }
   };
 
-  const isColHiddenOnExport = (role?: ColumnRole) =>
-    (role === "unitPrice" && !doc.exportOptions.showUnitPrice) ||
-    (role === "lineTotal" && !doc.exportOptions.showLineTotal);
+  const isColHiddenOnExport = (col: QuoteColumn) => isColumnHiddenOnExport(col);
 
   const handleSelectPrintTemplate = (template: PdfTemplateMeta) => {
     patch({
@@ -740,16 +765,8 @@ export function QuoteBuilder({
 
           <SbSection title="Bảng hàng">
             <div className="grid grid-cols-2 gap-1.5">
-              <button type="button" onClick={addRow}       className="quote-tool-btn text-[11px] !py-1.5">+ Dòng</button>
-              <button type="button" onClick={removeRow}    className="quote-tool-btn text-[11px] !py-1.5">− Dòng</button>
-              <button
-                type="button"
-                onClick={handleClearSelection}
-                className="quote-tool-btn text-[11px] !py-1.5 col-span-2"
-                title="Delete / Backspace khi chọn nhiều ô"
-              >
-                <Trash2 size={12} /> Xóa nội dung ô chọn
-              </button>
+              <button type="button" onClick={addRow} className="quote-tool-btn text-[11px] !py-1.5">+ Dòng</button>
+              <button type="button" onClick={removeRow} className="quote-tool-btn text-[11px] !py-1.5">− Dòng</button>
               <button
                 type="button"
                 onClick={deleteSelectedRows}
@@ -758,14 +775,21 @@ export function QuoteBuilder({
               >
                 <Trash2 size={12} /> Xóa {selectionRows} dòng chọn
               </button>
+              <button
+                type="button"
+                onClick={deleteSelectedColumns}
+                disabled={selectionCols < 1 || doc.columns.length <= selectionCols}
+                className="quote-tool-btn text-[11px] !py-1.5 col-span-2"
+              >
+                <Trash2 size={12} /> Xóa {selectionCols} cột chọn
+              </button>
               <button type="button" onClick={openAddColumn} className="quote-tool-btn text-[11px] !py-1.5 col-span-2">
                 <Plus size={12} /> Cột…
               </button>
-              <button type="button" onClick={removeColumn} className="quote-tool-btn text-[11px] !py-1.5 col-span-2">− Cột cuối</button>
             </div>
           </SbSection>
 
-          <SbSection title="Thuế & in">
+          <SbSection title="Thuế">
             <label className="flex items-center gap-2 text-xs text-slate-muted">
               <span className="shrink-0">VAT</span>
               <input
@@ -776,18 +800,6 @@ export function QuoteBuilder({
                 className="w-12 rounded bg-white/5 border border-white/15 px-2 py-1 text-xs text-white text-right tabular-nums"
               />
               <span>%</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-muted font-light">
-              <input type="checkbox" checked={doc.exportOptions.showUnitPrice}
-                onChange={(e) => patch({ exportOptions: { ...doc.exportOptions, showUnitPrice: e.target.checked } })}
-                className="rounded" />
-              Hiện đơn giá
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-muted font-light">
-              <input type="checkbox" checked={doc.exportOptions.showLineTotal}
-                onChange={(e) => patch({ exportOptions: { ...doc.exportOptions, showLineTotal: e.target.checked } })}
-                className="rounded" />
-              Hiện thành tiền
             </label>
           </SbSection>
 
@@ -882,36 +894,11 @@ export function QuoteBuilder({
           </div>
 
           <p className="text-[10px] text-slate-muted mb-1.5">
-            Kéo chuột chọn nhiều ô · Delete / Backspace xóa nội dung · Ctrl+V dán Excel
+            Kéo chọn nhiều ô · Delete xóa nội dung · Icon mắt trên tiêu đề cột = ẩn khi in
           </p>
-          {hasMultiSelection && (
-            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-sky/30 bg-sky/10 px-3 py-2">
-              <span className="text-xs text-sky-light">
-                Đã chọn vùng
-                {editableInSelection > 0
-                  ? ` (${editableInSelection} ô có thể xóa)`
-                  : " — chỉ ô STT/Thành tiền/Thuế (không xóa được)"}
-              </span>
-              <button
-                type="button"
-                onClick={handleClearSelection}
-                disabled={editableInSelection === 0}
-                className="quote-tool-btn quote-tool-btn-primary text-[11px] !py-1 !px-2.5"
-              >
-                <Trash2 size={12} /> Xóa nội dung (Del)
-              </button>
-              <button
-                type="button"
-                onClick={deleteSelectedRows}
-                disabled={selectionRows < 1 || doc.rows.length <= selectionRows}
-                className="quote-tool-btn text-[11px] !py-1 !px-2.5"
-              >
-                <Trash2 size={12} /> Xóa {selectionRows} dòng
-              </button>
-            </div>
-          )}
           <div
             ref={gridFocusRef}
+            data-quote-grid
             tabIndex={0}
             onKeyDown={handleGridKeyDown}
             className="overflow-x-auto -mx-1 px-1 rounded-lg outline-none focus:ring-1 focus:ring-sky/40"
@@ -924,13 +911,27 @@ export function QuoteBuilder({
               <thead>
                 <tr>
                   {doc.columns.map((col, ci) => (
-                    <th key={col.id}
-                      className={`quote-th-dark border p-0 ${webColumnClass(col)} ${isColHiddenOnExport(col.role) ? "opacity-40" : ""}`}>
-                      <input
-                        value={col.label}
-                        onChange={(e) => setColumnLabel(ci, e.target.value)}
-                        className={`w-full bg-transparent text-center text-sky-light focus:outline-none ${isNarrowHeader(col) ? "px-1 py-1.5 text-[10px]" : "px-2 py-2"}`}
-                      />
+                    <th
+                      key={col.id}
+                      className={`quote-th-dark border p-0 ${webColumnClass(col)} ${isColHiddenOnExport(col) ? "opacity-50" : ""}`}
+                    >
+                      <div className="flex items-stretch min-h-[2.25rem]">
+                        <input
+                          value={col.label}
+                          onChange={(e) => setColumnLabel(ci, e.target.value)}
+                          className={`flex-1 min-w-0 bg-transparent text-center text-sky-light focus:outline-none ${isNarrowHeader(col) ? "px-1 py-1.5 text-[10px]" : "px-2 py-2"}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleColumnHiddenOnExport(ci)}
+                          title={col.hiddenOnExport ? "Đang ẩn khi in — bấm để hiện" : "Hiện khi in — bấm để ẩn"}
+                          className={`shrink-0 px-1.5 border-l border-white/10 hover:bg-white/10 transition-colors ${
+                            col.hiddenOnExport ? "text-amber-300" : "text-slate-muted"
+                          }`}
+                        >
+                          {col.hiddenOnExport ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -939,7 +940,7 @@ export function QuoteBuilder({
                 {doc.rows.map((row, ri) => (
                   <tr key={row.id} className={ri % 2 === 1 ? "bg-white/[0.02]" : ""}>
                     {doc.columns.map((col, ci) => {
-                      const hidden = isColHiddenOnExport(col.role);
+                      const hidden = isColHiddenOnExport(col);
                       const colCls = webColumnClass(col);
                       const pad = colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1" : "px-2";
                       const selected = isCellInRange(ri, ci, cellRange);
@@ -1013,7 +1014,7 @@ export function QuoteBuilder({
                   </tr>
                 ))}
               </tbody>
-              {doc.exportOptions.showLineTotal && (
+              {exportShowsLineTotal(doc) && (
                 <tfoot>
                   <tr className="quote-tfoot">
                     {lineTotalColIndex >= 0 ? (

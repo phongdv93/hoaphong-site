@@ -1,4 +1,4 @@
-import type { ColumnRole, QuoteColumn, QuoteDocument, QuoteTemplate } from "./types";
+import type { ColumnRole, QuoteColumn, QuoteDocument, QuoteExportOptions, QuoteTemplate } from "./types";
 import { createColumn, defaultExportOptions, normalizeParty, normalizeQuoter } from "./defaults";
 import { normalizePageOrientation } from "./page-spec";
 import { normalizePdfTemplateId } from "./pdf-templates";
@@ -56,8 +56,18 @@ export function reorderVatBeforeLineTotal(columns: QuoteColumn[]): QuoteColumn[]
 
 /** Chuẩn hóa bản lưu cũ (v1) → v2 */
 export function normalizeQuoteDocument(raw: Record<string, unknown>): QuoteDocument {
-  const columns = reorderVatBeforeLineTotal(
-    ensureVatColumn(ensureColumnRoles((raw.columns as QuoteColumn[]) ?? []))
+  const exportOptions = {
+    ...defaultExportOptions(),
+    ...((raw.exportOptions as object) ?? {}),
+    pageOrientation: normalizePageOrientation(
+      (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
+    ),
+  };
+  const columns = applyLegacyExportFlagsToColumns(
+    reorderVatBeforeLineTotal(
+      ensureVatColumn(ensureColumnRoles((raw.columns as QuoteColumn[]) ?? []))
+    ),
+    exportOptions
   );
   return {
     version: 2,
@@ -75,13 +85,7 @@ export function normalizeQuoteDocument(raw: Record<string, unknown>): QuoteDocum
     rows: (raw.rows as QuoteDocument["rows"]) ?? [],
     notes: (raw.notes as string) ?? "",
     vatRate: (raw.vatRate as string) ?? "10",
-    exportOptions: {
-      ...defaultExportOptions(),
-      ...((raw.exportOptions as object) ?? {}),
-      pageOrientation: normalizePageOrientation(
-        (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
-      ),
-    },
+    exportOptions,
     primaryColor: normalizePrimary(raw.primaryColor as string | undefined),
     pdfTemplateId: normalizePdfTemplateId(raw.pdfTemplateId as string | undefined),
     fontFamilyId: normalizeFontFamilyId(raw.fontFamilyId as string | undefined),
@@ -90,8 +94,18 @@ export function normalizeQuoteDocument(raw: Record<string, unknown>): QuoteDocum
 }
 
 export function normalizeTemplate(raw: Record<string, unknown>): QuoteTemplate {
-  const columns = reorderVatBeforeLineTotal(
-    ensureVatColumn(ensureColumnRoles((raw.columns as QuoteColumn[]) ?? []))
+  const exportOptions = {
+    ...defaultExportOptions(),
+    ...((raw.exportOptions as object) ?? {}),
+    pageOrientation: normalizePageOrientation(
+      (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
+    ),
+  };
+  const columns = applyLegacyExportFlagsToColumns(
+    reorderVatBeforeLineTotal(
+      ensureVatColumn(ensureColumnRoles((raw.columns as QuoteColumn[]) ?? []))
+    ),
+    exportOptions
   );
   return {
     version: 2,
@@ -106,13 +120,7 @@ export function normalizeTemplate(raw: Record<string, unknown>): QuoteTemplate {
     rowCount: (raw.rowCount as number) ?? 5,
     notes: (raw.notes as string) ?? "",
     vatRate: (raw.vatRate as string) ?? "10",
-    exportOptions: {
-      ...defaultExportOptions(),
-      ...((raw.exportOptions as object) ?? {}),
-      pageOrientation: normalizePageOrientation(
-        (raw.exportOptions as { pageOrientation?: string } | undefined)?.pageOrientation
-      ),
-    },
+    exportOptions,
     primaryColor: normalizePrimary(raw.primaryColor as string | undefined),
     pdfTemplateId: normalizePdfTemplateId(raw.pdfTemplateId as string | undefined),
     fontFamilyId: normalizeFontFamilyId(raw.fontFamilyId as string | undefined),
@@ -120,12 +128,30 @@ export function normalizeTemplate(raw: Record<string, unknown>): QuoteTemplate {
   };
 }
 
+export function isColumnHiddenOnExport(col: QuoteColumn): boolean {
+  return Boolean(col.hiddenOnExport);
+}
+
+/** Gắn hiddenOnExport từ bản lưu cũ (showUnitPrice / showLineTotal). */
+export function applyLegacyExportFlagsToColumns(
+  columns: QuoteColumn[],
+  exportOptions: QuoteExportOptions
+): QuoteColumn[] {
+  return columns.map((col) => ({
+    ...col,
+    hiddenOnExport:
+      col.hiddenOnExport ??
+      ((col.role === "unitPrice" && !exportOptions.showUnitPrice) ||
+        (col.role === "lineTotal" && !exportOptions.showLineTotal)),
+  }));
+}
+
+export function exportShowsLineTotal(doc: QuoteDocument): boolean {
+  return doc.columns.some((c) => c.role === "lineTotal" && !c.hiddenOnExport);
+}
+
 export function columnsForExport(doc: QuoteDocument): QuoteColumn[] {
-  return doc.columns.filter((col) => {
-    if (col.role === "unitPrice" && !doc.exportOptions.showUnitPrice) return false;
-    if (col.role === "lineTotal" && !doc.exportOptions.showLineTotal) return false;
-    return true;
-  });
+  return doc.columns.filter((col) => !isColumnHiddenOnExport(col));
 }
 
 export function parseVnNumber(raw: string): number {

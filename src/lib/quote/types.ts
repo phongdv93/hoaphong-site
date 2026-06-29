@@ -42,6 +42,8 @@ export type QuoteColumn = {
   id: string;
   label: string;
   role?: ColumnRole;
+  /** Không in cột này ra PDF / bản xem in */
+  hiddenOnExport?: boolean;
 };
 
 export type QuoteRow = {

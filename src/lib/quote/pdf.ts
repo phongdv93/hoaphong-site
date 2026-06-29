@@ -2,6 +2,7 @@ import type { QuoteDocument, QuoteParty } from "./types";
 import {
   calcTotalVat,
   columnsForExport,
+  exportShowsLineTotal,
   computeSignaturePrintSize,
   formatVnMoney,
   getLineTotalDisplay,
@@ -329,7 +330,7 @@ async function exportQuotePdfClassic(
     exportCols.map((col) => cellText(col, row, rowIndex, doc.columns, vatRate))
   );
 
-  const showTotal = doc.exportOptions.showLineTotal;
+  const showTotal = exportShowsLineTotal(doc);
   const footRows = buildFootRows(
     exportCols,
     grandTotal,

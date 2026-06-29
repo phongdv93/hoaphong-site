@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import {
+  exportShowsLineTotal,
   formatVnMoney,
   getLineTotalDisplay,
   getSttDisplay,
   getVatDisplay,
+  isColumnHiddenOnExport,
 } from "@/lib/quote/calc";
 import { getPdfTemplateMeta } from "@/lib/quote/pdf-templates";
 import type { PdfTemplatePreviewVariant } from "@/lib/quote/pdf-templates";
@@ -109,9 +111,7 @@ function QuoteTableBlock({
   lineTotalColIndex: number;
   tableVariant?: "default" | "minimal" | "solid-head" | "compact";
 }) {
-  const isColHidden = (role?: ColumnRole) =>
-    (role === "unitPrice" && !doc.exportOptions.showUnitPrice) ||
-    (role === "lineTotal" && !doc.exportOptions.showLineTotal);
+  const isColHidden = (col: QuoteColumn) => isColumnHiddenOnExport(col);
 
   const tableCls =
     tableVariant === "minimal"
@@ -131,7 +131,7 @@ function QuoteTableBlock({
               <th
                 key={col.id}
                 className={`quote-th border border-gray-200 px-2 py-2 ${webColumnClass(col)} ${
-                  isColHidden(col.role) ? "opacity-40" : ""
+                  isColHidden(col) ? "opacity-40" : ""
                 }`}
               >
                 {col.label}
@@ -143,7 +143,7 @@ function QuoteTableBlock({
           {doc.rows.map((row, ri) => (
             <tr key={row.id} className={ri % 2 === 1 ? "quote-row-alt" : ""}>
               {doc.columns.map((col) => {
-                const hidden = isColHidden(col.role);
+                const hidden = isColHidden(col);
                 const colCls = webColumnClass(col);
                 if (col.role === "lineTotal")
                   return (
@@ -186,7 +186,7 @@ function QuoteTableBlock({
             </tr>
           ))}
         </tbody>
-        {doc.exportOptions.showLineTotal && (
+        {exportShowsLineTotal(doc) && (
           <tfoot>
             <tr className="quote-tfoot">
               {lineTotalColIndex >= 0 ? (

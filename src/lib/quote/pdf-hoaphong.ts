@@ -2,6 +2,7 @@ import type { QuoteColumn, QuoteDocument, QuoteParty } from "./types";
 import {
   calcTotalVat,
   columnsForExport,
+  exportShowsLineTotal,
   computeSignaturePrintSize,
   formatVnMoney,
   getLineTotalDisplay,
@@ -422,7 +423,7 @@ export async function exportQuotePdfHoaphong(
     totalVat,
     payable,
     vatRate,
-    doc.exportOptions.showLineTotal,
+    exportShowsLineTotal(doc),
     primary
   );
 
