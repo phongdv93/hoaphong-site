@@ -83,33 +83,23 @@ export function projectIsOverdue(
   return phases.some((ph) => isPhaseDelayed(ph, today));
 }
 
-/** Nhãn số ngày cho cột danh sách: còn / trễ / tổng thời lượng */
-export function projectListDayLabel(
-  project: ProjectSummary,
-  today: string = new Date().toISOString().slice(0, 10)
-): { text: string; tone: "danger" | "warn" | "ok" | "muted" } {
-  const schedule = analyzeProjectSchedule(project, today);
-  if (schedule.daysOverdue > 0) {
-    return { text: `Trễ ${schedule.daysOverdue} ngày`, tone: "danger" };
-  }
-  if (project.status !== "done" && project.expectedEndDate) {
-    const a = Date.parse(`${today}T00:00:00`);
-    const b = Date.parse(`${project.expectedEndDate}T00:00:00`);
-    const remaining = Math.round((b - a) / (24 * 3600 * 1000));
-    if (remaining >= 0) {
-      return {
-        text: `Còn ${remaining} ngày`,
-        tone: remaining <= 7 ? "warn" : "ok",
-      };
-    }
-  }
-  if (project.startDate && project.expectedEndDate) {
-    const a = Date.parse(`${project.startDate}T00:00:00`);
-    const b = Date.parse(`${project.expectedEndDate}T00:00:00`);
-    const total = Math.round((b - a) / (24 * 3600 * 1000));
-    if (total > 0) return { text: `${total} ngày`, tone: "muted" };
-  }
-  return { text: "—", tone: "muted" };
+/** Tổng số ngày hợp đồng (ngày bắt đầu → ngày kết thúc dự kiến) */
+export function projectContractDayCount(project: ProjectSummary): number | null {
+  if (!project.startDate || !project.expectedEndDate) return null;
+  const a = Date.parse(`${project.startDate}T00:00:00`);
+  const b = Date.parse(`${project.expectedEndDate}T00:00:00`);
+  const total = Math.round((b - a) / (24 * 3600 * 1000));
+  return total >= 0 ? total : null;
+}
+
+/** Cột Số ngày trên danh sách — thời lượng hợp đồng */
+export function projectListDayLabel(project: ProjectSummary): {
+  text: string;
+  tone: "muted";
+} {
+  const days = projectContractDayCount(project);
+  if (days === null) return { text: "—", tone: "muted" };
+  return { text: `${days} ngày`, tone: "muted" };
 }
 
 /** Trạng thái hiển thị trên danh sách — ưu tiên phân tích lịch (trễ, rủi ro) */

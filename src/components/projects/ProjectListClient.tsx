@@ -318,7 +318,7 @@ function ProjectListInner() {
   }, [setHeaderActions, view, canCreate, createBlockedMsg, openCreatePanel]);
 
   if (items === null) {
-    return <div className="text-sm text-slate-400 pt-5 px-8">Đang tải…</div>;
+    return <div className="text-sm text-slate-400 pt-5 px-3">Đang tải…</div>;
   }
 
   const timelineMode = view === "timeline" && !errorBanner && statusFilter !== "deleted";
@@ -327,12 +327,34 @@ function ProjectListInner() {
   const panelOpen = panelProjectId !== null || createOpen;
   /** Có panel tạo/sửa thì vẫn mount workspace dù chưa có dự án trên Gantt. */
   const timelineFull = timelineMode && (items.length > 0 || panelOpen);
-  const listWithPanel = listMode && items.length > 0 && panelOpen;
+  const listFull = listMode && items.length > 0;
   const ganttProjects = items.length > 0 ? items : rawItems ?? [];
   const today = new Date().toISOString().slice(0, 10);
 
+  const listSearchToolbar = (
+    <div className="flex flex-wrap items-center gap-2 shrink-0 px-3 pt-2 pb-2 border-b border-white/10">
+      <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
+        <Search size={14} className="text-slate-500 shrink-0" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              if (statusFilter === "deleted") void loadDeleted();
+              else void load();
+            }
+          }}
+          placeholder="Tìm theo mã / tên dự án…"
+          className="px-1 text-sm outline-none w-56 sm:w-72 bg-transparent text-slate-100 placeholder:text-slate-500 h-full"
+        />
+      </div>
+      <StatusFilterCombo value={statusFilter} onChange={setStatusFilter} />
+      <div className="flex-1" />
+    </div>
+  );
+
   const searchToolbar = (
-    <div className="flex flex-wrap items-center gap-2 shrink-0 px-8 pt-2 pb-2 border-b border-white/10">
+    <div className="flex flex-wrap items-center gap-2 shrink-0 px-3 pt-2 pb-2 border-b border-white/10">
       <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
         <Search size={14} className="text-slate-500 shrink-0" />
         <input
@@ -368,13 +390,14 @@ function ProjectListInner() {
   return (
     <div
       className={
-        timelineMode || showDeletedCatalog || listWithPanel
+        timelineMode || showDeletedCatalog || listFull
           ? "flex flex-col flex-1 min-h-0 overflow-hidden"
-          : "space-y-4 pt-4 px-8"
+          : "space-y-4 pt-4 px-3"
       }
     >
       {!(timelineFull && panelOpen) && (timelineMode || showDeletedCatalog) && searchToolbar}
-      {!timelineMode && !showDeletedCatalog && (
+      {listFull && listSearchToolbar}
+      {!timelineMode && !showDeletedCatalog && !listFull && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 bg-white/5 border border-white/15 rounded-lg px-2 h-[30px]">
             <Search size={14} className="text-slate-500 shrink-0" />
@@ -397,7 +420,7 @@ function ProjectListInner() {
       )}
 
       {errorBanner && (
-        <div className="bg-amber-500/15 border border-amber-500/40 text-amber-100 rounded p-3 text-sm mx-8">
+        <div className="bg-amber-500/15 border border-amber-500/40 text-amber-100 rounded p-3 text-sm mx-3">
           {errorBanner}{" "}
           {errorBanner.includes("công ty") && (
             <Link href="/erp/cong-ty/new" className="underline font-medium text-amber-50">
@@ -466,20 +489,8 @@ function ProjectListInner() {
       )}
 
       {items.length > 0 && view === "list" && (
-        <div
-          className={
-            panelOpen
-              ? "flex flex-1 min-h-0 overflow-hidden border-t border-white/10"
-              : "px-8"
-          }
-        >
-          <div
-            className={
-              panelOpen
-                ? "flex-1 min-w-0 overflow-auto px-8 py-4"
-                : "w-full"
-            }
-          >
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-auto px-3 py-3">
             <div className="bg-[#141e32] border border-white/10 rounded-xl overflow-hidden">
               <table className="w-full text-sm text-slate-200">
                 <thead className="bg-white/5 text-slate-400">
@@ -497,7 +508,7 @@ function ProjectListInner() {
                 <tbody>
                   {items.map((p) => {
                     const progress = projectProgressPercent(p);
-                    const days = projectListDayLabel(p, today);
+                    const days = projectListDayLabel(p);
                     const statusDisplay = projectListStatusDisplay(p, today);
                     const isActive = panelProjectId === p.id;
                     return (
@@ -539,17 +550,7 @@ function ProjectListInner() {
                             <span className="text-slate-400 tabular-nums">{progress}%</span>
                           </div>
                         </td>
-                        <td
-                          className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap ${
-                            days.tone === "danger"
-                              ? "text-rose-300 font-medium"
-                              : days.tone === "warn"
-                                ? "text-amber-200"
-                                : days.tone === "ok"
-                                  ? "text-emerald-200"
-                                  : "text-slate-500"
-                          }`}
-                        >
+                        <td className="px-3 py-2 text-xs tabular-nums whitespace-nowrap text-slate-300">
                           {days.text}
                         </td>
                         <td className="px-3 py-2">
