@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import {
   Eye,
   EyeOff,
+  FilePlus,
   FolderOpen,
   ImagePlus,
   Layers,
@@ -56,6 +57,9 @@ import { primaryCssVars } from "@/lib/quote/theme";
 import { FONT_FAMILIES } from "@/lib/quote/pdf-fonts";
 import { primaryColorForTemplate, type PdfTemplateMeta } from "@/lib/quote/pdf-templates";
 import { QuotePreviewModal } from "@/components/quote/QuotePreviewModal";
+import { CustomerPartyBlock } from "@/components/quote/CustomerPartyBlock";
+import type { Customer } from "@/lib/marketing/customer-types";
+import { createNewQuoteDocument } from "@/lib/quote/new-quote";
 import {
   countEditableCellsInRange,
   isCellInRange,
@@ -256,6 +260,7 @@ export function QuoteBuilder({
   const [newColAfter, setNewColAfter] = useState(-1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
@@ -273,6 +278,31 @@ export function QuoteBuilder({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storage]);
+
+  useEffect(() => {
+    if (!defaultSeller?.company) return;
+    setDoc((prev) => {
+      if (prev.seller.company?.trim()) return prev;
+      return { ...prev, seller: { ...prev.seller, ...defaultSeller } };
+    });
+  }, [defaultSeller]);
+
+  useEffect(() => {
+    if (!isErp) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/marketing/customers");
+        if (!res.ok || cancelled) return;
+        setCustomers((await res.json()) as Customer[]);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isErp]);
 
   const lineTotalColIndex = useMemo(
     () => doc.columns.findIndex((c) => c.role === "lineTotal"),
@@ -631,9 +661,18 @@ export function QuoteBuilder({
   const handleLoadTemplate = (id: string) => { const tmpl   = storage.loadSavedTemplate(id); if (!tmpl)   return; setDoc(applyTemplate(tmpl, doc)); setSaveName(tmpl.savedName); setSavesOpen(false); showToast("Đã áp template"); };
 
   const handleNew = () => {
-    if (!confirm("Tạo báo giá mới?")) return;
-    const fresh = createQuote({ seller: defaultSeller });
-    setDoc(fresh); setSaveName(fresh.savedName); storage.clearDraft(); storage.saveDraft(fresh);
+    const msg = isErp
+      ? "Tạo báo giá mới? Giữ cấu hình in và thông tin công ty; khách hàng và dòng hàng sẽ được làm mới."
+      : "Tạo bản mới? Nội dung chưa lưu sẽ mất.";
+    if (!confirm(msg)) return;
+    const fresh = isErp
+      ? createNewQuoteDocument({ seller: defaultSeller ?? doc.seller, preserveFrom: doc })
+      : createQuote({ seller: defaultSeller });
+    setDoc(fresh);
+    setSaveName(fresh.savedName);
+    storage.clearDraft();
+    storage.saveDraft(fresh);
+    showToast(isErp ? "Đã tạo báo giá mới" : "Đã tạo bản mới");
   };
 
   const handlePdf = async () => {
@@ -691,8 +730,12 @@ export function QuoteBuilder({
           >
             <SlidersHorizontal size={14} /> Tùy chỉnh
           </button>
-          <button type="button" onClick={handleNew} className="quote-tool-btn text-xs">
-            Mới
+          <button
+            type="button"
+            onClick={handleNew}
+            className={`quote-tool-btn text-xs ${isErp ? "quote-tool-btn-primary" : ""}`}
+          >
+            <FilePlus size={14} /> {isErp ? "Báo giá mới" : "Mới"}
           </button>
           <button type="button" onClick={openSaves} className="quote-tool-btn text-xs">
             <FolderOpen size={14} /> Mở
@@ -890,7 +933,15 @@ export function QuoteBuilder({
 
           <div className="grid md:grid-cols-2 gap-4 mb-4">
             <PartyBlock editMode title="Bên báo giá" party={doc.seller} onChange={(seller) => patch({ seller })} />
-            <PartyBlock editMode title="Khách hàng" party={doc.customer} onChange={(customer) => patch({ customer })} />
+            {isErp ? (
+              <CustomerPartyBlock
+                party={doc.customer}
+                onChange={(customer) => patch({ customer })}
+                customers={customers}
+              />
+            ) : (
+              <PartyBlock editMode title="Khách hàng" party={doc.customer} onChange={(customer) => patch({ customer })} />
+            )}
           </div>
 
           <p className="text-[10px] text-slate-muted mb-1.5">
