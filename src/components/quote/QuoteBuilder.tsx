@@ -481,7 +481,7 @@ export function QuoteBuilder({
               aria-label="Đóng tùy chỉnh"
               onClick={() => setSidebarOpen(false)}
             />
-            <aside className="quote-sidebar z-40 fixed left-0 top-0 bottom-0 w-[min(100%,17rem)] overflow-y-auto lg:static lg:w-[14rem] lg:shrink-0 flex flex-col gap-0 divide-y divide-white/10 shadow-xl lg:shadow-none">
+            <aside className="quote-sidebar z-40 fixed inset-y-0 left-0 w-[min(100%,17rem)] flex flex-col min-h-0 overflow-y-auto lg:relative lg:z-auto lg:inset-auto lg:w-[14rem] lg:shrink-0 lg:max-h-full divide-y divide-white/10 shadow-xl lg:shadow-none">
               <div className="flex items-center justify-between lg:hidden pt-1 pb-2 border-b border-white/10 mb-1">
                 <span className="text-xs font-semibold text-white">Tùy chỉnh</span>
                 <button type="button" onClick={() => setSidebarOpen(false)} className="p-1 text-slate-muted">
@@ -608,33 +608,40 @@ export function QuoteBuilder({
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-0.5">
         <div className="quote-edit-surface" style={themeStyle}>
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-white/10 pb-5 mb-5">
-            <div className="shrink-0">
-              {doc.logoDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={doc.logoDataUrl} alt="Logo" className="max-h-12 w-auto object-contain object-left rounded" />
-              ) : (
-                <label className="h-12 flex items-center justify-center rounded-lg border border-dashed border-white/20 text-[10px] text-slate-muted cursor-pointer hover:border-white/35 px-4">
-                  + Logo
-                  <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleLogo(e.target.files?.[0] ?? null)} />
-                </label>
-              )}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 pb-3 mb-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="shrink-0">
+                {doc.logoDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={doc.logoDataUrl} alt="Logo" className="max-h-10 w-auto object-contain object-left rounded" />
+                ) : (
+                  <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-white/20 text-[10px] text-slate-muted cursor-pointer hover:border-white/35 px-3">
+                    + Logo
+                    <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleLogo(e.target.files?.[0] ?? null)} />
+                  </label>
+                )}
+              </div>
+              <input
+                value={doc.title}
+                onChange={(e) => patch({ title: e.target.value })}
+                className="quote-doc-title min-w-0 flex-1 bg-transparent border-0 outline-none"
+              />
             </div>
-            <div className="flex-1 min-w-0">
-              <input value={doc.title} onChange={(e) => patch({ title: e.target.value })} className="quote-doc-title w-full bg-transparent border-0 outline-none" />
-            </div>
-            <div className="shrink-0 space-y-2 sm:text-right w-full sm:w-auto">
-              <label className="block">
+            <div className="flex flex-wrap items-end gap-3 shrink-0 w-full sm:w-auto">
+              <label className="block min-w-[8.5rem] flex-1 sm:flex-none">
                 <span className="quote-meta-label">Số báo giá</span>
-                <input value={doc.quoteNumber} onChange={(e) => patch({ quoteNumber: e.target.value })}
-                  className="quote-meta-value mt-0.5 w-full sm:w-40 sm:ml-auto block" />
+                <input
+                  value={doc.quoteNumber}
+                  onChange={(e) => patch({ quoteNumber: e.target.value })}
+                  className="quote-meta-value mt-0.5 w-full block"
+                />
               </label>
-              <label className="block">
+              <label className="block min-w-[8.5rem] flex-1 sm:flex-none">
                 <span className="quote-meta-label">Ngày</span>
                 <ErpDateInput
                   value={doc.quoteDate}
                   onChange={(v) => patch({ quoteDate: v })}
-                  className="quote-meta-value mt-0.5 w-full sm:w-40 sm:ml-auto"
+                  className="quote-meta-value mt-0.5 w-full"
                 />
               </label>
             </div>

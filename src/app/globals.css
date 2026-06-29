@@ -156,15 +156,15 @@
   }
 
   .quote-sidebar {
-    @apply rounded-xl border border-white/10 bg-white/[0.04] p-3.5 space-y-3 lg:sticky lg:top-24 self-start;
+    @apply rounded-xl border border-white/10 bg-white/[0.04] p-3.5 space-y-3 self-stretch min-h-0 overflow-y-auto;
   }
 
   .quote-edit-surface {
-    @apply rounded-xl border border-white/10 bg-white/[0.03] px-4 py-5 md:px-6 md:py-6;
+    @apply rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 md:px-5 md:py-4;
   }
 
   .quote-edit-surface .quote-doc-title {
-    @apply text-left text-xl md:text-2xl text-white text-center sm:text-left;
+    @apply text-left text-lg md:text-xl text-white;
   }
 
   .quote-edit-surface .quote-meta-label {
