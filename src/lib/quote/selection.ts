@@ -33,6 +33,19 @@ export function isColumnEditable(role?: ColumnRole): boolean {
   return role !== "index" && role !== "lineTotal" && role !== "vat";
 }
 
+export function countEditableCellsInRange(
+  range: CellRange,
+  columnCount: number,
+  roleAt: (colIndex: number) => ColumnRole | undefined
+): number {
+  const { rowMin, rowMax, colMin, colMax } = normalizeCellRange(range);
+  let cols = 0;
+  for (let ci = colMin; ci <= colMax && ci < columnCount; ci++) {
+    if (isColumnEditable(roleAt(ci))) cols++;
+  }
+  return cols * (rowMax - rowMin + 1);
+}
+
 export function selectedRowCount(range: CellRange): number {
   const { rowMin, rowMax } = normalizeCellRange(range);
   return rowMax - rowMin + 1;

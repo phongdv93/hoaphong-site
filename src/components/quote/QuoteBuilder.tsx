@@ -54,6 +54,7 @@ import { FONT_FAMILIES } from "@/lib/quote/pdf-fonts";
 import { primaryColorForTemplate, type PdfTemplateMeta } from "@/lib/quote/pdf-templates";
 import { QuotePreviewModal } from "@/components/quote/QuotePreviewModal";
 import {
+  countEditableCellsInRange,
   isCellInRange,
   isColumnEditable,
   isSingleCellRange,
@@ -232,6 +233,7 @@ export function QuoteBuilder({
   const isErp = variant === "erp";
   const storage = useMemo(() => createQuoteStorage(variant), [variant]);
   const tableRef = useRef<HTMLTableElement>(null);
+  const gridFocusRef = useRef<HTMLDivElement>(null);
   const cellInputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const isDraggingRef = useRef(false);
   const cellRangeRef = useRef<CellRange>({ start: { rowIndex: 0, colIndex: 0 }, end: { rowIndex: 0, colIndex: 0 } });
@@ -333,8 +335,19 @@ export function QuoteBuilder({
     cellRangeRef.current = cellRange;
   }, [cellRange]);
 
+  const focusGrid = useCallback(() => {
+    gridFocusRef.current?.focus({ preventScroll: true });
+  }, []);
+
   const clearSelectedCells = useCallback(() => {
-    const { rowMin, rowMax, colMin, colMax } = normalizeCellRange(cellRangeRef.current);
+    const range = cellRangeRef.current;
+    const editable = countEditableCellsInRange(range, doc.columns.length, (ci) => doc.columns[ci]?.role);
+    if (editable === 0) {
+      setToast("Ô STT / Thành tiền / Thuế tính tự động — không xóa được");
+      setTimeout(() => setToast(null), 2800);
+      return 0;
+    }
+    const { rowMin, rowMax, colMin, colMax } = normalizeCellRange(range);
     setDoc((prev) => ({
       ...prev,
       rows: prev.rows.map((row, ri) => {
@@ -348,7 +361,17 @@ export function QuoteBuilder({
       }),
       updatedAt: new Date().toISOString(),
     }));
-  }, []);
+    return editable;
+  }, [doc.columns]);
+
+  const handleClearSelection = useCallback(() => {
+    const n = clearSelectedCells();
+    if (n > 0) {
+      setToast(`Đã xóa ${n} ô`);
+      setTimeout(() => setToast(null), 2800);
+    }
+    focusGrid();
+  }, [clearSelectedCells, focusGrid]);
 
   const deleteSelectedRows = useCallback(() => {
     const { rowMin, rowMax } = normalizeCellRange(cellRangeRef.current);
@@ -367,24 +390,32 @@ export function QuoteBuilder({
     setTimeout(() => setToast(null), 2800);
   }, [doc.rows.length]);
 
-  const endCellDrag = useCallback(() => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-    setIsSelecting(false);
+  const finishSelectionInteraction = useCallback(() => {
     const range = cellRangeRef.current;
     if (!isSingleCellRange(range)) {
       if (document.activeElement instanceof HTMLTextAreaElement) {
         document.activeElement.blur();
       }
+      focusGrid();
       return;
     }
     const { rowMin, colMin } = normalizeCellRange(range);
     const col = doc.columns[colMin];
-    if (!isColumnEditable(col?.role)) return;
+    if (!isColumnEditable(col?.role)) {
+      focusGrid();
+      return;
+    }
     const el = cellInputRefs.current.get(cellKey(rowMin, colMin));
     el?.focus();
     el?.select();
-  }, [doc.columns]);
+  }, [doc.columns, focusGrid]);
+
+  const endCellDrag = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsSelecting(false);
+    finishSelectionInteraction();
+  }, [finishSelectionInteraction]);
 
   const handleCellMouseDown = (rowIndex: number, colIndex: number, e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -400,6 +431,7 @@ export function QuoteBuilder({
     if (e.shiftKey) {
       setCellRange((prev) => ({ start: prev.start, end: { rowIndex, colIndex } }));
       e.preventDefault();
+      requestAnimationFrame(() => focusGrid());
       return;
     }
     isDraggingRef.current = true;
@@ -421,30 +453,47 @@ export function QuoteBuilder({
     return () => window.removeEventListener("mouseup", endCellDrag);
   }, [endCellDrag]);
 
+  const isExternalTextInput = (el: Element | null) => {
+    if (!el || !(el instanceof HTMLElement)) return false;
+    if (tableRef.current?.contains(el)) return false;
+    return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable;
+  };
+
+  const handleGridKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    const range = cellRangeRef.current;
+    const multi = !isSingleCellRange(range);
+    const active = document.activeElement;
+
+    if (!multi && active instanceof HTMLTextAreaElement && tableRef.current?.contains(active)) {
+      const start = active.selectionStart ?? 0;
+      const end = active.selectionEnd ?? 0;
+      if (start !== end) return;
+      if (e.key === "Backspace" && start > 0) return;
+      if (e.key === "Delete" && end < active.value.length) return;
+    }
+
+    e.preventDefault();
+    handleClearSelection();
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Delete" && e.key !== "Backspace") return;
-      if (!tableRef.current?.contains(document.activeElement)) return;
-
-      const range = cellRangeRef.current;
-      const multi = !isSingleCellRange(range);
-      const active = document.activeElement;
-
-      if (!multi && active instanceof HTMLTextAreaElement) {
-        const start = active.selectionStart ?? 0;
-        const end = active.selectionEnd ?? 0;
-        if (start !== end) return;
-        if (e.key === "Backspace" && start > 0) return;
-        if (e.key === "Delete" && end < active.value.length) return;
-      }
-
+      if (isExternalTextInput(document.activeElement)) return;
+      if (isSingleCellRange(cellRangeRef.current)) return;
       e.preventDefault();
-      clearSelectedCells();
-      if (multi) showToast("Đã xóa nội dung ô chọn");
+      handleClearSelection();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clearSelectedCells, showToast]);
+  }, [handleClearSelection]);
+
+  const hasMultiSelection = !isSingleCellRange(cellRange);
+  const editableInSelection = useMemo(
+    () => countEditableCellsInRange(cellRange, doc.columns.length, (ci) => doc.columns[ci]?.role),
+    [cellRange, doc.columns]
+  );
 
   const selectionRows = useMemo(() => selectedRowCount(cellRange), [cellRange]);
   const pasteAnchor = useMemo(() => pasteAnchorFromRange(cellRange), [cellRange]);
@@ -695,10 +744,7 @@ export function QuoteBuilder({
               <button type="button" onClick={removeRow}    className="quote-tool-btn text-[11px] !py-1.5">− Dòng</button>
               <button
                 type="button"
-                onClick={() => {
-                  clearSelectedCells();
-                  showToast("Đã xóa nội dung ô chọn");
-                }}
+                onClick={handleClearSelection}
                 className="quote-tool-btn text-[11px] !py-1.5 col-span-2"
                 title="Delete / Backspace khi chọn nhiều ô"
               >
@@ -836,9 +882,40 @@ export function QuoteBuilder({
           </div>
 
           <p className="text-[10px] text-slate-muted mb-1.5">
-            Kéo chuột chọn nhiều ô (Shift+click mở rộng) · Delete xóa nội dung · Ctrl+V dán Excel
+            Kéo chuột chọn nhiều ô · Delete / Backspace xóa nội dung · Ctrl+V dán Excel
           </p>
-          <div className="overflow-x-auto -mx-1 px-1">
+          {hasMultiSelection && (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-sky/30 bg-sky/10 px-3 py-2">
+              <span className="text-xs text-sky-light">
+                Đã chọn vùng
+                {editableInSelection > 0
+                  ? ` (${editableInSelection} ô có thể xóa)`
+                  : " — chỉ ô STT/Thành tiền/Thuế (không xóa được)"}
+              </span>
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                disabled={editableInSelection === 0}
+                className="quote-tool-btn quote-tool-btn-primary text-[11px] !py-1 !px-2.5"
+              >
+                <Trash2 size={12} /> Xóa nội dung (Del)
+              </button>
+              <button
+                type="button"
+                onClick={deleteSelectedRows}
+                disabled={selectionRows < 1 || doc.rows.length <= selectionRows}
+                className="quote-tool-btn text-[11px] !py-1 !px-2.5"
+              >
+                <Trash2 size={12} /> Xóa {selectionRows} dòng
+              </button>
+            </div>
+          )}
+          <div
+            ref={gridFocusRef}
+            tabIndex={0}
+            onKeyDown={handleGridKeyDown}
+            className="overflow-x-auto -mx-1 px-1 rounded-lg outline-none focus:ring-1 focus:ring-sky/40"
+          >
             <table
               ref={tableRef}
               className={`quote-table quote-table-dark w-full border-collapse text-sm${isSelecting ? " quote-table-selecting" : ""}`}
