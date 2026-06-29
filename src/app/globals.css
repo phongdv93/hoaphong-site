@@ -168,7 +168,29 @@
   }
 
   .quote-edit-surface .quote-meta-label {
-    @apply text-slate-muted;
+    @apply text-[10px] font-medium uppercase tracking-wider text-slate-muted block;
+  }
+
+  .quote-edit-surface .quote-meta-fields {
+    @apply grid grid-cols-2 gap-3 shrink-0 w-full sm:w-auto sm:min-w-[18rem];
+  }
+
+  .quote-edit-surface .quote-meta-field {
+    @apply flex flex-col gap-1 min-w-0;
+  }
+
+  .quote-edit-surface .quote-meta-input {
+    @apply h-9 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-medium text-white tabular-nums outline-none;
+    @apply focus:border-sky/50 focus:ring-2 focus:ring-sky/20;
+  }
+
+  .quote-edit-surface .quote-meta-date {
+    min-height: 2.25rem !important;
+    height: 2.25rem;
+  }
+
+  .quote-edit-surface .quote-meta-date input {
+    @apply py-0 text-sm font-medium;
   }
 
   .quote-edit-surface .quote-meta-value {

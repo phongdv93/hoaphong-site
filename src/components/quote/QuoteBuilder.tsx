@@ -627,21 +627,21 @@ export function QuoteBuilder({
                 className="quote-doc-title min-w-0 flex-1 bg-transparent border-0 outline-none"
               />
             </div>
-            <div className="flex flex-wrap items-end gap-3 shrink-0 w-full sm:w-auto">
-              <label className="block min-w-[8.5rem] flex-1 sm:flex-none">
+            <div className="quote-meta-fields">
+              <label className="quote-meta-field">
                 <span className="quote-meta-label">Số báo giá</span>
                 <input
                   value={doc.quoteNumber}
                   onChange={(e) => patch({ quoteNumber: e.target.value })}
-                  className="quote-meta-value mt-0.5 w-full block"
+                  className="quote-meta-input"
                 />
               </label>
-              <label className="block min-w-[8.5rem] flex-1 sm:flex-none">
+              <label className="quote-meta-field">
                 <span className="quote-meta-label">Ngày</span>
                 <ErpDateInput
                   value={doc.quoteDate}
                   onChange={(v) => patch({ quoteDate: v })}
-                  className="quote-meta-value mt-0.5 w-full"
+                  className="quote-meta-date w-full"
                 />
               </label>
             </div>
