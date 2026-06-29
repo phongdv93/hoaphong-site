@@ -103,6 +103,8 @@ export type CellAnchor = {
   colIndex: number;
 };
 
+export type { CellRange } from "./selection";
+
 export const COLUMN_ROLE_OPTIONS: { role: ColumnRole; label: string }[] = [
   { role: "custom", label: "Tùy chỉnh" },
   { role: "index", label: "STT" },

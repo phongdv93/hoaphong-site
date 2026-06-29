@@ -46,13 +46,21 @@ import {
   type QuoteStorageScope,
 } from "@/lib/quote/storage";
 import { extractCatalogLinesFromQuote } from "@/lib/quote/to-catalog";
-import type { CellAnchor, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate } from "@/lib/quote/types";
+import type { CellRange, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate } from "@/lib/quote/types";
 import { COLUMN_ROLE_OPTIONS } from "@/lib/quote/types";
 import type { ColumnRole } from "@/lib/quote/types";
 import { primaryCssVars } from "@/lib/quote/theme";
 import { FONT_FAMILIES } from "@/lib/quote/pdf-fonts";
 import { primaryColorForTemplate, type PdfTemplateMeta } from "@/lib/quote/pdf-templates";
 import { QuotePreviewModal } from "@/components/quote/QuotePreviewModal";
+import {
+  isCellInRange,
+  isColumnEditable,
+  isSingleCellRange,
+  normalizeCellRange,
+  pasteAnchorFromRange,
+  selectedRowCount,
+} from "@/lib/quote/selection";
 
 // === PartyBlock: 4 field chính, còn lại ẩn sau toggle ===
 const PARTY_FIELDS_PRIMARY: { key: keyof QuoteParty; label: string; placeholder: string }[] = [
@@ -224,8 +232,12 @@ export function QuoteBuilder({
   const isErp = variant === "erp";
   const storage = useMemo(() => createQuoteStorage(variant), [variant]);
   const tableRef = useRef<HTMLTableElement>(null);
+  const cellInputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+  const isDraggingRef = useRef(false);
+  const cellRangeRef = useRef<CellRange>({ start: { rowIndex: 0, colIndex: 0 }, end: { rowIndex: 0, colIndex: 0 } });
   const [doc, setDoc] = useState<QuoteDocument>(() => createQuote({ seller: defaultSeller }));
-  const [anchor, setAnchor] = useState<CellAnchor>({ rowIndex: 0, colIndex: 0 });
+  const [cellRange, setCellRange] = useState<CellRange>({ start: { rowIndex: 0, colIndex: 0 }, end: { rowIndex: 0, colIndex: 0 } });
+  const [isSelecting, setIsSelecting] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
   const [saveTab, setSaveTab] = useState<"quote" | "template">("quote");
   const [savedQuotes, setSavedQuotes] = useState<QuoteDocument[]>([]);
@@ -315,6 +327,128 @@ export function QuoteBuilder({
     });
   };
 
+  const cellKey = (rowIndex: number, colIndex: number) => `${rowIndex}:${colIndex}`;
+
+  useEffect(() => {
+    cellRangeRef.current = cellRange;
+  }, [cellRange]);
+
+  const clearSelectedCells = useCallback(() => {
+    const { rowMin, rowMax, colMin, colMax } = normalizeCellRange(cellRangeRef.current);
+    setDoc((prev) => ({
+      ...prev,
+      rows: prev.rows.map((row, ri) => {
+        if (ri < rowMin || ri > rowMax) return row;
+        const cells = { ...row.cells };
+        prev.columns.forEach((col, ci) => {
+          if (ci < colMin || ci > colMax || !isColumnEditable(col.role)) return;
+          cells[col.id] = "";
+        });
+        return { ...row, cells };
+      }),
+      updatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const deleteSelectedRows = useCallback(() => {
+    const { rowMin, rowMax } = normalizeCellRange(cellRangeRef.current);
+    const removeCount = rowMax - rowMin + 1;
+    setDoc((prev) => {
+      if (prev.rows.length <= removeCount) return prev;
+      const rows = [...prev.rows.slice(0, rowMin), ...prev.rows.slice(rowMax + 1)];
+      return { ...prev, rows, updatedAt: new Date().toISOString() };
+    });
+    const nextRow = Math.min(rowMin, doc.rows.length - removeCount - 1);
+    setCellRange({
+      start: { rowIndex: Math.max(0, nextRow), colIndex: cellRangeRef.current.start.colIndex },
+      end: { rowIndex: Math.max(0, nextRow), colIndex: cellRangeRef.current.end.colIndex },
+    });
+    setToast(`Đã xóa ${removeCount} dòng`);
+    setTimeout(() => setToast(null), 2800);
+  }, [doc.rows.length]);
+
+  const endCellDrag = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsSelecting(false);
+    const range = cellRangeRef.current;
+    if (!isSingleCellRange(range)) {
+      if (document.activeElement instanceof HTMLTextAreaElement) {
+        document.activeElement.blur();
+      }
+      return;
+    }
+    const { rowMin, colMin } = normalizeCellRange(range);
+    const col = doc.columns[colMin];
+    if (!isColumnEditable(col?.role)) return;
+    const el = cellInputRefs.current.get(cellKey(rowMin, colMin));
+    el?.focus();
+    el?.select();
+  }, [doc.columns]);
+
+  const handleCellMouseDown = (rowIndex: number, colIndex: number, e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target;
+    if (
+      target instanceof HTMLTextAreaElement &&
+      document.activeElement === target &&
+      isSingleCellRange(cellRangeRef.current)
+    ) {
+      const { rowMin, colMin } = normalizeCellRange(cellRangeRef.current);
+      if (rowMin === rowIndex && colMin === colIndex) return;
+    }
+    if (e.shiftKey) {
+      setCellRange((prev) => ({ start: prev.start, end: { rowIndex, colIndex } }));
+      e.preventDefault();
+      return;
+    }
+    isDraggingRef.current = true;
+    setIsSelecting(true);
+    setCellRange({
+      start: { rowIndex, colIndex },
+      end: { rowIndex, colIndex },
+    });
+    e.preventDefault();
+  };
+
+  const handleCellMouseEnter = (rowIndex: number, colIndex: number) => {
+    if (!isDraggingRef.current) return;
+    setCellRange((prev) => ({ start: prev.start, end: { rowIndex, colIndex } }));
+  };
+
+  useEffect(() => {
+    window.addEventListener("mouseup", endCellDrag);
+    return () => window.removeEventListener("mouseup", endCellDrag);
+  }, [endCellDrag]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!tableRef.current?.contains(document.activeElement)) return;
+
+      const range = cellRangeRef.current;
+      const multi = !isSingleCellRange(range);
+      const active = document.activeElement;
+
+      if (!multi && active instanceof HTMLTextAreaElement) {
+        const start = active.selectionStart ?? 0;
+        const end = active.selectionEnd ?? 0;
+        if (start !== end) return;
+        if (e.key === "Backspace" && start > 0) return;
+        if (e.key === "Delete" && end < active.value.length) return;
+      }
+
+      e.preventDefault();
+      clearSelectedCells();
+      if (multi) showToast("Đã xóa nội dung ô chọn");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [clearSelectedCells, showToast]);
+
+  const selectionRows = useMemo(() => selectedRowCount(cellRange), [cellRange]);
+  const pasteAnchor = useMemo(() => pasteAnchorFromRange(cellRange), [cellRange]);
+
   const setColumnLabel = (colIndex: number, label: string) => {
     setDoc((prev) => {
       const columns = prev.columns.map((c, i) => {
@@ -343,7 +477,7 @@ export function QuoteBuilder({
         : `Đã dán ${matrix.length} dòng × ${colCount} cột`
     );
     setDoc((prev) => {
-      const result = applyPasteToGrid(prev.columns, prev.rows, anchor.rowIndex, anchor.colIndex, matrix);
+      const result = applyPasteToGrid(prev.columns, prev.rows, pasteAnchor.rowIndex, pasteAnchor.colIndex, matrix);
       return { ...prev, ...result, updatedAt: new Date().toISOString() };
     });
   };
@@ -559,6 +693,25 @@ export function QuoteBuilder({
             <div className="grid grid-cols-2 gap-1.5">
               <button type="button" onClick={addRow}       className="quote-tool-btn text-[11px] !py-1.5">+ Dòng</button>
               <button type="button" onClick={removeRow}    className="quote-tool-btn text-[11px] !py-1.5">− Dòng</button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearSelectedCells();
+                  showToast("Đã xóa nội dung ô chọn");
+                }}
+                className="quote-tool-btn text-[11px] !py-1.5 col-span-2"
+                title="Delete / Backspace khi chọn nhiều ô"
+              >
+                <Trash2 size={12} /> Xóa nội dung ô chọn
+              </button>
+              <button
+                type="button"
+                onClick={deleteSelectedRows}
+                disabled={selectionRows < 1 || doc.rows.length <= selectionRows}
+                className="quote-tool-btn text-[11px] !py-1.5 col-span-2"
+              >
+                <Trash2 size={12} /> Xóa {selectionRows} dòng chọn
+              </button>
               <button type="button" onClick={openAddColumn} className="quote-tool-btn text-[11px] !py-1.5 col-span-2">
                 <Plus size={12} /> Cột…
               </button>
@@ -682,9 +835,15 @@ export function QuoteBuilder({
             <PartyBlock editMode title="Khách hàng" party={doc.customer} onChange={(customer) => patch({ customer })} />
           </div>
 
-          <p className="text-[10px] text-slate-muted mb-1.5">Ctrl+V trong ô bảng để dán từ Excel</p>
+          <p className="text-[10px] text-slate-muted mb-1.5">
+            Kéo chuột chọn nhiều ô (Shift+click mở rộng) · Delete xóa nội dung · Ctrl+V dán Excel
+          </p>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table ref={tableRef} className="quote-table quote-table-dark w-full border-collapse text-sm" onPaste={handleTablePaste}>
+            <table
+              ref={tableRef}
+              className={`quote-table quote-table-dark w-full border-collapse text-sm${isSelecting ? " quote-table-selecting" : ""}`}
+              onPaste={handleTablePaste}
+            >
               <thead>
                 <tr>
                   {doc.columns.map((col, ci) => (
@@ -706,30 +865,62 @@ export function QuoteBuilder({
                       const hidden = isColHiddenOnExport(col.role);
                       const colCls = webColumnClass(col);
                       const pad = colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1" : "px-2";
+                      const selected = isCellInRange(ri, ci, cellRange);
+                      const selectCls = selected ? " quote-cell-selected" : "";
+                      const selectHandlers = {
+                        onMouseDown: (e: React.MouseEvent) => handleCellMouseDown(ri, ci, e),
+                        onMouseEnter: () => handleCellMouseEnter(ri, ci),
+                      };
                       if (col.role === "lineTotal") return (
-                        <td key={col.id} className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
-                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}>
+                        <td
+                          key={col.id}
+                          {...selectHandlers}
+                          className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls}${selectCls} ${hidden ? "opacity-40" : ""}`}
+                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}
+                        >
                           {getLineTotalDisplay(row, doc.columns)}
                         </td>
                       );
                       if (col.role === "vat") return (
-                        <td key={col.id} className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}
-                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}>
+                        <td
+                          key={col.id}
+                          {...selectHandlers}
+                          className={`border ${pad} py-1.5 text-right font-semibold text-sky-light tabular-nums ${colCls}${selectCls} ${hidden ? "opacity-40" : ""}`}
+                          style={{ background: "color-mix(in srgb, var(--quote-primary) 12%, transparent)" }}
+                        >
                           {getVatDisplay(row, doc.columns, vatRateNum)}
                         </td>
                       );
                       if (col.role === "index") return (
-                        <td key={col.id} className={`border ${pad} py-1.5 text-center text-slate-muted font-medium tabular-nums ${colCls} ${hidden ? "opacity-40" : ""}`}>
+                        <td
+                          key={col.id}
+                          {...selectHandlers}
+                          className={`border ${pad} py-1.5 text-center text-slate-muted font-medium tabular-nums ${colCls}${selectCls} ${hidden ? "opacity-40" : ""}`}
+                        >
                           {getSttDisplay(ri)}
                         </td>
                       );
                       return (
-                        <td key={col.id} className={`border p-0 ${colCls} ${hidden ? "opacity-40" : ""}`}>
+                        <td
+                          key={col.id}
+                          {...selectHandlers}
+                          className={`border p-0 ${colCls}${selectCls} ${hidden ? "opacity-40" : ""}`}
+                        >
                           <textarea
                             data-quote-cell
+                            ref={(el) => {
+                              const key = cellKey(ri, ci);
+                              if (el) cellInputRefs.current.set(key, el);
+                              else cellInputRefs.current.delete(key);
+                            }}
                             value={row.cells[col.id] ?? ""}
                             rows={1}
-                            onFocus={() => setAnchor({ rowIndex: ri, colIndex: ci })}
+                            onFocus={() =>
+                              setCellRange({
+                                start: { rowIndex: ri, colIndex: ci },
+                                end: { rowIndex: ri, colIndex: ci },
+                              })
+                            }
                             onChange={(e) => {
                               setCell(ri, col.id, e.target.value);
                               e.target.style.height = "auto";
@@ -737,9 +928,7 @@ export function QuoteBuilder({
                             }}
                             className={`quote-cell-input quote-cell-input-dark w-full min-h-[2.25rem] py-1.5 resize-none bg-transparent font-normal focus:outline-none ${
                               colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1 text-center" : "px-2"
-                            } ${col.role === "quantity" || col.role === "unitPrice" ? "text-right tabular-nums" : ""} ${
-                              anchor.rowIndex === ri && anchor.colIndex === ci ? "ring-2 ring-inset ring-sky/50" : ""
-                            }`}
+                            } ${col.role === "quantity" || col.role === "unitPrice" ? "text-right tabular-nums" : ""}`}
                           />
                         </td>
                       );
