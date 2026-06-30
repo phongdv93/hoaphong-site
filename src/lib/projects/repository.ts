@@ -386,6 +386,12 @@ export async function createProject(input: {
           [projectId, p.kind, p.name, (i + 1) * 10]
         );
       }
+    } else if (template === "task") {
+      await client.query(
+        `INSERT INTO project_phases (project_id, kind, name, sort_order)
+         VALUES ($1, 'production', 'Thực hiện', 10)`,
+        [projectId]
+      );
     }
     return projectId;
   }, input.companyId).then(async (projectId) => {
@@ -507,6 +513,20 @@ export async function listPhases(projectId: number): Promise<ProjectPhase[]> {
     [projectId]
   );
   return rows.map(mapPhase);
+}
+
+/** Việc nhanh cũ có thể chưa có công đoạn — tự thêm một công đoạn mặc định. */
+export async function ensureTaskDefaultPhase(projectId: number): Promise<void> {
+  const row = await tenantQueryOne<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM project_phases WHERE project_id = $1`,
+    [projectId]
+  );
+  if (Number(row?.n ?? 0) > 0) return;
+  await tenantExecute(
+    `INSERT INTO project_phases (project_id, kind, name, sort_order)
+     VALUES ($1, 'production', 'Thực hiện', 10)`,
+    [projectId]
+  );
 }
 
 function validatePhaseScheduleAgainstProject(

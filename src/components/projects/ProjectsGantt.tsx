@@ -162,7 +162,7 @@ export function ProjectsGantt({
     const rowExtras = new Map<number, number>();
     for (const p of projects) {
       const row = projectRows.get(p.id) ?? 0;
-      if (expandedId === p.id) {
+      if (expandedId === p.id && p.template !== "task") {
         const extra =
           Math.min(p.phases?.length ?? 0, EXPANDED_PHASE_ROWS) * EXPAND_LINE_H + 6;
         rowExtras.set(row, Math.max(rowExtras.get(row) ?? 0, extra));
@@ -349,7 +349,7 @@ export function ProjectsGantt({
                     onToggleExpand={() => onToggleExpand(p.id)}
                     onOpenPanel={() => handleOpenPanel(p.id)}
                   />
-                  {phaseRanges.length > 0 && (
+                  {phaseRanges.length > 0 && p.template !== "task" && (
                     <ExpandedPhaseTimeline
                       expanded={expanded}
                       phaseRanges={phaseRanges.slice(0, EXPANDED_PHASE_ROWS)}
@@ -747,7 +747,8 @@ function ProjectBar({
 
   const labels = cardLabelVisibility(w);
   const labelH = cardMainH;
-  const pillR = project.template === "task" ? 4 : cardMainH / 2;
+  const isTask = project.template === "task";
+  const pillR = isTask ? 4 : cardMainH / 2;
   const cardBorder = panelOpen
     ? withAlpha(accentColor, 0.55)
     : schedule.alertLevel === "danger"
@@ -771,8 +772,8 @@ function ProjectBar({
     >
       <button
         type="button"
-        onClick={onToggleExpand}
-        aria-label="Mở/đóng công đoạn trên timeline"
+        onClick={isTask ? onOpenPanel : onToggleExpand}
+        aria-label={isTask ? "Mở chi tiết việc" : "Mở/đóng công đoạn trên timeline"}
         style={{
           width: w,
           height: cardMainH,
@@ -821,6 +822,7 @@ function ProjectBar({
           }}
           aria-hidden
         />
+        {!isTask && (
         <button
           type="button"
           onClick={(e) => {
@@ -836,6 +838,7 @@ function ProjectBar({
             className={`transition-transform ${expanded ? "rotate-0" : "-rotate-90"}`}
           />
         </button>
+        )}
         <div className="flex flex-col justify-center min-w-0 max-w-[min(220px,calc(100vw-10rem))] gap-0 overflow-hidden leading-tight">
           <div className="flex items-center gap-1.5 min-w-0">
             {schedule.alertLevel !== "none" && (
@@ -864,6 +867,7 @@ function ProjectBar({
             </span>
           )}
         </div>
+        {!isTask && (
         <button
           type="button"
           onClick={(e) => {
@@ -875,6 +879,7 @@ function ProjectBar({
         >
           Chi tiết
         </button>
+        )}
       </div>
     </div>
   );

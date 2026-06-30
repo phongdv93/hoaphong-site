@@ -39,7 +39,10 @@ export async function POST(req: Request) {
     const photoUrls = Array.isArray(body.photoUrls)
       ? body.photoUrls.map(String).filter(Boolean)
       : [];
-    if (photoUrls.length === 0) {
+
+    const isTask = ctx.project.template === "task";
+
+    if (!isTask && photoUrls.length === 0) {
       return NextResponse.json(
         { error: "Bắt buộc đính kèm ít nhất một ảnh minh chứng" },
         { status: 400 }
@@ -61,10 +64,16 @@ export async function POST(req: Request) {
         status,
         note: String(body.note ?? ""),
         photoUrls,
+        photoOptional: isTask,
       });
       return NextResponse.json({ log });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Lỗi lưu tiến độ";
+      const msg =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : err instanceof Error
+            ? err.name
+            : "Lỗi lưu tiến độ";
       return NextResponse.json({ error: msg }, { status: 400 });
     }
   });

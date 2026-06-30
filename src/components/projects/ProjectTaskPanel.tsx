@@ -530,6 +530,7 @@ export function ProjectTaskPanel({
                     phases={data.phases}
                     progressLogs={data.progressLogs ?? []}
                     canUpdate={canUpdate}
+                    projectTemplate={data.project.template}
                     onSaved={() => load({ silent: true })}
                   />
                 </PanelSection>

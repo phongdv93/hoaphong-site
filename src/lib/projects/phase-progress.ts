@@ -36,8 +36,10 @@ export async function recordPhaseProgressUpdate(input: {
   status: PhaseStatus;
   note?: string;
   photoUrls: string[];
+  /** Việc nhanh — không bắt buộc ảnh minh chứng */
+  photoOptional?: boolean;
 }): Promise<PhaseProgressLog> {
-  if (!input.photoUrls.length) {
+  if (!input.photoOptional && !input.photoUrls.length) {
     throw new Error("Phải đính kèm ít nhất một ảnh minh chứng");
   }
 

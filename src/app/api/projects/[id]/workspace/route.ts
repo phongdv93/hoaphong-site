@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadProjectInTenant } from "@/lib/projects/api-tenant";
 import { canEditProjectMeta, canViewProject } from "@/lib/projects/permissions";
-import { listMembers, listPhases } from "@/lib/projects/repository";
+import { listMembers, listPhases, ensureTaskDefaultPhase } from "@/lib/projects/repository";
 import { listPhaseProgressLogs } from "@/lib/projects/phase-progress";
 import { listProjectSubmissions } from "@/lib/projects/submissions";
 import {
@@ -28,6 +28,10 @@ export async function GET(
     const view = await canViewProject(id, ctx.user.id);
     if (!view.ok) {
       return NextResponse.json({ error: "Không có quyền xem" }, { status: 403 });
+    }
+
+    if (ctx.project.template === "task") {
+      await ensureTaskDefaultPhase(id);
     }
 
     const [phases, members, messages, submissions, progressLogs, files, items, contracts, canEditMeta] =

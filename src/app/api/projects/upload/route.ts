@@ -50,7 +50,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Định dạng file không được hỗ trợ" }, { status: 400 });
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(await file.arrayBuffer());
+  } catch (err) {
+    const message =
+      err instanceof Error && err.message.trim()
+        ? err.message
+        : "Không đọc được file tải lên";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   if (isS3Configured()) {
     try {

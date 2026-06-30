@@ -23,7 +23,7 @@ export const PROJECT_TEMPLATE_LABELS: Record<ProjectTemplate, string> = {
 };
 
 export const TEMPLATE_PANEL_TABS: Record<ProjectTemplate, ProjectPanelTabId[]> = {
-  task: ["overview", "chat", "files"],
+  task: ["overview", "progress", "chat", "files"],
   job: ["overview", "members", "chat", "files"],
   project: [
     "overview",

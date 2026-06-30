@@ -81,7 +81,6 @@ export async function uploadToS3(input: {
       Key: input.key,
       Body: input.body,
       ContentType: input.contentType,
-      ACL: "public-read",
     })
   );
   return publicUrlForKey(input.key);

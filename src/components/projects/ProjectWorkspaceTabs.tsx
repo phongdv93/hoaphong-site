@@ -38,9 +38,10 @@ const KIND_ICONS: Record<ProjectSubmissionKind, LucideIcon> = {
 };
 
 /** Cập nhật % hoàn thành từng công đoạn */
-async function uploadProjectImage(file: File): Promise<string> {
+async function uploadProjectImage(file: File, projectId?: number): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);
+  if (projectId != null) fd.append("projectId", String(projectId));
   const res = await fetch("/api/projects/upload", { method: "POST", body: fd });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
@@ -50,19 +51,30 @@ async function uploadProjectImage(file: File): Promise<string> {
   return j.url as string;
 }
 
+function clientErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (err instanceof DOMException) {
+    return err.message.trim() || `Lỗi trình duyệt (${err.name})`;
+  }
+  return fallback;
+}
+
 export function ProgressTab({
   projectId,
   phases,
   progressLogs = [],
   canUpdate,
   onSaved,
+  projectTemplate = "project",
 }: {
   projectId: number;
   phases: ProjectPhase[];
   progressLogs?: PhaseProgressLog[];
   canUpdate: boolean;
   onSaved: () => void;
+  projectTemplate?: import("@/lib/projects/types").ProjectTemplate;
 }) {
+  const isTask = projectTemplate === "task";
   const [drafts, setDrafts] = useState<Record<number, { status: PhaseStatus; progress: number }>>(
     {}
   );
@@ -143,7 +155,7 @@ export function ProgressTab({
   async function savePhase(ph: ProjectPhase) {
     const d = getDraft(ph);
     const files = photos[ph.id] ?? [];
-    if (files.length === 0) {
+    if (!isTask && files.length === 0) {
       setError("Bắt buộc chụp/tải ít nhất 1 ảnh minh chứng trước khi lưu");
       return;
     }
@@ -153,7 +165,7 @@ export function ProgressTab({
     try {
       const photoUrls: string[] = [];
       for (const file of files) {
-        photoUrls.push(await uploadProjectImage(file));
+        photoUrls.push(await uploadProjectImage(file, projectId));
       }
       const res = await fetch(
         `/api/projects/${projectId}/phases/${ph.id}/progress`,
@@ -196,7 +208,7 @@ export function ProgressTab({
       });
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Lỗi tải ảnh");
+      setError(clientErrorMessage(e, "Lỗi tải ảnh hoặc lưu tiến độ"));
     } finally {
       setSavingId(null);
     }
@@ -246,10 +258,15 @@ export function ProgressTab({
         </p>
       )}
 
-      {canUpdate && (
+      {canUpdate && !isTask && (
         <p className="text-sky-200/90 text-[11px] bg-sky-500/10 border border-sky/20 rounded px-2 py-1.5">
           Mỗi lần lưu tiến độ bắt buộc có <strong>ảnh minh chứng</strong>. Hệ thống ghi
           nhận thời gian và người cập nhật.
+        </p>
+      )}
+      {canUpdate && isTask && (
+        <p className="text-sky-200/90 text-[11px] bg-sky-500/10 border border-sky/20 rounded px-2 py-1.5">
+          Việc nhanh — kéo % và bấm <strong>Lưu tiến độ</strong>. Ảnh minh chứng là tùy chọn.
         </p>
       )}
 
@@ -343,6 +360,7 @@ export function ProgressTab({
 
               {canUpdate && !ph.progressFromItems && (
                 <>
+                  {!isTask && (
                   <div>
                     <label className="text-[10px] text-slate-500 uppercase tracking-wide">
                       Ảnh minh chứng *
@@ -378,6 +396,43 @@ export function ProgressTab({
                       </label>
                     </div>
                   </div>
+                  )}
+                  {isTask && (
+                    <div>
+                      <label className="text-[10px] text-slate-500 uppercase tracking-wide">
+                        Ảnh minh chứng (tùy chọn)
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 mt-1 items-center">
+                        {phasePreviews.map((src, i) => (
+                          <div key={src} className="relative w-12 h-12 rounded overflow-hidden border border-white/15">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={src} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(ph.id, i)}
+                              className="absolute top-0 right-0 bg-black/70 text-white text-[9px] px-0.5"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <label className="w-12 h-12 flex flex-col items-center justify-center rounded border border-dashed border-white/25 text-slate-400 hover:bg-white/5 cursor-pointer">
+                          <ImagePlus size={14} />
+                          <span className="text-[8px] mt-0.5">Thêm</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                              addPhotos(ph.id, e.target.files);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
                   <input
                     value={notes[ph.id] ?? ""}
                     onChange={(e) =>
@@ -398,11 +453,11 @@ export function ProgressTab({
                     />
                     <button
                       type="button"
-                      disabled={savingId === ph.id || phasePhotos.length === 0}
+                      disabled={savingId === ph.id || (!isTask && phasePhotos.length === 0)}
                       onClick={() => savePhase(ph)}
                       className="text-[11px] px-2.5 py-1 rounded bg-sky text-white hover:bg-sky-light disabled:opacity-40"
                       title={
-                        phasePhotos.length === 0
+                        !isTask && phasePhotos.length === 0
                           ? "Cần ít nhất 1 ảnh"
                           : undefined
                       }
