@@ -3,6 +3,7 @@ import type { QuotePageOrientation } from "./page-spec";
 export type ColumnRole =
   | "custom"
   | "index"
+  | "itemName"
   | "description"
   | "unit"
   | "quantity"
@@ -110,7 +111,8 @@ export type { CellRange } from "./selection";
 export const COLUMN_ROLE_OPTIONS: { role: ColumnRole; label: string }[] = [
   { role: "custom", label: "Tùy chỉnh" },
   { role: "index", label: "STT" },
-  { role: "description", label: "Nội dung / mô tả" },
+  { role: "itemName", label: "Tên hạng mục" },
+  { role: "description", label: "Mô tả" },
   { role: "unit", label: "ĐVT" },
   { role: "quantity", label: "Số lượng" },
   { role: "unitPrice", label: "Đơn giá" },

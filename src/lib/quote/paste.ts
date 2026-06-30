@@ -99,24 +99,29 @@ function findOrCreateTargetColumn(
   if (role === "name") {
     const hit = columns.find(
       (c) =>
-        c.role === "description" ||
-        /ten hang|danh muc|hang hoa|noi dung/i.test(c.label)
+        c.role === "itemName" ||
+        /ten hang|hang muc|danh muc|hang hoa/i.test(c.label)
     );
     if (hit) return hit;
-    return createColumn("Tên hàng / danh mục", "description");
+    return createColumn("Tên hạng mục", "itemName");
   }
 
   if (role === "spec") {
-    const hit = columns.find((c) => /thong so|ky thuat|mo ta/i.test(normalizeHeader(c.label)));
+    const hit = columns.find(
+      (c) =>
+        c.role === "description" ||
+        /mo ta|thong so|ky thuat/i.test(normalizeHeader(c.label))
+    );
     if (hit) return hit;
-    return createColumn("Thông số kỹ thuật", "custom");
+    return createColumn("Mô tả", "description");
   }
 
   const byRole = columns.find((c) => c.role === role);
   if (byRole) return byRole;
 
   const labels: Partial<Record<ColumnRole, string>> = {
-    description: "Nội dung / mô tả",
+    itemName: "Tên hạng mục",
+    description: "Mô tả",
     unit: "ĐVT",
     quantity: "SL",
     unitPrice: "Đơn giá",
@@ -182,10 +187,15 @@ function applyMappedPaste(
     const spec = rowValues.spec?.trim() ?? "";
     const desc = rowValues.description?.trim() ?? "";
 
-    const descCol = resolveTarget("name") ?? resolveTarget("description");
+    const nameCol = resolveTarget("name");
+    if (nameCol && (name || desc)) {
+      nextRows[startRow + ri].cells[nameCol.id] = name || desc;
+    }
+
+    const descCol = resolveTarget("spec") ?? resolveTarget("description");
     if (descCol) {
-      const parts = [name || desc, spec].filter(Boolean);
-      nextRows[startRow + ri].cells[descCol.id] = parts.join(parts.length > 1 ? "\n\n" : "");
+      const descText = spec || (name && desc ? desc : "") || (!nameCol && desc ? desc : "");
+      if (descText) nextRows[startRow + ri].cells[descCol.id] = descText;
     }
 
     for (const role of ["unit", "quantity", "unitPrice"] as const) {

@@ -69,7 +69,8 @@ export function insertColumnAt(
 export function defaultLabelForRole(role: ColumnRole): string {
   const map: Record<ColumnRole, string> = {
     index: "STT",
-    description: "Nội dung / mô tả",
+    itemName: "Tên hạng mục",
+    description: "Mô tả",
     unit: "ĐVT",
     quantity: "SL",
     unitPrice: "Đơn giá",

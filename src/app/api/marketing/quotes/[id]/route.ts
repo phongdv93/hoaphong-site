@@ -6,6 +6,10 @@ import {
   updateMarketingQuote,
 } from "@/lib/marketing/quotes";
 import { normalizeQuoteDocument } from "@/lib/quote/calc";
+import {
+  formatMissingQuoteColumnsMessage,
+  getMissingQuoteRequiredColumns,
+} from "@/lib/quote/required-columns";
 import type { QuoteDocument } from "@/lib/quote/types";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -47,6 +51,13 @@ export async function PUT(request: Request, ctx: RouteCtx) {
     const exists = await getMarketingQuote(quoteId);
     if (!exists) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
     const doc = normalizeQuoteDocument(body.document as unknown as Record<string, unknown>);
+    const missing = getMissingQuoteRequiredColumns(doc);
+    if (missing.length) {
+      return NextResponse.json(
+        { error: formatMissingQuoteColumnsMessage(missing) },
+        { status: 400 }
+      );
+    }
     await updateMarketingQuote(quoteId, doc);
     return NextResponse.json({ ok: true });
   });

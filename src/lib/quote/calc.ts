@@ -17,8 +17,10 @@ export function guessColumnRole(label: string): ColumnRole {
   if (/thanh tien|thành tiền|line total|amount/.test(n)) return "lineTotal";
   if (/don gia|đơn giá|unit price|gia\b/.test(n) && !/thanh/.test(n)) return "unitPrice";
   if (/^(sl|so luong|số lượng|qty|quantity)\b/.test(n)) return "quantity";
-  if (/^(dvt|đvt|unit)\b/.test(n)) return "unit";
-  if (/noi dung|nội dung|mo ta|mô tả|description|ten hang|tên hàng|danh muc|danh mục|hang hoa|hạng mục/.test(n)) return "description";
+  if (/^(dvt|đvt|don vi|đơn vị)\b/.test(n)) return "unit";
+  if (/ten hang|tên hàng|hang muc|hạng mục|ten san pham|tên sp\b/.test(n)) return "itemName";
+  if (/mo ta|mô tả|description|thong so|thông số|ky thuat|kỹ thuật/.test(n)) return "description";
+  if (/noi dung|nội dung|danh muc|danh mục|hang hoa|hàng hóa/.test(n)) return "itemName";
   return "custom";
 }
 

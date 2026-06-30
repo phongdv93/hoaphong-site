@@ -27,6 +27,7 @@ function webColumnClass(col: QuoteColumn): string {
     case "vat":
       return "quote-col-money";
     case "description":
+    case "itemName":
       return "quote-col-wide";
     default:
       return "quote-col-custom";

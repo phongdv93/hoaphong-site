@@ -1,5 +1,5 @@
 import { parseVnNumber } from "./calc";
-import { extractCatalogLinesFromQuote } from "./to-catalog";
+import { extractQuoteLineRows } from "./to-catalog";
 import type { QuoteDocument } from "./types";
 
 export type QuoteProjectItemRow = {
@@ -10,7 +10,7 @@ export type QuoteProjectItemRow = {
 
 /** Hạng mục dự án từ báo giá — chỉ tên, mô tả, số lượng. */
 export function extractProjectItemsFromQuote(doc: QuoteDocument): QuoteProjectItemRow[] {
-  return extractCatalogLinesFromQuote(doc).map((line) => ({
+  return extractQuoteLineRows(doc).map((line) => ({
     name: line.name,
     description: line.description,
     quantity: parseVnNumber(line.quantity) || 1,

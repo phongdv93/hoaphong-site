@@ -52,7 +52,6 @@ export default async function FactoryProductListPage() {
               <thead className="erp-table-head">
                 <tr>
                   <th className="px-2 py-3 w-14">Ảnh</th>
-                  <th className="px-4 py-3">Mã SP</th>
                   <th className="px-4 py-3">Tên</th>
                   <th className="px-4 py-3">NCC</th>
                   <th className="px-4 py-3">Giá</th>
@@ -66,7 +65,7 @@ export default async function FactoryProductListPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                       Chưa có sản phẩm. Bấm &quot;Thêm sản phẩm&quot;.
                     </td>
                   </tr>
@@ -80,15 +79,6 @@ export default async function FactoryProductListPage() {
                         ) : (
                           <span className="text-slate-600 text-xs">—</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        <Link
-                          href={`/erp/san-pham/san-pham/${p.id}`}
-                          className="text-sky hover:underline tabular-nums"
-                          title="Mã sản phẩm (duy nhất trong công ty)"
-                        >
-                          #{p.id}
-                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         <Link

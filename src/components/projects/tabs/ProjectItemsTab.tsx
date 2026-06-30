@@ -95,7 +95,7 @@ export function ProjectItemsTab({
         setCatalog(
           list.map((p: { id: number; name: string }) => ({
             id: p.id,
-            name: p.name || `#${p.id}`,
+            name: p.name?.trim() || "—",
           }))
         );
       })
@@ -409,7 +409,7 @@ export function ProjectItemsTab({
           />
           <datalist id="project-item-catalog">
             {catalogOptions.slice(0, 80).map((p) => (
-              <option key={p.id} value={`#${p.id} ${p.name}`} />
+              <option key={p.id} value={p.name} />
             ))}
           </datalist>
           <select
@@ -417,10 +417,10 @@ export function ProjectItemsTab({
             onChange={(e) => setPickId(e.target.value)}
             className={`${ITEM_IN} text-xs max-w-[180px]`}
           >
-            <option value="">Chọn SP #{""}</option>
+            <option value="">Chọn sản phẩm</option>
             {catalogOptions.map((p) => (
               <option key={p.id} value={p.id}>
-                #{p.id} {p.name.length > 36 ? `${p.name.slice(0, 35)}…` : p.name}
+                {p.name.length > 40 ? `${p.name.slice(0, 39)}…` : p.name}
               </option>
             ))}
           </select>
@@ -495,7 +495,7 @@ export function ProjectItemsTab({
                             title="Giá, NCC, ngày đặt hàng — sửa trong sản phẩm"
                           >
                             <ExternalLink size={11} />
-                            #{it.factoryProductId}
+                            Xem sản phẩm
                           </Link>
                         ) : null}
                       </>

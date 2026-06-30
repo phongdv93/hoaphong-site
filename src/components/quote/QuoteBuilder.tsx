@@ -49,6 +49,10 @@ import {
   type QuoteStorageScope,
 } from "@/lib/quote/storage";
 import { extractCatalogLinesFromQuote } from "@/lib/quote/to-catalog";
+import {
+  formatMissingQuoteColumnsMessage,
+  getMissingQuoteRequiredColumns,
+} from "@/lib/quote/required-columns";
 import type { CellRange, QuoteColumn, QuoteDocument, QuoteParty, QuoteTemplate } from "@/lib/quote/types";
 import { COLUMN_ROLE_OPTIONS } from "@/lib/quote/types";
 import type { ColumnRole } from "@/lib/quote/types";
@@ -203,7 +207,9 @@ function webColumnClass(col: QuoteColumn): string {
     case "unitPrice":
     case "lineTotal":
     case "vat":        return "quote-col-money";
-    case "description": return "quote-col-wide";
+    case "description":
+    case "itemName":
+      return "quote-col-wide";
     default: {
       const n = col.label.trim().toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
       if (/^(dai|rong|cao|sl|dvt|kg|m|cm|mm|m2|m3)$/.test(n) || col.label.trim().length <= 4)
@@ -606,6 +612,14 @@ export function QuoteBuilder({
   const handleSaveQuote = async () => {
     const name = saveName.trim() || doc.savedName || (isErp ? "Báo giá" : "Bản lưu");
     const nextDoc = { ...doc, savedName: name, updatedAt: new Date().toISOString() };
+
+    if (erpDbMode || isErp) {
+      const missing = getMissingQuoteRequiredColumns(nextDoc);
+      if (missing.length) {
+        showToast(formatMissingQuoteColumnsMessage(missing));
+        return;
+      }
+    }
 
     if (erpDbMode) {
       setSaving(true);

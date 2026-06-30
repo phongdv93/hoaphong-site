@@ -76,7 +76,8 @@ export function createRow(columns: QuoteColumn[]): QuoteRow {
 
 const DEFAULT_COLUMNS: { label: string; role: ColumnRole }[] = [
   { label: "STT", role: "index" },
-  { label: "Nội dung / mô tả", role: "description" },
+  { label: "Tên hạng mục", role: "itemName" },
+  { label: "Mô tả", role: "description" },
   { label: "ĐVT", role: "unit" },
   { label: "SL", role: "quantity" },
   { label: "Đơn giá", role: "unitPrice" },

@@ -470,7 +470,7 @@ export async function exportQuotePdfHoaphong(
             ? { halign: "center", cellWidth: 14 }
             : col.role === "unitPrice" || col.role === "lineTotal" || col.role === "vat"
               ? { halign: "right" }
-              : col.role === "description"
+              : col.role === "description" || col.role === "itemName"
                 ? { halign: "left" }
                 : { halign: "center", cellWidth: 14 },
       ])

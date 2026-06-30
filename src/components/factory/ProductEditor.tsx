@@ -207,7 +207,6 @@ export function ProductEditor({ productId }: { productId: number | null }) {
     <div className="space-y-6 max-w-7xl">
       {!isNew && productId && !loading && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <span className="font-mono text-sky tabular-nums">#{productId}</span>
           {name.trim() ? (
             <span className="text-white font-medium">{name}</span>
           ) : (

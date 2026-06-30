@@ -52,7 +52,7 @@ export function WizardItemsStep({
         setCatalog(
           list.map((p: { id: number; name: string }) => ({
             id: p.id,
-            name: p.name || `#${p.id}`,
+            name: p.name?.trim() || "—",
           }))
         );
       })
@@ -87,7 +87,7 @@ export function WizardItemsStep({
         ...draftList,
         {
           tempId: newTempId(),
-          name: cat?.name ?? `#${factoryProductId}`,
+          name: cat?.name ?? "—",
           quantity: q,
           factoryProductId,
         },
