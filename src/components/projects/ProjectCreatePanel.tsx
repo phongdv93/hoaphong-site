@@ -9,10 +9,14 @@ export function ProjectCreatePanel({
   customers,
   onCreated,
   onClose,
+  initialQuoteIds,
+  initialTemplate,
 }: {
   customers: Customer[];
   onCreated: (projectId: number) => void;
   onClose: () => void;
+  initialQuoteIds?: number[];
+  initialTemplate?: import("@/lib/projects/types").ProjectTemplate | null;
 }) {
   return (
     <div
@@ -35,6 +39,8 @@ export function ProjectCreatePanel({
           customers={customers}
           onCreated={onCreated}
           onCancel={onClose}
+          initialQuoteIds={initialQuoteIds}
+          initialTemplate={initialTemplate}
         />
       </div>
     </div>

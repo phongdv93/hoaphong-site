@@ -858,6 +858,44 @@ export async function createProjectItemsFromCatalogNames(input: {
   return { added, skipped };
 }
 
+/** Thêm hạng mục trực tiếp (không bắt buộc có trong danh mục SP). */
+export async function createProjectItemsFromRows(input: {
+  projectId: number;
+  rows: Array<{ name: string; description?: string; quantity?: number; unit?: string }>;
+  baseSortOrder?: number;
+}): Promise<number> {
+  let added = 0;
+  const startOrder =
+    input.baseSortOrder ??
+    (await tenantQueryOne<{ next: number }>(
+      `SELECT COALESCE(MAX(sort_order), 0) + 10 AS next FROM project_items WHERE project_id = $1`,
+      [input.projectId]
+    ))?.next ??
+    10;
+
+  for (let i = 0; i < input.rows.length; i++) {
+    const r = input.rows[i];
+    const name = r.name?.trim();
+    if (!name) continue;
+    await tenantExecute(
+      `INSERT INTO project_items (
+         project_id, name, description, quantity, unit, sort_order
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        input.projectId,
+        name,
+        r.description?.trim() ?? "",
+        r.quantity ?? 1,
+        r.unit?.trim() ?? "",
+        startOrder + i * 10,
+      ]
+    );
+    added++;
+  }
+  await syncPhasesProgressFromItems(input.projectId);
+  return added;
+}
+
 export async function updateProjectItem(
   id: number,
   input: Partial<

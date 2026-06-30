@@ -747,7 +747,7 @@ function ProjectBar({
 
   const labels = cardLabelVisibility(w);
   const labelH = cardMainH;
-  const pillR = cardMainH / 2;
+  const pillR = project.template === "task" ? 4 : cardMainH / 2;
   const cardBorder = panelOpen
     ? withAlpha(accentColor, 0.55)
     : schedule.alertLevel === "danger"

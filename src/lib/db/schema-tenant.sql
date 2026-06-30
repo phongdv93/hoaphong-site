@@ -495,3 +495,22 @@ CREATE TABLE IF NOT EXISTS customs_transmission_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_customs_tx_log ON customs_transmission_logs(declaration_id, created_at DESC);
+
+-- Báo giá marketing (full document JSON)
+CREATE TABLE IF NOT EXISTS marketing_quotes (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  quote_number TEXT NOT NULL DEFAULT '',
+  quote_name TEXT NOT NULL DEFAULT '',
+  customer_company TEXT NOT NULL DEFAULT '',
+  customer_tax_code TEXT NOT NULL DEFAULT '',
+  grand_total NUMERIC(18, 2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  document JSONB NOT NULL,
+  created_by INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_quotes_company ON marketing_quotes(company_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_marketing_quotes_number ON marketing_quotes(company_id, quote_number);

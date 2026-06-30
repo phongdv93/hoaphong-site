@@ -7,6 +7,7 @@ import {
   copyProjectItemsFromProject,
   createProjectItem,
   createProjectItemsFromCatalogNames,
+  createProjectItemsFromRows,
   deleteAllProjectItems,
   getProject,
   listProjectItems,
@@ -72,16 +73,25 @@ export async function POST(req: Request) {
     }
 
     if (Array.isArray(body.rows)) {
+      const rows = body.rows.map(
+        (r: { name?: string; description?: string; quantity?: number; unit?: string }) => ({
+          name: String(r.name ?? "").trim(),
+          description: r.description,
+          quantity: r.quantity != null ? Number(r.quantity) : undefined,
+          unit: r.unit,
+        })
+      );
+      if (body.direct) {
+        const added = await createProjectItemsFromRows({
+          projectId: ctx.projectId,
+          rows,
+          baseSortOrder: body.baseSortOrder,
+        });
+        return NextResponse.json({ added });
+      }
       const result = await createProjectItemsFromCatalogNames({
         projectId: ctx.projectId,
-        rows: body.rows.map(
-          (r: { name?: string; description?: string; quantity?: number; unit?: string }) => ({
-            name: String(r.name ?? "").trim(),
-            description: r.description,
-            quantity: r.quantity != null ? Number(r.quantity) : undefined,
-            unit: r.unit,
-          })
-        ),
+        rows,
         baseSortOrder: body.baseSortOrder,
       });
       return NextResponse.json(result);

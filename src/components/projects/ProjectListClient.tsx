@@ -13,7 +13,7 @@ import {
   projectProgressPercent,
 } from "@/lib/projects/project-filters";
 import type { Customer } from "@/lib/marketing/customer-types";
-import type { Project, ProjectPhase } from "@/lib/projects/types";
+import type { Project, ProjectPhase, ProjectTemplate } from "@/lib/projects/types";
 import type { ProjectSummary } from "@/lib/projects/types";
 import {
   DEFAULT_DAY_WIDTH,
@@ -48,6 +48,21 @@ function ProjectListInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setHeaderActions = useErpHeaderActionsSlot();
+
+  const initialQuoteIds = useMemo(() => {
+    const raw = searchParams.get("quotes");
+    if (!raw) return [];
+    return raw
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }, [searchParams]);
+
+  const initialTemplate = useMemo((): ProjectTemplate | null => {
+    const t = searchParams.get("template");
+    if (t === "task" || t === "project" || t === "pi" || t === "job") return t;
+    return null;
+  }, [searchParams]);
   const [rawItems, setRawItems] = useState<ProjectSummary[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
   const [q, setQ] = useState("");
@@ -480,6 +495,8 @@ function ProjectListInner() {
             createOpen={createOpen}
             panelProjectId={panelProjectId}
             customers={customers}
+            initialQuoteIds={initialQuoteIds}
+            initialTemplate={initialTemplate}
             onClosePanel={closePanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}
@@ -585,6 +602,8 @@ function ProjectListInner() {
             createOpen={createOpen}
             panelProjectId={panelProjectId}
             customers={customers}
+            initialQuoteIds={initialQuoteIds}
+            initialTemplate={initialTemplate}
             onClosePanel={closePanel}
             onProjectUpdated={handleProjectUpdated}
             onProjectCreated={handleProjectCreated}

@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ClipboardList, FileText, Package, Paperclip, Users, Workflow } from "lucide-react";
 import { WizardFilesStep } from "./WizardFilesStep";
 import { WizardPhasesDraft } from "./WizardPhasesDraft";
 import { WizardMembersDraft } from "./WizardMembersDraft";
 import type { Customer } from "@/lib/marketing/customer-types";
+import type { MarketingQuoteSummary } from "@/lib/marketing/quote-types";
+import { mergeQuoteProjectItems } from "@/lib/quote/project-items-from-quote";
+import type { QuoteDocument } from "@/lib/quote/types";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { ErpSelect } from "@/components/erp/ErpSelect";
 import { WizardItemsStep } from "./WizardItemsStep";
@@ -14,6 +17,7 @@ import {
   endDateFromDuration,
   inclusiveDayCount,
 } from "@/lib/dates";
+import { newTempId } from "@/lib/projects/wizard-draft";
 import type {
   WizardDraftFileSection,
   WizardDraftItem,
@@ -39,10 +43,14 @@ export function ProjectCreateWizard({
   customers,
   onCreated,
   onCancel,
+  initialQuoteIds = [],
+  initialTemplate = null,
 }: {
   customers: Customer[];
   onCreated?: (projectId: number) => void;
   onCancel?: () => void;
+  initialQuoteIds?: number[];
+  initialTemplate?: ProjectTemplate | null;
 }) {
   const [step, setStep] = useState(1);
   const [projectTemplate, setProjectTemplate] = useState<ProjectTemplate | null>(null);
@@ -57,6 +65,10 @@ export function ProjectCreateWizard({
   const [sourcePiId, setSourcePiId] = useState<number | null>(null);
   const [piSources, setPiSources] = useState<PiSourceProject[]>([]);
   const [piSourcesLoading, setPiSourcesLoading] = useState(false);
+  const [quoteSources, setQuoteSources] = useState<MarketingQuoteSummary[]>([]);
+  const [quoteSourcesLoading, setQuoteSourcesLoading] = useState(false);
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<number[]>(initialQuoteIds);
+  const [quotesApplied, setQuotesApplied] = useState(false);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [draftItems, setDraftItems] = useState<WizardDraftItem[]>([]);
   const [draftPhases, setDraftPhases] = useState<WizardDraftPhase[]>([]);
@@ -73,6 +85,76 @@ export function ProjectCreateWizard({
   }, []);
 
   useEffect(() => {
+    if (!initialTemplate) return;
+    setProjectTemplate(initialTemplate);
+    setCreationMode(initialTemplate === "pi" ? "pi" : "free");
+    setStep(2);
+  }, [initialTemplate]);
+
+  useEffect(() => {
+    if (initialQuoteIds.length) setSelectedQuoteIds(initialQuoteIds);
+  }, [initialQuoteIds]);
+
+  const applyQuotesToDraft = useCallback(async (ids: number[]) => {
+    if (!ids.length) return;
+    const docs: QuoteDocument[] = [];
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/marketing/quotes/${id}`);
+        if (!res.ok) continue;
+        const row = await res.json();
+        if (row.document) docs.push(row.document as QuoteDocument);
+      } catch {
+        // skip
+      }
+    }
+    if (!docs.length) {
+      setDraftItems([]);
+      return;
+    }
+    const merged = mergeQuoteProjectItems(docs);
+    setDraftItems(
+      merged.map((r) => ({
+        tempId: newTempId(),
+        name: r.name,
+        description: r.description,
+        quantity: r.quantity,
+      }))
+    );
+    setQuotesApplied(true);
+    const first = docs[0];
+    if (first && !name.trim()) {
+      setName(first.savedName || first.quoteNumber || "");
+    }
+    if (first && !code.trim() && first.quoteNumber) {
+      setCode(first.quoteNumber);
+    }
+    if (first?.customer?.company && creationMode === "pi" && !customerId) {
+      const match = customers.find(
+        (c) =>
+          c.name.trim().toLowerCase() === first.customer.company.trim().toLowerCase() ||
+          (first.customer.taxCode && c.taxCode === first.customer.taxCode)
+      );
+      if (match) setCustomerId(match.id);
+    }
+  }, [customers, creationMode, code, name, customerId]);
+
+  useEffect(() => {
+    if (step !== 2 || !selectedQuoteIds.length || quotesApplied) return;
+    void applyQuotesToDraft(selectedQuoteIds);
+  }, [step, selectedQuoteIds, quotesApplied, applyQuotesToDraft]);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    setQuoteSourcesLoading(true);
+    fetch("/api/marketing/quotes")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setQuoteSources(Array.isArray(list) ? list : []))
+      .catch(() => setQuoteSources([]))
+      .finally(() => setQuoteSourcesLoading(false));
+  }, [step]);
+
+  useEffect(() => {
     if (creationMode !== "pi" || step !== 2) return;
     setPiSourcesLoading(true);
     fetch("/api/projects?piSources=1")
@@ -87,6 +169,17 @@ export function ProjectCreateWizard({
     setCreationMode(template === "pi" ? "pi" : "free");
     setError("");
     setStep(2);
+  }
+
+  function toggleQuoteSelection(quote: MarketingQuoteSummary) {
+    setSelectedQuoteIds((prev) => {
+      const has = prev.includes(quote.id);
+      const next = has ? prev.filter((id) => id !== quote.id) : [...prev, quote.id];
+      void applyQuotesToDraft(next);
+      if (!has && !code.trim() && quote.quoteNumber) setCode(quote.quoteNumber);
+      if (!has && !name.trim()) setName(quote.quoteName || quote.quoteNumber || "");
+      return next;
+    });
   }
 
   function selectPiSource(pi: PiSourceProject) {
@@ -203,6 +296,7 @@ export function ProjectCreateWizard({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              direct: true,
               rows: rows.map((r) => ({
                 name: r.name,
                 description: r.description,
@@ -280,6 +374,19 @@ export function ProjectCreateWizard({
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
 
+  const quoteSuggestions = useMemo(() => {
+    const q = code.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+    return quoteSources
+      .filter(
+        (row) =>
+          row.quoteNumber.toLowerCase().includes(q) ||
+          row.quoteName.toLowerCase().includes(q) ||
+          row.customerCompany.toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [code, quoteSources]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 max-w-none">
       <nav className="shrink-0 flex gap-1 overflow-x-auto pb-1">
@@ -309,29 +416,19 @@ export function ProjectCreateWizard({
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-1">
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-300">Chọn loại — quyết định mức độ chi tiết khi làm việc.</p>
+          <p className="text-sm text-slate-300">Chọn loại — quyết định cách hiển thị trên Gantt.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {(
               [
                 {
                   id: "task" as const,
                   title: PROJECT_TEMPLATE_LABELS.task,
-                  desc: "Giao việc nhanh: tên, hạn, chat, file.",
-                },
-                {
-                  id: "job" as const,
-                  title: PROJECT_TEMPLATE_LABELS.job,
-                  desc: "Nhóm nhỏ: thêm thành viên, chat, tài liệu.",
+                  desc: "Việc nhanh: card vuông trên Gantt, phù hợp việc ngắn hạn.",
                 },
                 {
                   id: "project" as const,
                   title: PROJECT_TEMPLATE_LABELS.project,
-                  desc: "Dự án đầy đủ: công đoạn, hạng mục, tiến độ.",
-                },
-                {
-                  id: "pi" as const,
-                  title: PROJECT_TEMPLATE_LABELS.pi,
-                  desc: "PI / hợp đồng: khách hàng, hạng mục, module HĐ.",
+                  desc: "Làm dự án đầy đủ: công đoạn, hạng mục, tiến độ (pill trên Gantt).",
                 },
               ] as const
             ).map((opt) => (
@@ -410,7 +507,72 @@ export function ProjectCreateWizard({
               className="input-field font-mono"
               placeholder={creationMode === "pi" ? "PI-2026-0142" : "Để trống → tự sinh DA-..."}
             />
+            {quoteSuggestions.length > 0 && (
+              <div className="mt-1 rounded-lg border border-white/10 bg-[#0d1528] overflow-hidden">
+                <p className="px-2 py-1 text-[10px] text-slate-500 border-b border-white/5">
+                  Gợi ý báo giá / PI đã lưu
+                </p>
+                <div className="max-h-36 overflow-y-auto">
+                  {quoteSuggestions.map((q) => {
+                    const selected = selectedQuoteIds.includes(q.id);
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => toggleQuoteSelection(q)}
+                        className={`w-full text-left px-2 py-1.5 text-xs border-b border-white/5 last:border-0 ${
+                          selected ? "bg-sky/15 text-sky-light" : "hover:bg-white/5 text-slate-200"
+                        }`}
+                      >
+                        <span className="font-mono">{q.quoteNumber || "—"}</span>
+                        <span className="ml-2">{q.quoteName || q.customerCompany}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </Field>
+
+          {creationMode !== "pi" && quoteSources.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-300">
+                Chọn báo giá để điền hạng mục (tên, mô tả, số lượng)
+              </p>
+              {quoteSourcesLoading ? (
+                <p className="text-xs text-slate-500 py-2">Đang tải báo giá…</p>
+              ) : (
+                <div className="grid gap-2 max-h-40 overflow-y-auto pr-1">
+                  {quoteSources.map((q) => {
+                    const selected = selectedQuoteIds.includes(q.id);
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => toggleQuoteSelection(q)}
+                        className={`text-left rounded-lg border px-3 py-2 transition-colors ${
+                          selected
+                            ? "border-sky/60 bg-sky/15"
+                            : "border-white/15 hover:border-sky/40 hover:bg-white/5"
+                        }`}
+                      >
+                        <span className="font-mono text-xs text-sky-light">{q.quoteNumber || "—"}</span>
+                        <span className="text-sm text-white ml-2">{q.quoteName || "Báo giá"}</span>
+                        <span className="block text-[10px] text-slate-500 mt-0.5 truncate">
+                          {q.customerCompany || "—"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedQuoteIds.length > 0 && (
+                <p className="text-[10px] text-sky-light/80">
+                  Đã chọn {selectedQuoteIds.length} báo giá — hạng mục sẽ điền ở bước 3.
+                </p>
+              )}
+            </div>
+          )}
           {creationMode === "pi" && (
             <Field label="Khách hàng">
               <ErpSelect

@@ -64,14 +64,27 @@ export function extractCatalogLinesFromQuote(doc: QuoteDocument): QuoteCatalogLi
     if (description && description.startsWith(name)) {
       description = description.slice(name.length).trim();
     }
-    if (!description && nameCol) {
+    if (nameCol) {
       const full = cellText(row, nameCol);
-      if (full.includes("\n")) {
-        const parts = full.split(/\n\s*\n/);
-        name = parts[0]?.trim() || name;
-        description = parts.slice(1).join("\n\n").trim();
+      if (full) {
+        if (full.includes("\n")) {
+          const byParagraph = full.split(/\n\s*\n/);
+          if (byParagraph.length > 1) {
+            name = byParagraph[0]?.trim() || name;
+            description = byParagraph.slice(1).join("\n\n").trim() || description;
+          } else {
+            const lines = full.split(/\n/);
+            const first = lines[0]?.trim() ?? "";
+            const rest = lines.slice(1).join("\n").trim();
+            name = first || name;
+            description = rest || full;
+          }
+        } else {
+          description = full;
+        }
       }
     }
+    if (!description && spec) description = spec;
 
     lines.push({
       name,

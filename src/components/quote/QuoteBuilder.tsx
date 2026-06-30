@@ -7,7 +7,6 @@ import {
   FilePlus,
   FolderOpen,
   ImagePlus,
-  Layers,
   LayoutTemplate,
   Plus,
   Save,
@@ -232,12 +231,19 @@ function SbSection({ title, children }: { title: string; children: React.ReactNo
 export function QuoteBuilder({
   defaultSeller,
   variant = "mini",
+  initialDocument,
+  erpQuoteId = undefined,
+  onErpQuoteSaved,
 }: {
   defaultSeller?: Partial<QuoteParty>;
   /** mini = công cụ public; erp = báo giá nội bộ công ty */
   variant?: QuoteStorageScope;
+  initialDocument?: QuoteDocument;
+  erpQuoteId?: number | null;
+  onErpQuoteSaved?: (id: number) => void;
 }) {
   const isErp = variant === "erp";
+  const erpDbMode = isErp && initialDocument !== undefined;
   const storage = useMemo(() => createQuoteStorage(variant), [variant]);
   const tableRef = useRef<HTMLTableElement>(null);
   const gridFocusRef = useRef<HTMLDivElement>(null);
@@ -261,12 +267,19 @@ export function QuoteBuilder({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(() => new Set());
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
   };
 
   useEffect(() => {
+    if (initialDocument) {
+      setDoc(initialDocument);
+      setSaveName(initialDocument.savedName);
+      return;
+    }
     const draft = storage.loadDraft();
     if (draft) {
       setDoc(draft);
@@ -277,9 +290,10 @@ export function QuoteBuilder({
       setSaveName(initial.savedName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storage]);
+  }, [storage, initialDocument]);
 
   useEffect(() => {
+    if (erpDbMode) return;
     if (!defaultSeller?.company) return;
     setDoc((prev) => {
       if (prev.seller.company?.trim()) return prev;
@@ -314,9 +328,10 @@ export function QuoteBuilder({
   const payableTotal = grandTotal + totalVat;
 
   useEffect(() => {
+    if (erpDbMode) return;
     const t = setTimeout(() => storage.saveDraft(doc), 400);
     return () => clearTimeout(t);
-  }, [doc, storage]);
+  }, [doc, storage, erpDbMode]);
 
   const patch = useCallback((partial: Partial<QuoteDocument>) => {
     setDoc((prev) => ({ ...prev, ...partial, updatedAt: new Date().toISOString() }));
@@ -588,12 +603,45 @@ export function QuoteBuilder({
     });
   };
 
-  const handleSaveQuote = () => {
-    const name  = saveName.trim() || doc.savedName || (isErp ? "Báo giá" : "Bản lưu");
-    const saved = storage.saveQuote({ ...doc, savedName: name });
-    setDoc(saved); setSaveName(name);
+  const handleSaveQuote = async () => {
+    const name = saveName.trim() || doc.savedName || (isErp ? "Báo giá" : "Bản lưu");
+    const nextDoc = { ...doc, savedName: name, updatedAt: new Date().toISOString() };
+
+    if (erpDbMode) {
+      setSaving(true);
+      try {
+        const url = erpQuoteId
+          ? `/api/marketing/quotes/${erpQuoteId}`
+          : "/api/marketing/quotes";
+        const method = erpQuoteId ? "PUT" : "POST";
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ document: nextDoc }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(j.error || "Không lưu được báo giá");
+          return;
+        }
+        const savedId = erpQuoteId ?? (j.id as number);
+        setDoc(nextDoc);
+        setSaveName(name);
+        if (!erpQuoteId && savedId) onErpQuoteSaved?.(savedId);
+        await syncCatalogFromQuote(nextDoc, name);
+        showToast("Đã lưu báo giá");
+      } catch {
+        showToast("Không kết nối được server");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    const saved = storage.saveQuote(nextDoc);
+    setDoc(saved);
+    setSaveName(name);
     showToast(isErp ? "Đã lưu báo giá" : "Đã lưu trên trình duyệt");
-    // Chỉ ERP: đồng bộ dòng hàng vào danh mục SP tenant (mini tool = khách vãng lai, localStorage only).
     if (isErp) void syncCatalogFromQuote(saved, name);
   };
 
@@ -610,42 +658,9 @@ export function QuoteBuilder({
           lines,
         }),
       });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok) {
-        showToast(j.message || `Đã đồng bộ ${lines.length} dòng vào danh mục SP`);
-      }
+      await res.json().catch(() => ({}));
     } catch {
-      // im lặng — lưu local vẫn thành công
-    }
-  };
-
-  const handleSaveToCatalog = async () => {
-    const lines = extractCatalogLinesFromQuote(doc);
-    if (!lines.length) {
-      showToast("Không có dòng hàng — cần cột Tên/Danh mục hoặc Nội dung");
-      return;
-    }
-    setExporting(true);
-    try {
-      const res = await fetch("/api/factory/products/import-quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quoteNumber: doc.quoteNumber,
-          quoteName: saveName.trim() || doc.savedName,
-          lines,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showToast(j.error || "Cần đăng nhập ERP và chọn công ty");
-        return;
-      }
-      showToast(j.message || `Đã lưu danh mục SP`);
-    } catch {
-      showToast("Không kết nối được server");
-    } finally {
-      setExporting(false);
+      // im lặng
     }
   };
 
@@ -725,28 +740,40 @@ export function QuoteBuilder({
         <div className="flex flex-wrap gap-1.5 shrink-0">
           <button
             type="button"
+            onClick={() => void handleSaveQuote()}
+            disabled={saving}
+            className="quote-tool-btn quote-tool-btn-primary text-xs"
+          >
+            <Save size={14} /> {saving ? "Đang lưu…" : isErp ? "Lưu báo giá" : "Lưu trên máy"}
+          </button>
+          <button
+            type="button"
             onClick={() => setSidebarOpen((v) => !v)}
             className={`quote-tool-btn text-xs ${sidebarOpen ? "quote-tool-btn-primary" : ""}`}
           >
             <SlidersHorizontal size={14} /> Tùy chỉnh
           </button>
-          <button
-            type="button"
-            onClick={handleNew}
-            className={`quote-tool-btn text-xs ${isErp ? "quote-tool-btn-primary" : ""}`}
-          >
-            <FilePlus size={14} /> {isErp ? "Báo giá mới" : "Mới"}
-          </button>
-          <button type="button" onClick={openSaves} className="quote-tool-btn text-xs">
-            <FolderOpen size={14} /> Mở
-          </button>
+          {!erpDbMode && (
+            <>
+              <button
+                type="button"
+                onClick={handleNew}
+                className={`quote-tool-btn text-xs ${isErp ? "quote-tool-btn-primary" : ""}`}
+              >
+                <FilePlus size={14} /> {isErp ? "Báo giá mới" : "Mới"}
+              </button>
+              <button type="button" onClick={openSaves} className="quote-tool-btn text-xs">
+                <FolderOpen size={14} /> Mở
+              </button>
+            </>
+          )}
           <button type="button" onClick={handleSaveTemplate} className="quote-tool-btn text-xs">
             <LayoutTemplate size={14} /> Template
           </button>
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="quote-tool-btn quote-tool-btn-primary text-xs"
+            className="quote-tool-btn text-xs"
           >
             <Eye size={14} /> Xem & in
           </button>
@@ -868,23 +895,6 @@ export function QuoteBuilder({
               <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleSignature(e.target.files?.[0] ?? null)} />
             </label>
           </SbSection>
-
-          <div className="mt-auto pt-3 space-y-1.5">
-            <button type="button" onClick={handleSaveQuote} className="quote-tool-btn quote-tool-btn-primary text-xs !py-2 w-full">
-              <Save size={14} /> {isErp ? "Lưu báo giá" : "Lưu trên máy"}
-            </button>
-            {isErp && (
-              <button
-                type="button"
-                onClick={() => void handleSaveToCatalog()}
-                disabled={exporting}
-                className="quote-tool-btn text-xs !py-2 w-full"
-                title="Lưu các dòng hàng vào danh mục sản phẩm ERP"
-              >
-                <Layers size={14} /> Lưu danh mục SP
-              </button>
-            )}
-          </div>
             </aside>
           </>
         )}
@@ -1029,6 +1039,9 @@ export function QuoteBuilder({
                           {getSttDisplay(ri)}
                         </td>
                       );
+                      const cellId = cellKey(ri, ci);
+                      const isDescCol = col.role === "description";
+                      const descExpanded = expandedCells.has(cellId);
                       return (
                         <td
                           key={col.id}
@@ -1044,17 +1057,38 @@ export function QuoteBuilder({
                             }}
                             value={row.cells[col.id] ?? ""}
                             rows={1}
-                            onFocus={() =>
+                            onFocus={() => {
                               setCellRange({
                                 start: { rowIndex: ri, colIndex: ci },
                                 end: { rowIndex: ri, colIndex: ci },
-                              })
-                            }
+                              });
+                              if (isDescCol) {
+                                setExpandedCells((prev) => new Set(prev).add(cellId));
+                              }
+                            }}
+                            onBlur={() => {
+                              if (isDescCol) {
+                                setExpandedCells((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(cellId);
+                                  return next;
+                                });
+                              }
+                            }}
                             onChange={(e) => {
                               setCell(ri, col.id, e.target.value);
                               e.target.style.height = "auto";
-                              e.target.style.height = `${e.target.scrollHeight}px`;
+                              const maxH = isDescCol && !descExpanded ? 200 : undefined;
+                              const nextH = e.target.scrollHeight;
+                              e.target.style.height = maxH
+                                ? `${Math.min(nextH, maxH)}px`
+                                : `${nextH}px`;
                             }}
+                            style={
+                              isDescCol && !descExpanded
+                                ? { maxHeight: 200, overflowY: "auto" as const }
+                                : undefined
+                            }
                             className={`quote-cell-input quote-cell-input-dark w-full min-h-[2.25rem] py-1.5 resize-none bg-transparent font-normal focus:outline-none ${
                               colCls === "quote-col-tight" || colCls === "quote-col-narrow" ? "px-1 text-center" : "px-2"
                             } ${col.role === "quantity" || col.role === "unitPrice" ? "text-right tabular-nums" : ""}`}

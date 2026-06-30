@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Customer } from "@/lib/marketing/customer-types";
-import type { Project, ProjectPhase } from "@/lib/projects/types";
+import type { Project, ProjectPhase, ProjectTemplate } from "@/lib/projects/types";
 import { ProjectCreatePanel } from "./ProjectCreatePanel";
 import {
   ProjectTaskPanel,
@@ -20,6 +20,8 @@ export function ProjectPanelColumn({
   onProjectUpdated,
   onProjectCreated,
   onProjectDeleted,
+  initialQuoteIds,
+  initialTemplate,
 }: {
   createOpen: boolean;
   panelProjectId: number | null;
@@ -31,6 +33,8 @@ export function ProjectPanelColumn({
   ) => void;
   onProjectCreated?: (projectId: number) => void;
   onProjectDeleted?: (projectId: number) => void;
+  initialQuoteIds?: number[];
+  initialTemplate?: ProjectTemplate | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const panelOpen = createOpen || panelProjectId !== null;
@@ -59,6 +63,8 @@ export function ProjectPanelColumn({
         <ProjectCreatePanel
           customers={customers}
           onClose={onClosePanel}
+          initialQuoteIds={initialQuoteIds}
+          initialTemplate={initialTemplate}
           onCreated={(id) => {
             onProjectCreated?.(id);
             onClosePanel();
