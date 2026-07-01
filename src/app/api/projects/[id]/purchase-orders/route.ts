@@ -38,6 +38,7 @@ export async function POST(
   }
 
   const body = (await req.json()) as PurchaseOrderInput & {
+    supplierId?: number | null;
     lines?: Array<
       | { source: "item"; projectItemId: number }
       | { source: "catalog"; factoryProductId: number; quantity?: number }

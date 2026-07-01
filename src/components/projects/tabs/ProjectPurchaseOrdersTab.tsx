@@ -16,7 +16,8 @@ export function ProjectPurchaseOrdersTab({
   return (
     <PurchaseOrdersWorkspace
       listUrl={base}
-      detailUrl={(poId) => `${base}/${poId}`}
+      detailUrlPrefix={base}
+      projectId={projectId}
       projectItems={items}
       canEdit={canEdit}
       hint="Mỗi đơn gắn một nhà cung cấp — lấy dòng từ hạng mục dự án hoặc tìm trong danh mục sản phẩm."

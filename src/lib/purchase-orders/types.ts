@@ -25,6 +25,7 @@ export interface PurchaseOrder {
   companyId: number;
   projectId: number | null;
   poNumber: string;
+  supplierId: number | null;
   supplierName: string;
   status: PurchaseOrderStatus;
   orderedAt: string | null;
@@ -38,6 +39,7 @@ export interface PurchaseOrder {
 
 export interface PurchaseOrderInput {
   supplierName: string;
+  supplierId?: number | null;
   status?: PurchaseOrderStatus;
   orderedAt?: string | null;
   expectedAt?: string | null;

@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   if ("error" in ctx) return ctx.error;
 
   const body = (await req.json()) as PurchaseOrderInput & {
+    supplierId?: number | null;
     lines?: Array<{ source: "catalog"; factoryProductId: number; quantity?: number }>;
   };
 

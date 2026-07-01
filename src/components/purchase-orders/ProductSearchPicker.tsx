@@ -12,10 +12,12 @@ import type { FactoryProduct } from "@/lib/factory/types";
 export function ProductSearchPicker({
   onPick,
   disabled,
+  supplierId,
   placeholder = "Tìm SP: tên, mô tả, NCC, hãng, xuất xứ, nguyên liệu…",
 }: {
   onPick: (product: FactoryProduct) => void;
   disabled?: boolean;
+  supplierId?: number | null;
   placeholder?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -33,7 +35,9 @@ export function ProductSearchPicker({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/factory/products/search?q=${encodeURIComponent(trimmed)}&limit=25`);
+      const qs = new URLSearchParams({ q: trimmed, limit: "25" });
+      if (supplierId != null) qs.set("supplierId", String(supplierId));
+      const res = await fetch(`/api/factory/products/search?${qs}`);
       if (res.ok) {
         const j = await res.json();
         setResults(Array.isArray(j.items) ? (j.items as FactoryProduct[]) : []);
@@ -55,7 +59,7 @@ export function ProductSearchPicker({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, runSearch]);
+  }, [query, runSearch, supplierId]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -83,7 +87,7 @@ export function ProductSearchPicker({
         />
       </div>
 
-      {open && query.trim() ? (
+      {open && (query.trim() || supplierId != null) ? (
         <div className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-lg border border-white/15 bg-[#0c1528] shadow-xl">
           {loading ? (
             <p className="px-3 py-2 text-[11px] text-slate-500">Đang tìm…</p>

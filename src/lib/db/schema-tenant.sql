@@ -608,3 +608,40 @@ CREATE TABLE IF NOT EXISTS purchase_order_lines (
 );
 
 CREATE INDEX IF NOT EXISTS idx_po_lines_order ON purchase_order_lines(purchase_order_id, line_no);
+
+-- Nhà cung cấp (danh mục chung)
+CREATE TABLE IF NOT EXISTS suppliers (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  contact_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (company_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_suppliers_company ON suppliers(company_id, name);
+
+-- Giá / leadtime theo NCC cho từng sản phẩm
+CREATE TABLE IF NOT EXISTS factory_product_suppliers (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES factory_products(id) ON DELETE CASCADE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  unit_price TEXT NOT NULL DEFAULT '',
+  lead_time_days INTEGER,
+  currency TEXT NOT NULL DEFAULT 'VND',
+  is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (product_id, supplier_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fps_product ON factory_product_suppliers(product_id);
+CREATE INDEX IF NOT EXISTS idx_fps_supplier ON factory_product_suppliers(supplier_id);
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL;

@@ -41,6 +41,7 @@ function mapOrder(row: Record<string, unknown>, lines?: PurchaseOrderLine[]): Pu
     companyId: row.company_id as number,
     projectId: row.project_id != null ? Number(row.project_id) : null,
     poNumber: String(row.po_number ?? ""),
+    supplierId: row.supplier_id != null ? Number(row.supplier_id) : null,
     supplierName: String(row.supplier_name ?? ""),
     status: row.status as PurchaseOrderStatus,
     orderedAt: toLocalDateString(row.ordered_at),
@@ -128,13 +129,14 @@ export async function createPurchaseOrder(
   const poNumber = await nextPoNumber(companyId, projectId);
   const row = await tenantQueryOne<Record<string, unknown>>(
     `INSERT INTO purchase_orders
-     (company_id, project_id, po_number, supplier_name, status, ordered_at, expected_at, notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     (company_id, project_id, po_number, supplier_id, supplier_name, status, ordered_at, expected_at, notes, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
     [
       companyId,
       projectId,
       poNumber,
+      input.supplierId ?? null,
       input.supplierName.trim(),
       input.status ?? "draft",
       input.orderedAt ?? null,
@@ -251,10 +253,22 @@ async function lineFromProjectItem(
 async function lineFromCatalog(
   companyId: number,
   factoryProductId: number,
-  quantity?: number
+  quantity?: number,
+  supplierId?: number | null
 ): Promise<PurchaseOrderLineInput> {
   const p = await getFactoryProduct(factoryProductId);
   if (!p) throw new Error("Không tìm thấy sản phẩm");
+  let unitPrice = p.price;
+  let brand = p.brand;
+  let origin = p.origin || DEFAULT_PRODUCT_ORIGIN;
+  if (supplierId) {
+    const offer = await tenantQueryOne<Record<string, unknown>>(
+      `SELECT unit_price FROM factory_product_suppliers WHERE product_id = $1 AND supplier_id = $2`,
+      [factoryProductId, supplierId],
+      companyId
+    );
+    if (offer?.unit_price) unitPrice = String(offer.unit_price);
+  }
   return {
     factoryProductId,
     name: p.name,
@@ -265,9 +279,9 @@ async function lineFromCatalog(
     heightMm: p.heightMm,
     quantity: quantity ?? 1,
     unit: "cái",
-    unitPrice: p.price,
-    brand: p.brand,
-    origin: p.origin || DEFAULT_PRODUCT_ORIGIN,
+    unitPrice,
+    brand,
+    origin,
   };
 }
 
@@ -296,7 +310,12 @@ export async function addPurchaseOrderLines(
       if (entry.source === "item") {
         draft = await lineFromProjectItem(companyId, entry.projectItemId);
       } else if (entry.source === "catalog") {
-        draft = await lineFromCatalog(companyId, entry.factoryProductId, entry.quantity);
+        draft = await lineFromCatalog(
+          companyId,
+          entry.factoryProductId,
+          entry.quantity,
+          po.supplierId
+        );
       } else {
         draft = entry.line;
       }

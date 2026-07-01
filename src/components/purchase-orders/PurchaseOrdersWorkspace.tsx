@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, ShoppingCart, Sparkles, Trash2 } from "lucide-react";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { formatDimensionsMm, shortDescription } from "@/lib/factory/display";
 import type { ProjectItem } from "@/lib/projects/types";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/lib/purchase-orders/types";
 import { PO_STATUS_LABELS } from "@/lib/purchase-orders/types";
+import type { Supplier } from "@/lib/suppliers/types";
+import { SupplierPicker } from "@/components/suppliers/SupplierPicker";
 import { ProductSearchPicker } from "./ProductSearchPicker";
 
 const FIELD =
@@ -15,22 +17,27 @@ const FIELD =
 
 export function PurchaseOrdersWorkspace({
   listUrl,
-  detailUrl,
-  projectItems = [],
+  detailUrlPrefix,
+  projectId,
+  projectItems: projectItemsProp,
   canEdit,
   hint,
 }: {
   listUrl: string;
-  detailUrl: (poId: number) => string;
+  detailUrlPrefix: string;
+  projectId?: number;
   projectItems?: ProjectItem[];
   canEdit: boolean;
   hint: string;
 }) {
+  const detailUrl = useCallback((poId: number) => `${detailUrlPrefix}/${poId}`, [detailUrlPrefix]);
+
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [projectItems, setProjectItems] = useState<ProjectItem[]>(projectItemsProp ?? []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [supplierName, setSupplierName] = useState("");
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [orderedAt, setOrderedAt] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
@@ -39,6 +46,21 @@ export function PurchaseOrdersWorkspace({
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
   const [addFromItemsOpen, setAddFromItemsOpen] = useState(false);
   const [addFromCatalogOpen, setAddFromCatalogOpen] = useState(false);
+  const [suggestMsg, setSuggestMsg] = useState("");
+
+  useEffect(() => {
+    if (projectItemsProp) setProjectItems(projectItemsProp);
+  }, [projectItemsProp]);
+
+  useEffect(() => {
+    if (!projectId || projectItemsProp?.length) return;
+    fetch(`/api/projects/${projectId}/workspace`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j?.items) setProjectItems(j.items as ProjectItem[]);
+      })
+      .catch(() => undefined);
+  }, [projectId, projectItemsProp]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -81,8 +103,8 @@ export function PurchaseOrdersWorkspace({
   );
 
   async function createOrder() {
-    if (!supplierName.trim()) {
-      setError("Nhập tên nhà cung cấp");
+    if (!supplier?.name?.trim()) {
+      setError("Chọn nhà cung cấp");
       return;
     }
     setBusy(true);
@@ -95,7 +117,8 @@ export function PurchaseOrdersWorkspace({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        supplierName: supplierName.trim(),
+        supplierName: supplier.name.trim(),
+        supplierId: supplier.id,
         orderedAt: orderedAt || null,
         notes,
         lines: lines.length ? lines : undefined,
@@ -107,11 +130,33 @@ export function PurchaseOrdersWorkspace({
       setError(j.error || "Không tạo được đơn");
       return;
     }
-    setSupplierName("");
+    setSupplier(null);
     setOrderedAt("");
     setNotes("");
     setSelectedItemIds(new Set());
     setShowCreate(false);
+    await loadList();
+  }
+
+  async function suggestOrders() {
+    if (!projectId) return;
+    setBusy(true);
+    setError("");
+    setSuggestMsg("");
+    const res = await fetch(`/api/projects/${projectId}/purchase-orders/suggest`, { method: "POST" });
+    const j = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setError(j.error || "Đề xuất thất bại");
+      return;
+    }
+    const n = Number(j.created ?? 0);
+    const warns = (j.suggestions as { warnings?: string[] }[] | undefined)?.flatMap((s) => s.warnings ?? []) ?? [];
+    setSuggestMsg(
+      n > 0
+        ? `Đã tạo ${n} đơn nháp theo NCC.${warns.length ? ` Cảnh báo: ${warns.slice(0, 3).join("; ")}` : ""}`
+        : "Không tạo được đơn — kiểm tra NCC trên sản phẩm / hạng mục."
+    );
     await loadList();
   }
 
@@ -181,25 +226,38 @@ export function PurchaseOrdersWorkspace({
       <p className="text-[10px] text-slate-500">{hint}</p>
 
       {error && <p className="text-xs text-rose-400">{error}</p>}
+      {suggestMsg && <p className="text-xs text-emerald-400/90">{suggestMsg}</p>}
 
       {canEdit && (
-        <button
-          type="button"
-          onClick={() => setShowCreate((v) => !v)}
-          className="inline-flex items-center gap-1 px-3 h-[30px] rounded-lg border border-white/15 text-xs text-slate-200 hover:bg-white/10"
-        >
-          <Plus size={14} /> Đơn mới (1 NCC)
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCreate((v) => !v)}
+            className="inline-flex items-center gap-1 px-3 h-[30px] rounded-lg border border-white/15 text-xs text-slate-200 hover:bg-white/10"
+          >
+            <Plus size={14} /> Đơn mới (1 NCC)
+          </button>
+          {projectId ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void suggestOrders()}
+              className="inline-flex items-center gap-1 px-3 h-[30px] rounded-lg border border-sky/30 text-xs text-sky hover:bg-sky/10 disabled:opacity-50"
+            >
+              <Sparkles size={14} /> Đề xuất đơn theo NCC
+            </button>
+          ) : null}
+        </div>
       )}
 
       {showCreate && canEdit && (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
           <label className="block text-[10px] uppercase text-slate-500">Nhà cung cấp *</label>
-          <input
-            className={FIELD}
-            value={supplierName}
-            onChange={(e) => setSupplierName(e.target.value)}
-            placeholder="Tên NCC"
+          <SupplierPicker
+            valueId={supplier?.id ?? null}
+            valueName={supplier?.name ?? ""}
+            onChange={setSupplier}
+            disabled={busy}
           />
           <label className="block text-[10px] uppercase text-slate-500 mt-2">Ngày đặt</label>
           <ErpDateInput value={orderedAt} onChange={setOrderedAt} className="text-xs !h-[30px]" />
@@ -252,6 +310,7 @@ export function PurchaseOrdersWorkspace({
           {orders.map((po) => {
             const open = expandedId === po.id;
             const lines = open && detail?.id === po.id ? detail.lines ?? [] : [];
+            const poSupplierId = open && detail?.id === po.id ? detail.supplierId : po.supplierId;
             return (
               <div
                 key={po.id}
@@ -365,7 +424,7 @@ export function PurchaseOrdersWorkspace({
                           onClick={() => setAddFromCatalogOpen((v) => !v)}
                           className="text-[10px] px-2 py-1 rounded border border-white/15 text-slate-300 hover:bg-white/10"
                         >
-                          + Danh mục SP
+                          + Sản phẩm NCC
                         </button>
                         <button
                           type="button"
@@ -397,8 +456,14 @@ export function PurchaseOrdersWorkspace({
 
                     {addFromCatalogOpen && canEdit && (
                       <div className="space-y-2">
+                        {!poSupplierId ? (
+                          <p className="text-[10px] text-amber-400/90">
+                            Đơn chưa gắn NCC trong danh mục — tìm toàn bộ SP hoặc cập nhật NCC trên đơn.
+                          </p>
+                        ) : null}
                         <ProductSearchPicker
                           disabled={busy}
+                          supplierId={poSupplierId}
                           onPick={(p) =>
                             void addLines(po.id, [{ source: "catalog", factoryProductId: p.id }])
                           }

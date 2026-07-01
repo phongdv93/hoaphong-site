@@ -4,9 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Save, Calculator, ChevronDown, ChevronRight } from "lucide-react";
-import type { BomLineInput, BomSection, FactoryBomLine, FactoryProduct, FactoryProductPayload, FactoryProductStatus } from "@/lib/factory/types";
+import type {
+  BomLineInput,
+  BomSection,
+  FactoryBomLine,
+  FactoryProduct,
+  FactoryProductPayload,
+  FactoryProductStatus,
+} from "@/lib/factory/types";
+import type { ProductSupplierOfferInput } from "@/lib/suppliers/types";
 import { DEFAULT_PRODUCT_ORIGIN, formatDimensionsMm, formatProductPrimaryCode } from "@/lib/factory/display";
 import { BomBlock } from "./BomBlock";
+import { ProductSupplierOffersEditor } from "./ProductSupplierOffersEditor";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { ExpandableTextarea } from "@/components/ui/ExpandableTextarea";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
@@ -84,6 +93,9 @@ export function ProductEditor({
   const [bomWood, setBomWood] = useState<BomLineInput[]>([emptyRow()]);
   const [bomHardware, setBomHardware] = useState<BomLineInput[]>([emptyRow()]);
   const [bomPackaging, setBomPackaging] = useState<BomLineInput[]>([emptyRow()]);
+  const [supplierOffers, setSupplierOffers] = useState<
+    Array<ProductSupplierOfferInput & { supplierName?: string }>
+  >([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -128,6 +140,41 @@ export function ProductEditor({
       setBomWood(linesToDraft(data.lines, "wood"));
       setBomHardware(linesToDraft(data.lines, "hardware"));
       setBomPackaging(linesToDraft(data.lines, "packaging"));
+      const offRes = await fetch(`/api/factory/products/${productId}/suppliers`);
+      if (offRes.ok) {
+        const offJ = await offRes.json();
+        const offers = Array.isArray(offJ.offers) ? offJ.offers : [];
+        setSupplierOffers(
+          offers.map(
+            (o: {
+              supplierId: number;
+              supplierName: string;
+              unitPrice: string;
+              leadTimeDays: number | null;
+              isPreferred: boolean;
+              notes: string;
+            }) => ({
+              supplierId: o.supplierId,
+              supplierName: o.supplierName,
+              unitPrice: o.unitPrice,
+              leadTimeDays: o.leadTimeDays,
+              isPreferred: o.isPreferred,
+              notes: o.notes,
+            })
+          )
+        );
+      } else if (p.supplier?.trim()) {
+        setSupplierOffers([
+          {
+            supplierId: 0,
+            supplierName: p.supplier,
+            unitPrice: p.price,
+            leadTimeDays: null,
+            isPreferred: true,
+            notes: "",
+          },
+        ]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi tải");
     } finally {
@@ -156,12 +203,13 @@ export function ProductEditor({
   }, [load]);
 
   const payload = useMemo((): FactoryProductPayload => {
+    const preferred = supplierOffers.find((o) => o.isPreferred) ?? supplierOffers[0];
     return {
       name,
       description,
       brand,
       origin,
-      supplier,
+      supplier: preferred?.supplierName?.trim() || supplier.trim(),
       orderedAt: orderedAt || null,
       rangeCode,
       woodCode,
@@ -186,6 +234,7 @@ export function ProductEditor({
     brand,
     origin,
     supplier,
+    supplierOffers,
     orderedAt,
     rangeCode,
     woodCode,
@@ -205,6 +254,40 @@ export function ProductEditor({
     bomPackaging,
   ]);
 
+  async function saveSupplierOffers(targetId: number) {
+    const resolved: ProductSupplierOfferInput[] = [];
+    for (const o of supplierOffers) {
+      const name = o.supplierName?.trim();
+      if (!name && !o.supplierId) continue;
+      let supplierId = o.supplierId;
+      if (!supplierId && name) {
+        const res = await fetch("/api/suppliers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (res.ok) {
+          const j = await res.json();
+          supplierId = j.supplier?.id as number;
+        }
+      }
+      if (!supplierId) continue;
+      resolved.push({
+        supplierId,
+        unitPrice: o.unitPrice,
+        leadTimeDays: o.leadTimeDays,
+        isPreferred: o.isPreferred,
+        notes: o.notes,
+      });
+    }
+    if (!resolved.length) return;
+    await fetch(`/api/factory/products/${targetId}/suppliers`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offers: resolved }),
+    });
+  }
+
   async function save() {
     if (!name.trim()) {
       alert("Nhập tên sản phẩm");
@@ -221,6 +304,7 @@ export function ProductEditor({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Lỗi tạo");
+        await saveSupplierOffers(data.id);
         router.push(`/erp/san-pham/san-pham/${data.id}`);
         router.refresh();
         return;
@@ -232,6 +316,7 @@ export function ProductEditor({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Lỗi lưu");
+      await saveSupplierOffers(productId!);
       await load();
       alert("Đã lưu. Chi tiết đã đồng bộ danh mục tái sử dụng (gỗ/bao bì có kích thước mm; hardware kích thước trong tên).");
     } catch (e) {
@@ -273,51 +358,44 @@ export function ProductEditor({
 
       <div className="erp-card p-4 space-y-3">
         <h2 className="font-semibold text-slate-200 text-sm">Thông tin chính</h2>
-        <div className="space-y-2.5 text-xs">
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Tên sản phẩm *</label>
-            <input className="input-field py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+          <div className="space-y-2.5">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 min-w-0">
+                <label className="block font-medium text-slate-400 mb-0.5">Tên sản phẩm *</label>
+                <input className="input-field py-2 text-sm w-full" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="w-[60%] max-w-[60%] shrink-0">
+                <label className="block font-medium text-slate-400 mb-0.5">Kích thước (mm)</label>
+                <div className="flex gap-1">
+                  <input type="number" className="input-field py-1.5 w-full min-w-0" value={lengthMm || ""} onChange={(e) => setLengthMm(Number(e.target.value) || 0)} placeholder="Dài" />
+                  <input type="number" className="input-field py-1.5 w-full min-w-0" value={depthMm || ""} onChange={(e) => setDepthMm(Number(e.target.value) || 0)} placeholder="Sâu" />
+                  <input type="number" className="input-field py-1.5 w-full min-w-0" value={heightMm || ""} onChange={(e) => setHeightMm(Number(e.target.value) || 0)} placeholder="Cao" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">{sizePreview}</p>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div>
-              <label className="block font-medium text-slate-400 mb-0.5">Hãng</label>
-              <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Hãng</label>
+                <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Xuất xứ</label>
+                <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+              </div>
             </div>
-            <div>
-              <label className="block font-medium text-slate-400 mb-0.5">Xuất xứ</label>
-              <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-            </div>
-            <div>
-              <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
-              <input
-                className="input-field py-1.5"
-                value={supplier}
-                onChange={(e) => setSupplier(e.target.value)}
-                placeholder="Mua từ đâu"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
               <label className="block font-medium text-slate-400 mb-0.5">Mã · Range · Gỗ · Sơn · KH</label>
               <div className="flex flex-wrap gap-1">
-                <input className="input-field py-1.5 w-[4.5rem]" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} placeholder="Range" title="Range" />
-                <input className="input-field py-1.5 w-[4.5rem]" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} placeholder="Gỗ" title="Gỗ" />
-                <input className="input-field py-1.5 w-[4.5rem]" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} placeholder="Sơn" title="Sơn" />
+                <input className="input-field py-1.5 w-[4.5rem]" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} placeholder="Range" />
+                <input className="input-field py-1.5 w-[4.5rem]" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} placeholder="Gỗ" />
+                <input className="input-field py-1.5 w-[4.5rem]" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} placeholder="Sơn" />
                 <input className="input-field py-1.5 flex-1 min-w-[5rem]" value={customerBranchCode} onChange={(e) => setCustomerBranchCode(e.target.value)} placeholder="Mã KH" />
               </div>
               <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">{codePreview}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-slate-400 mb-0.5">Kích thước (mm)</label>
-              <div className="flex gap-1">
-                <input type="number" className="input-field py-1.5 w-full" value={lengthMm || ""} onChange={(e) => setLengthMm(Number(e.target.value) || 0)} placeholder="Dài" />
-                <input type="number" className="input-field py-1.5 w-full" value={depthMm || ""} onChange={(e) => setDepthMm(Number(e.target.value) || 0)} placeholder="Sâu" />
-                <input type="number" className="input-field py-1.5 w-full" value={heightMm || ""} onChange={(e) => setHeightMm(Number(e.target.value) || 0)} placeholder="Cao" />
-              </div>
-              <p className="text-[10px] text-slate-500 mt-0.5">{sizePreview}</p>
             </div>
           </div>
 
@@ -325,8 +403,9 @@ export function ProductEditor({
             label="Mô tả"
             value={description}
             onChange={setDescription}
-            rows={5}
-            previewChars={140}
+            rows={10}
+            previewChars={160}
+            className="h-full"
           />
         </div>
       </div>
@@ -348,6 +427,12 @@ export function ProductEditor({
 
         {detailsOpen && (
           <div className="p-4 space-y-3">
+            <ProductSupplierOffersEditor
+              offers={supplierOffers}
+              onChange={setSupplierOffers}
+              disabled={saving}
+            />
+
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
               <div>
                 <label className="block font-medium text-slate-400 mb-0.5">Ngày đặt hàng</label>

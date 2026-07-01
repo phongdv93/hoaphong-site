@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
@@ -29,7 +30,6 @@ import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
 import { ProjectFilesTab } from "./tabs/ProjectFilesTab";
 import { ProjectContractsTab } from "./tabs/ProjectContractsTab";
 import { ProjectItemsTab, ProjectItemsSearch, filterProjectItems } from "./tabs/ProjectItemsTab";
-import { ProjectPurchaseOrdersTab } from "./tabs/ProjectPurchaseOrdersTab";
 import {
   ProgressTab,
   SubmissionsTab,
@@ -84,7 +84,6 @@ const ALL_TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "progress", label: "Tiến độ", icon: Gauge },
   { id: "submissions", label: "Yêu cầu", icon: Inbox },
   { id: "items", label: "Hạng mục", icon: ListChecks },
-  { id: "purchaseOrders", label: "Đặt hàng", icon: ShoppingCart },
   { id: "contracts", label: "Hợp đồng", icon: FileSignature },
   { id: "files", label: "Tệp", icon: Paperclip },
   { id: "members", label: "Thành viên", icon: Users },
@@ -461,6 +460,14 @@ export function ProjectTaskPanel({
                       </>
                     )}
                   </button>
+                  {(p.template === "project" || p.template === "pi") && (
+                    <Link
+                      href={`/erp/du-an/dat-hang?project=${projectId}`}
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-sky/30 text-sky hover:bg-sky/10 inline-flex items-center gap-1"
+                    >
+                      <ShoppingCart size={11} /> Đặt hàng
+                    </Link>
+                  )}
                   {schedule && schedule.daysOverdue > 0 && (
                     <span className="text-[10px] text-orange-300">
                       {schedule.label}
@@ -583,21 +590,6 @@ export function ProjectTaskPanel({
                     searchQuery={itemsSearch}
                     linkedPhases={data.phases.filter((p) => p.progressFromItems)}
                     onChanged={() => load({ silent: true })}
-                  />
-                </PanelSection>
-                )}
-                {activeTabs.some((t) => t.id === "purchaseOrders") && (
-                <PanelSection
-                  id="purchaseOrders"
-                  label="Đặt hàng"
-                  setRef={(el) => {
-                    sectionRefs.current.purchaseOrders = el;
-                  }}
-                >
-                  <ProjectPurchaseOrdersTab
-                    projectId={projectId}
-                    items={data.items}
-                    canEdit={canEdit}
                   />
                 </PanelSection>
                 )}

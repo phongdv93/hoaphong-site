@@ -65,16 +65,43 @@ export async function listFactoryProducts(): Promise<FactoryProduct[]> {
   return rows.map(mapProduct);
 }
 
-export async function searchFactoryProducts(query: string, limit = 30): Promise<FactoryProduct[]> {
+export async function searchFactoryProducts(
+  query: string,
+  limit = 30,
+  supplierId?: number | null
+): Promise<FactoryProduct[]> {
   const q = query.trim();
-  if (!q) return [];
+  const supplierFilter =
+    supplierId != null
+      ? ` AND EXISTS (
+          SELECT 1 FROM factory_product_suppliers fps
+          WHERE fps.product_id = fp.id AND fps.supplier_id = $3
+        )`
+      : "";
+  if (!q && supplierId == null) return [];
+  if (!q && supplierId != null) {
+    const rows = await tenantQuery(
+      `SELECT DISTINCT fp.* FROM factory_products fp
+       WHERE EXISTS (
+         SELECT 1 FROM factory_product_suppliers fps
+         WHERE fps.product_id = fp.id AND fps.supplier_id = $1
+       )
+       ORDER BY fp.updated_at DESC, fp.id DESC
+       LIMIT $2`,
+      [supplierId, limit]
+    );
+    return rows.map(mapProduct);
+  }
   const like = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+  const params =
+    supplierId != null ? [like, limit, supplierId] : [like, limit];
   const rows = await tenantQuery(
     `SELECT DISTINCT fp.*
      FROM factory_products fp
      LEFT JOIN factory_product_bom_lines bl ON bl.product_id = fp.id
      LEFT JOIN factory_parts pt ON pt.id = bl.part_id
-     WHERE fp.name ILIKE $1 ESCAPE '\\'
+     WHERE (
+        fp.name ILIKE $1 ESCAPE '\\'
         OR fp.description ILIKE $1 ESCAPE '\\'
         OR fp.supplier ILIKE $1 ESCAPE '\\'
         OR fp.brand ILIKE $1 ESCAPE '\\'
@@ -87,9 +114,10 @@ export async function searchFactoryProducts(query: string, limit = 30): Promise<
         OR pt.material_type ILIKE $1 ESCAPE '\\'
         OR pt.spec_notes ILIKE $1 ESCAPE '\\'
         OR pt.description ILIKE $1 ESCAPE '\\'
+     )${supplierFilter}
      ORDER BY fp.updated_at DESC, fp.id DESC
      LIMIT $2`,
-    [like, limit]
+    params
   );
   return rows.map(mapProduct);
 }

@@ -8,9 +8,15 @@ export async function GET(req: Request) {
 
   const q = new URL(req.url).searchParams.get("q") ?? "";
   const limit = Math.min(50, Math.max(1, Number(new URL(req.url).searchParams.get("limit") ?? 30)));
+  const supplierIdRaw = new URL(req.url).searchParams.get("supplierId");
+  const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
 
   return ctx.run(async () => {
-    const items = await searchFactoryProducts(q, limit);
+    const items = await searchFactoryProducts(
+      q,
+      limit,
+      Number.isFinite(supplierId) ? supplierId : null
+    );
     return NextResponse.json({ items });
   });
 }
