@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { resolveActiveCompanyForUser } from "@/lib/projects/companies";
 import {
+  formatStorageError,
   isS3Configured,
   projectFileKey,
   uploadToS3,
@@ -20,6 +21,16 @@ const IMAGE_TYPES = new Set([
 ]);
 
 const DOC_EXT = /\.(jpe?g|png|webp|gif|heic|pdf|docx?|xlsx?|pptx?|txt|csv|zip|rar)$/i;
+
+function saveLocal(buffer: Buffer, fileName: string): string {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+  const ext = path.extname(fileName) || ".jpg";
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), buffer);
+  return `/uploads/projects/${name}`;
+}
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -75,16 +86,15 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ url, key });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload S3 thất bại";
-      return NextResponse.json({ error: message }, { status: 500 });
+      console.error("[projects/upload] S3 failed, fallback local:", formatStorageError(err));
     }
   }
 
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  try {
+    const url = saveLocal(buffer, file.name);
+    return NextResponse.json({ url });
+  } catch (err) {
+    const message = err instanceof Error && err.message.trim() ? err.message : "Lưu file thất bại";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const ext = path.extname(file.name) || ".jpg";
-  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), buffer);
-  return NextResponse.json({ url: `/uploads/projects/${name}` });
 }

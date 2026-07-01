@@ -549,6 +549,19 @@ function validatePhaseScheduleAgainstProject(
   }
 }
 
+/** Khi hoàn thành/trễ hạn — không gán startedAt = hôm nay nếu đã qua deadline công đoạn. */
+function inferStartedAtForProgress(
+  newStatus: PhaseStatus,
+  prevStartedAt: string | null,
+  deadlineAt: string | null,
+  now: string
+): string | null {
+  if (prevStartedAt) return prevStartedAt;
+  if (newStatus !== "in_progress" && newStatus !== "done") return null;
+  if (deadlineAt && deadlineAt < now) return deadlineAt;
+  return now;
+}
+
 export async function createPhase(input: {
   projectId: number;
   kind: PhaseKind;
@@ -647,9 +660,13 @@ export async function updatePhase(
     deadlineAt
   );
 
-  if (newStatus === "in_progress" && !startedAt) startedAt = now;
+  if (newStatus === "in_progress" && !startedAt) {
+    startedAt = inferStartedAtForProgress(newStatus, prev.startedAt, deadlineAt, now);
+  }
   if (newStatus === "done" && !completedAt) completedAt = now;
-  if (newStatus === "done" && !startedAt) startedAt = now;
+  if (newStatus === "done" && !startedAt) {
+    startedAt = inferStartedAtForProgress(newStatus, prev.startedAt, deadlineAt, now);
+  }
 
   const progressFromItems =
     input.progressFromItems === undefined ? prev.progressFromItems : input.progressFromItems;

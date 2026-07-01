@@ -71,10 +71,13 @@ export async function POST(req: Request) {
       const msg =
         err instanceof Error && err.message.trim()
           ? err.message
-          : err instanceof Error
+          : err instanceof Error && err.name && err.name !== "Error"
             ? err.name
             : "Lỗi lưu tiến độ";
-      return NextResponse.json({ error: msg }, { status: 400 });
+      return NextResponse.json(
+        { error: msg === "UnknownError" ? "Không lưu được tiến độ — kiểm tra ảnh hoặc thử lại" : msg },
+        { status: 400 }
+      );
     }
   });
 }

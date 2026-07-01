@@ -24,6 +24,17 @@ function getConfig() {
   };
 }
 
+export function formatStorageError(err: unknown): string {
+  if (!err || typeof err !== "object") return "Lỗi lưu file";
+  const e = err as { name?: string; message?: string; Code?: string };
+  const parts = [e.Code, e.message].filter(
+    (x) => typeof x === "string" && x.trim() && x !== "UnknownError"
+  );
+  if (parts.length) return parts.join(": ");
+  if (e.name && e.name !== "UnknownError") return e.name;
+  return "Không upload được lên kho lưu trữ";
+}
+
 export function isS3Configured(): boolean {
   return getConfig() !== null;
 }

@@ -39,22 +39,41 @@ const KIND_ICONS: Record<ProjectSubmissionKind, LucideIcon> = {
 
 /** Cập nhật % hoàn thành từng công đoạn */
 async function uploadProjectImage(file: File, projectId?: number): Promise<string> {
+  let blob: Blob;
+  try {
+    const buf = await file.arrayBuffer();
+    blob = new Blob([buf], { type: file.type || "image/jpeg" });
+  } catch (e) {
+    throw new Error(clientErrorMessage(e, "Không đọc được file ảnh trên máy bạn"));
+  }
   const fd = new FormData();
-  fd.append("file", file);
+  fd.append("file", blob, file.name || "photo.jpg");
   if (projectId != null) fd.append("projectId", String(projectId));
   const res = await fetch("/api/projects/upload", { method: "POST", body: fd });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
-    throw new Error(j.error || "Không tải được ảnh");
+    const msg = typeof j.error === "string" && j.error.trim() ? j.error : "Không tải được ảnh";
+    throw new Error(msg === "UnknownError" ? "Server không nhận được ảnh — thử JPG nhỏ hơn" : msg);
   }
   const j = await res.json();
-  return j.url as string;
+  if (typeof j.url !== "string" || !j.url.trim()) {
+    throw new Error("Server không trả về đường dẫn ảnh");
+  }
+  return j.url;
 }
 
 function clientErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message.trim()) return err.message;
   if (err instanceof DOMException) {
-    return err.message.trim() || `Lỗi trình duyệt (${err.name})`;
+    if (err.name === "UnknownError" || !err.message.trim()) {
+      return "Trình duyệt không gửi được ảnh — thử JPG/PNG hoặc ảnh nhỏ hơn";
+    }
+    return err.message.trim();
+  }
+  if (err instanceof Error && err.message.trim()) {
+    if (err.message === "UnknownError") {
+      return "Lỗi tải ảnh — thử lại hoặc chọn ảnh khác";
+    }
+    return err.message;
   }
   return fallback;
 }
