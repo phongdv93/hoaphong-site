@@ -130,6 +130,7 @@ export function ProjectTaskPanel({
     null
   );
   const [itemsSearch, setItemsSearch] = useState("");
+  const [filesRefresh, setFilesRefresh] = useState(0);
   const [panelMode, setPanelMode] = useState<ProjectPanelMode>("simple");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Partial<Record<TabId, HTMLElement | null>>>({});
@@ -531,7 +532,10 @@ export function ProjectTaskPanel({
                     progressLogs={data.progressLogs ?? []}
                     canUpdate={canUpdate}
                     projectTemplate={data.project.template}
-                    onSaved={() => load({ silent: true })}
+                    onSaved={() => {
+                      load({ silent: true });
+                      setFilesRefresh((v) => v + 1);
+                    }}
                   />
                 </PanelSection>
                 )}
@@ -603,7 +607,11 @@ export function ProjectTaskPanel({
                     sectionRefs.current.files = el;
                   }}
                 >
-                  <ProjectFilesTab projectId={projectId} canEdit={canEdit} />
+                  <ProjectFilesTab
+                    projectId={projectId}
+                    canEdit={canEdit}
+                    refreshKey={filesRefresh}
+                  />
                 </PanelSection>
                 )}
                 {activeTabs.some((t) => t.id === "members") && (

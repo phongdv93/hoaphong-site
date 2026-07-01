@@ -1,4 +1,5 @@
 import { tenantQuery, tenantQueryOne } from "@/lib/db/tenant";
+import { mirrorProgressPhotosToProjectFiles } from "./project-files";
 import { updatePhase } from "./repository";
 import type { PhaseProgressLog, PhaseStatus } from "./types";
 
@@ -31,11 +32,19 @@ function mapLog(row: Record<string, unknown>): PhaseProgressLog {
 export async function recordPhaseProgressUpdate(input: {
   projectId: number;
   phaseId: number;
+  phaseName?: string;
+  phaseSortOrder?: number;
   userId: number;
   progressPercent: number;
   status: PhaseStatus;
   note?: string;
   photoUrls: string[];
+  photoFiles?: Array<{
+    url: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+  }>;
   /** Việc nhanh — không bắt buộc ảnh minh chứng */
   photoOptional?: boolean;
 }): Promise<PhaseProgressLog> {
@@ -72,6 +81,25 @@ export async function recordPhaseProgressUpdate(input: {
     ]
   );
   if (!row) throw new Error("Không lưu được lịch sử tiến độ");
+
+  const photosForFiles =
+    input.photoFiles?.length
+      ? input.photoFiles
+      : input.photoUrls.map((url, i) => ({ url }));
+
+  if (photosForFiles.length > 0) {
+    const phaseRow = await tenantQueryOne<{ name: string; sort_order: number }>(
+      `SELECT name, sort_order FROM project_phases WHERE id = $1 AND project_id = $2`,
+      [input.phaseId, input.projectId]
+    );
+    await mirrorProgressPhotosToProjectFiles({
+      projectId: input.projectId,
+      phaseName: input.phaseName ?? phaseRow?.name ?? "Công đoạn",
+      phaseSortOrder: input.phaseSortOrder ?? Number(phaseRow?.sort_order ?? 0),
+      userId: input.userId,
+      photos: photosForFiles,
+    });
+  }
 
   const full = await tenantQueryOne<Record<string, unknown>>(
     `SELECT l.*, u.name AS user_name

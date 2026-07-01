@@ -182,9 +182,20 @@ export function ProgressTab({
     setSavingId(ph.id);
     setError(null);
     try {
-      const photoUrls: string[] = [];
+      const photoFiles: Array<{
+        url: string;
+        fileName: string;
+        mimeType: string;
+        fileSize: number;
+      }> = [];
       for (const file of files) {
-        photoUrls.push(await uploadProjectImage(file, projectId));
+        const url = await uploadProjectImage(file, projectId);
+        photoFiles.push({
+          url,
+          fileName: file.name || "photo.jpg",
+          mimeType: file.type || "image/jpeg",
+          fileSize: file.size,
+        });
       }
       const res = await fetch(
         `/api/projects/${projectId}/phases/${ph.id}/progress`,
@@ -194,7 +205,8 @@ export function ProgressTab({
           body: JSON.stringify({
             status: d.status,
             progressPercent: d.progress,
-            photoUrls,
+            photoUrls: photoFiles.map((p) => p.url),
+            photoFiles,
             note: notes[ph.id] ?? "",
           }),
         }

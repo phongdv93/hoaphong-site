@@ -147,11 +147,14 @@ export function ProjectFilesTab({
   canEdit,
   draftSections,
   onDraftChange,
+  refreshKey = 0,
 }: {
   projectId?: number;
   canEdit: boolean;
   draftSections?: WizardDraftFileSection[];
   onDraftChange?: (sections: WizardDraftFileSection[]) => void;
+  /** Tăng sau khi lưu tiến độ — reload danh sách tệp */
+  refreshKey?: number;
 }) {
   const draftMode = Boolean(onDraftChange);
   const [sections, setSections] = useState<ProjectFileSection[] | null>(null);
@@ -173,7 +176,7 @@ export function ProjectFilesTab({
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, refreshKey]);
 
   const displaySections: SectionRow[] = useMemo(() => {
     if (draftMode) {

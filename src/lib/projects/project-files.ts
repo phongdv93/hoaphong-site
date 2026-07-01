@@ -2,6 +2,41 @@ import { tenantExecute, tenantQuery, tenantQueryOne } from "@/lib/db/tenant";
 import { deleteFromS3 } from "@/lib/storage/s3";
 import type { ProjectFile, ProjectFileSection } from "./types";
 
+/** Nhóm tệp cho ảnh minh chứng tiến độ theo công đoạn. */
+export const PROGRESS_FILE_SECTION_PREFIX = "Tiến độ · ";
+
+export function progressFileSectionTitle(phaseName: string): string {
+  const name = phaseName.trim() || "Công đoạn";
+  return `${PROGRESS_FILE_SECTION_PREFIX}${name}`;
+}
+
+const PROGRESS_SECTION_SORT_BASE = 5000;
+
+function fileNameFromUrl(url: string, index: number): string {
+  try {
+    const path = new URL(url, "https://local").pathname;
+    const base = path.split("/").pop();
+    if (base && base.includes(".")) return decodeURIComponent(base);
+  } catch {
+    // ignore
+  }
+  return `tien-do-${Date.now()}-${index + 1}.jpg`;
+}
+
+function mimeFromFileName(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    heic: "image/heic",
+    heif: "image/heif",
+  };
+  return map[ext ?? ""] ?? "image/jpeg";
+}
+
 function mapFile(row: Record<string, unknown>): ProjectFile {
   return {
     id: Number(row.id),
@@ -155,6 +190,76 @@ export async function createProjectFileRecord(input: {
     input.projectId
   );
   return Number(row!.id);
+}
+
+/** Tạo hoặc lấy nhóm tệp cho ảnh minh chứng tiến độ của một công đoạn. */
+export async function ensureProgressPhotoSection(
+  projectId: number,
+  phaseName: string,
+  phaseSortOrder = 0
+): Promise<number> {
+  const title = progressFileSectionTitle(phaseName);
+  const existing = await tenantQueryOne<{ id: number }>(
+    `SELECT id FROM project_file_sections WHERE project_id = $1 AND title = $2`,
+    [projectId, title],
+    projectId
+  );
+  if (existing) return Number(existing.id);
+
+  const row = await tenantQueryOne<{ id: number }>(
+    `INSERT INTO project_file_sections (project_id, title, sort_order)
+     VALUES ($1, $2, $3)
+     RETURNING id`,
+    [projectId, title, PROGRESS_SECTION_SORT_BASE + phaseSortOrder],
+    projectId
+  );
+  return Number(row!.id);
+}
+
+export async function mirrorProgressPhotosToProjectFiles(input: {
+  projectId: number;
+  phaseName: string;
+  phaseSortOrder?: number;
+  userId: number;
+  photos: Array<{
+    url: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+  }>;
+}): Promise<void> {
+  if (!input.photos.length) return;
+
+  const sectionId = await ensureProgressPhotoSection(
+    input.projectId,
+    input.phaseName,
+    input.phaseSortOrder ?? 0
+  );
+
+  for (let i = 0; i < input.photos.length; i++) {
+    const photo = input.photos[i]!;
+    const url = photo.url.trim();
+    if (!url) continue;
+
+    const dup = await tenantQueryOne<{ id: number }>(
+      `SELECT id FROM project_files
+       WHERE project_id = $1 AND section_id = $2 AND file_url = $3`,
+      [input.projectId, sectionId, url],
+      input.projectId
+    );
+    if (dup) continue;
+
+    const fileName = photo.fileName?.trim() || fileNameFromUrl(url, i);
+    await createProjectFileRecord({
+      projectId: input.projectId,
+      sectionId,
+      fileName,
+      fileUrl: url,
+      fileSize: Number(photo.fileSize) || 0,
+      mimeType: photo.mimeType?.trim() || mimeFromFileName(fileName),
+      uploadedBy: input.userId,
+    });
+  }
 }
 
 export async function deleteProjectFileRecord(

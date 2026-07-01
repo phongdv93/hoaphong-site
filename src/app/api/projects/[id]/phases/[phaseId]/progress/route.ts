@@ -40,6 +40,17 @@ export async function POST(req: Request) {
       ? body.photoUrls.map(String).filter(Boolean)
       : [];
 
+    const photoFiles = Array.isArray(body.photoFiles)
+      ? body.photoFiles
+          .map((p: Record<string, unknown>) => ({
+            url: String(p.url ?? "").trim(),
+            fileName: typeof p.fileName === "string" ? p.fileName : undefined,
+            mimeType: typeof p.mimeType === "string" ? p.mimeType : undefined,
+            fileSize: Number(p.fileSize) || 0,
+          }))
+          .filter((p: { url: string }) => p.url)
+      : undefined;
+
     const isTask = ctx.project.template === "task";
 
     if (!isTask && photoUrls.length === 0) {
@@ -59,11 +70,14 @@ export async function POST(req: Request) {
       const log = await recordPhaseProgressUpdate({
         projectId: ids.id,
         phaseId: ids.phaseId,
+        phaseName: phase.name,
+        phaseSortOrder: phase.sortOrder,
         userId: ctx.user.id,
         progressPercent,
         status,
         note: String(body.note ?? ""),
         photoUrls,
+        photoFiles,
         photoOptional: isTask,
       });
       return NextResponse.json({ log });
