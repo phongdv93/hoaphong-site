@@ -10,6 +10,9 @@ import type {
   PurchaseOrderStatus,
 } from "./types";
 
+/** `null` = đơn kế toán (không gắn dự án). */
+export type PurchaseOrderScope = number | null;
+
 function mapLine(row: Record<string, unknown>): PurchaseOrderLine {
   return {
     id: row.id as number,
@@ -36,7 +39,7 @@ function mapOrder(row: Record<string, unknown>, lines?: PurchaseOrderLine[]): Pu
   return {
     id: row.id as number,
     companyId: row.company_id as number,
-    projectId: row.project_id as number,
+    projectId: row.project_id != null ? Number(row.project_id) : null,
     poNumber: String(row.po_number ?? ""),
     supplierName: String(row.supplier_name ?? ""),
     status: row.status as PurchaseOrderStatus,
@@ -50,7 +53,16 @@ function mapOrder(row: Record<string, unknown>, lines?: PurchaseOrderLine[]): Pu
   };
 }
 
-async function nextPoNumber(companyId: number, projectId: number): Promise<string> {
+async function nextPoNumber(companyId: number, projectId: PurchaseOrderScope): Promise<string> {
+  if (projectId == null) {
+    const row = await tenantQueryOne<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM purchase_orders WHERE company_id = $1 AND project_id IS NULL`,
+      [companyId],
+      companyId
+    );
+    const seq = (row?.n ?? 0) + 1;
+    return `PO-KT-${String(seq).padStart(3, "0")}`;
+  }
   const row = await tenantQueryOne<{ n: number }>(
     `SELECT COUNT(*)::int AS n FROM purchase_orders WHERE company_id = $1 AND project_id = $2`,
     [companyId, projectId],
@@ -71,15 +83,20 @@ async function loadLines(purchaseOrderId: number, companyId: number): Promise<Pu
 
 export async function listPurchaseOrders(
   companyId: number,
-  projectId: number
+  projectId: PurchaseOrderScope
 ): Promise<PurchaseOrder[]> {
+  const filter =
+    projectId == null
+      ? "po.company_id = $1 AND po.project_id IS NULL"
+      : "po.company_id = $1 AND po.project_id = $2";
+  const params = projectId == null ? [companyId] : [companyId, projectId];
   const rows = await tenantQuery<Record<string, unknown>>(
     `SELECT po.*,
             (SELECT COUNT(*)::int FROM purchase_order_lines l WHERE l.purchase_order_id = po.id) AS line_count
      FROM purchase_orders po
-     WHERE po.company_id = $1 AND po.project_id = $2
+     WHERE ${filter}
      ORDER BY po.updated_at DESC`,
-    [companyId, projectId],
+    params,
     companyId
   );
   return rows.map((r) => mapOrder(r));
@@ -87,14 +104,15 @@ export async function listPurchaseOrders(
 
 export async function getPurchaseOrder(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   id: number
 ): Promise<PurchaseOrder | null> {
-  const row = await tenantQueryOne<Record<string, unknown>>(
-    `SELECT * FROM purchase_orders WHERE id = $1 AND company_id = $2 AND project_id = $3`,
-    [id, companyId, projectId],
-    companyId
-  );
+  const filter =
+    projectId == null
+      ? "id = $1 AND company_id = $2 AND project_id IS NULL"
+      : "id = $1 AND company_id = $2 AND project_id = $3";
+  const params = projectId == null ? [id, companyId] : [id, companyId, projectId];
+  const row = await tenantQueryOne<Record<string, unknown>>(`SELECT * FROM purchase_orders WHERE ${filter}`, params, companyId);
   if (!row) return null;
   const lines = await loadLines(id, companyId);
   return mapOrder(row, lines);
@@ -102,7 +120,7 @@ export async function getPurchaseOrder(
 
 export async function createPurchaseOrder(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   input: PurchaseOrderInput,
   createdBy?: number | null
 ): Promise<PurchaseOrder> {
@@ -131,12 +149,37 @@ export async function createPurchaseOrder(
 
 export async function updatePurchaseOrder(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   id: number,
   input: Partial<PurchaseOrderInput>
 ): Promise<PurchaseOrder> {
   const cur = await getPurchaseOrder(companyId, projectId, id);
   if (!cur) throw new Error("Không tìm thấy đơn đặt hàng");
+  const filter =
+    projectId == null
+      ? "id = $6 AND company_id = $7 AND project_id IS NULL"
+      : "id = $6 AND company_id = $7 AND project_id = $8";
+  const params =
+    projectId == null
+      ? [
+          input.supplierName?.trim() ?? cur.supplierName,
+          input.status ?? cur.status,
+          input.orderedAt === undefined ? cur.orderedAt : input.orderedAt,
+          input.expectedAt === undefined ? cur.expectedAt : input.expectedAt,
+          input.notes === undefined ? cur.notes : input.notes.trim(),
+          id,
+          companyId,
+        ]
+      : [
+          input.supplierName?.trim() ?? cur.supplierName,
+          input.status ?? cur.status,
+          input.orderedAt === undefined ? cur.orderedAt : input.orderedAt,
+          input.expectedAt === undefined ? cur.expectedAt : input.expectedAt,
+          input.notes === undefined ? cur.notes : input.notes.trim(),
+          id,
+          companyId,
+          projectId,
+        ];
   await tenantExecute(
     `UPDATE purchase_orders SET
        supplier_name = $1,
@@ -145,17 +188,8 @@ export async function updatePurchaseOrder(
        expected_at = $4,
        notes = $5,
        updated_at = NOW()
-     WHERE id = $6 AND company_id = $7 AND project_id = $8`,
-    [
-      input.supplierName?.trim() ?? cur.supplierName,
-      input.status ?? cur.status,
-      input.orderedAt === undefined ? cur.orderedAt : input.orderedAt,
-      input.expectedAt === undefined ? cur.expectedAt : input.expectedAt,
-      input.notes === undefined ? cur.notes : input.notes.trim(),
-      id,
-      companyId,
-      projectId,
-    ],
+     WHERE ${filter}`,
+    params,
     companyId
   );
   return (await getPurchaseOrder(companyId, projectId, id))!;
@@ -163,14 +197,15 @@ export async function updatePurchaseOrder(
 
 export async function deletePurchaseOrder(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   id: number
 ): Promise<void> {
-  await tenantExecute(
-    `DELETE FROM purchase_orders WHERE id = $1 AND company_id = $2 AND project_id = $3`,
-    [id, companyId, projectId],
-    companyId
-  );
+  const filter =
+    projectId == null
+      ? "id = $1 AND company_id = $2 AND project_id IS NULL"
+      : "id = $1 AND company_id = $2 AND project_id = $3";
+  const params = projectId == null ? [id, companyId] : [id, companyId, projectId];
+  await tenantExecute(`DELETE FROM purchase_orders WHERE ${filter}`, params, companyId);
 }
 
 async function lineFromProjectItem(
@@ -238,7 +273,7 @@ async function lineFromCatalog(
 
 export async function addPurchaseOrderLines(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   purchaseOrderId: number,
   lines: Array<
     | { source: "item"; projectItemId: number }
@@ -292,10 +327,7 @@ export async function addPurchaseOrderLines(
         ]
       );
     }
-    await client.query(
-      `UPDATE purchase_orders SET updated_at = NOW() WHERE id = $1`,
-      [purchaseOrderId]
-    );
+    await client.query(`UPDATE purchase_orders SET updated_at = NOW() WHERE id = $1`, [purchaseOrderId]);
   }, companyId);
 
   return (await getPurchaseOrder(companyId, projectId, purchaseOrderId))!;
@@ -303,7 +335,7 @@ export async function addPurchaseOrderLines(
 
 export async function removePurchaseOrderLine(
   companyId: number,
-  projectId: number,
+  projectId: PurchaseOrderScope,
   purchaseOrderId: number,
   lineId: number
 ): Promise<void> {
@@ -314,9 +346,5 @@ export async function removePurchaseOrderLine(
     [lineId, purchaseOrderId],
     companyId
   );
-  await tenantExecute(
-    `UPDATE purchase_orders SET updated_at = NOW() WHERE id = $1`,
-    [purchaseOrderId],
-    companyId
-  );
+  await tenantExecute(`UPDATE purchase_orders SET updated_at = NOW() WHERE id = $1`, [purchaseOrderId], companyId);
 }

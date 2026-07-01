@@ -23,7 +23,7 @@ export interface PurchaseOrderLine {
 export interface PurchaseOrder {
   id: number;
   companyId: number;
-  projectId: number;
+  projectId: number | null;
   poNumber: string;
   supplierName: string;
   status: PurchaseOrderStatus;

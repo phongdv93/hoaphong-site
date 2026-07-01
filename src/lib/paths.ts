@@ -17,4 +17,5 @@ export const ERP = {
   xnkImportDetail: (id: number | string) => `/erp/xnk/hai-quan-nhap/${id}`,
   keToanHoaDonDienTu: "/erp/ke-toan/hoa-don-dien-tu",
   keToanHoaDonDienTuConfig: "/erp/ke-toan/hoa-don-dien-tu/cau-hinh",
+  keToanDatHang: "/erp/ke-toan/dat-hang",
 } as const;

@@ -65,6 +65,35 @@ export async function listFactoryProducts(): Promise<FactoryProduct[]> {
   return rows.map(mapProduct);
 }
 
+export async function searchFactoryProducts(query: string, limit = 30): Promise<FactoryProduct[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const like = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+  const rows = await tenantQuery(
+    `SELECT DISTINCT fp.*
+     FROM factory_products fp
+     LEFT JOIN factory_product_bom_lines bl ON bl.product_id = fp.id
+     LEFT JOIN factory_parts pt ON pt.id = bl.part_id
+     WHERE fp.name ILIKE $1 ESCAPE '\\'
+        OR fp.description ILIKE $1 ESCAPE '\\'
+        OR fp.supplier ILIKE $1 ESCAPE '\\'
+        OR fp.brand ILIKE $1 ESCAPE '\\'
+        OR fp.origin ILIKE $1 ESCAPE '\\'
+        OR fp.notes ILIKE $1 ESCAPE '\\'
+        OR fp.range_code ILIKE $1 ESCAPE '\\'
+        OR fp.wood_code ILIKE $1 ESCAPE '\\'
+        OR fp.paint_code ILIKE $1 ESCAPE '\\'
+        OR pt.name ILIKE $1 ESCAPE '\\'
+        OR pt.material_type ILIKE $1 ESCAPE '\\'
+        OR pt.spec_notes ILIKE $1 ESCAPE '\\'
+        OR pt.description ILIKE $1 ESCAPE '\\'
+     ORDER BY fp.updated_at DESC, fp.id DESC
+     LIMIT $2`,
+    [like, limit]
+  );
+  return rows.map(mapProduct);
+}
+
 export async function getFactoryProduct(id: number): Promise<FactoryProduct | null> {
   const row = await tenantQueryOne("SELECT * FROM factory_products WHERE id = $1", [id]);
   return row ? mapProduct(row) : null;

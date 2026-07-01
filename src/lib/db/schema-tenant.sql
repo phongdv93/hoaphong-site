@@ -566,11 +566,11 @@ ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAU
 ALTER TABLE mobifone_invoice_profiles ADD COLUMN IF NOT EXISTS api_base_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE e_invoices ADD COLUMN IF NOT EXISTS lookup_code TEXT NOT NULL DEFAULT '';
 
--- Đơn đặt hàng mua (1 dự án → nhiều PO, mỗi PO = 1 NCC)
+-- Đơn đặt hàng mua (dự án hoặc kế toán; mỗi PO = 1 NCC)
 CREATE TABLE IF NOT EXISTS purchase_orders (
   id SERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
-  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
   po_number TEXT NOT NULL DEFAULT '',
   supplier_name TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'draft',
@@ -583,6 +583,9 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_project ON purchase_orders(project_id, updated_at DESC);
+
+ALTER TABLE purchase_orders ALTER COLUMN project_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_company_acct ON purchase_orders(company_id, updated_at DESC) WHERE project_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS purchase_order_lines (
   id SERIAL PRIMARY KEY,

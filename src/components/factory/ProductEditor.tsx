@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Save, Calculator, ChevronDown, ChevronRight } from "lucide-react";
 import type { BomLineInput, BomSection, FactoryBomLine, FactoryProduct, FactoryProductPayload, FactoryProductStatus } from "@/lib/factory/types";
-import { DEFAULT_PRODUCT_ORIGIN, formatDimensionsMm, formatProductPrimaryCode, shortDescription } from "@/lib/factory/display";
+import { DEFAULT_PRODUCT_ORIGIN, formatDimensionsMm, formatProductPrimaryCode } from "@/lib/factory/display";
 import { BomBlock } from "./BomBlock";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { ExpandableTextarea } from "@/components/ui/ExpandableTextarea";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 
 const emptyRow = (): BomLineInput => ({
@@ -272,67 +273,61 @@ export function ProductEditor({
 
       <div className="erp-card p-4 space-y-3">
         <h2 className="font-semibold text-slate-200 text-sm">Thông tin chính</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-xs">
-          <div className="sm:col-span-2">
+        <div className="space-y-2.5 text-xs">
+          <div>
             <label className="block font-medium text-slate-400 mb-0.5">Tên sản phẩm *</label>
-            <input className="input-field py-1.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
+            <input className="input-field py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Mã (range · gỗ · sơn · KH)</label>
-            <div className="grid grid-cols-2 gap-1.5">
-              <input className="input-field py-1.5" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} placeholder="Range" />
-              <input className="input-field py-1.5" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} placeholder="Gỗ" />
-              <input className="input-field py-1.5" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} placeholder="Sơn" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="block font-medium text-slate-400 mb-0.5">Hãng</label>
+              <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
+            </div>
+            <div>
+              <label className="block font-medium text-slate-400 mb-0.5">Xuất xứ</label>
+              <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+            </div>
+            <div>
+              <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
               <input
                 className="input-field py-1.5"
-                value={customerBranchCode}
-                onChange={(e) => setCustomerBranchCode(e.target.value)}
-                placeholder="Mã KH"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                placeholder="Mua từ đâu"
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1 font-mono">{codePreview}</p>
           </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Kích thước (mm)</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              <input
-                type="number"
-                className="input-field py-1.5"
-                value={lengthMm || ""}
-                onChange={(e) => setLengthMm(Number(e.target.value) || 0)}
-                placeholder="Dài"
-              />
-              <input
-                type="number"
-                className="input-field py-1.5"
-                value={depthMm || ""}
-                onChange={(e) => setDepthMm(Number(e.target.value) || 0)}
-                placeholder="Sâu"
-              />
-              <input
-                type="number"
-                className="input-field py-1.5"
-                value={heightMm || ""}
-                onChange={(e) => setHeightMm(Number(e.target.value) || 0)}
-                placeholder="Cao"
-              />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label className="block font-medium text-slate-400 mb-0.5">Mã · Range · Gỗ · Sơn · KH</label>
+              <div className="flex flex-wrap gap-1">
+                <input className="input-field py-1.5 w-[4.5rem]" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} placeholder="Range" title="Range" />
+                <input className="input-field py-1.5 w-[4.5rem]" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} placeholder="Gỗ" title="Gỗ" />
+                <input className="input-field py-1.5 w-[4.5rem]" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} placeholder="Sơn" title="Sơn" />
+                <input className="input-field py-1.5 flex-1 min-w-[5rem]" value={customerBranchCode} onChange={(e) => setCustomerBranchCode(e.target.value)} placeholder="Mã KH" />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">{codePreview}</p>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">{sizePreview}</p>
+            <div>
+              <label className="block font-medium text-slate-400 mb-0.5">Kích thước (mm)</label>
+              <div className="flex gap-1">
+                <input type="number" className="input-field py-1.5 w-full" value={lengthMm || ""} onChange={(e) => setLengthMm(Number(e.target.value) || 0)} placeholder="Dài" />
+                <input type="number" className="input-field py-1.5 w-full" value={depthMm || ""} onChange={(e) => setDepthMm(Number(e.target.value) || 0)} placeholder="Sâu" />
+                <input type="number" className="input-field py-1.5 w-full" value={heightMm || ""} onChange={(e) => setHeightMm(Number(e.target.value) || 0)} placeholder="Cao" />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5">{sizePreview}</p>
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <label className="block font-medium text-slate-400 mb-0.5">Mô tả</label>
-            <textarea
-              className="input-field py-1.5 text-sm min-h-[52px] resize-y"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-            />
-            {description.trim() ? (
-              <p className="text-[10px] text-slate-500 mt-1">
-                Rút gọn: {shortDescription(description, 96)}
-              </p>
-            ) : null}
-          </div>
+
+          <ExpandableTextarea
+            label="Mô tả"
+            value={description}
+            onChange={setDescription}
+            rows={5}
+            previewChars={140}
+          />
         </div>
       </div>
 
@@ -347,30 +342,13 @@ export function ProductEditor({
           ) : (
             <ChevronRight size={16} className="text-slate-500 shrink-0" />
           )}
-          <span className="font-semibold text-slate-200 text-sm">Chi tiết, hãng, BOM</span>
+          <span className="font-semibold text-slate-200 text-sm">Giá, BOM & ghi chú</span>
           <span className="text-[10px] text-slate-500 ml-auto">Cấp 2</span>
         </button>
 
         {detailsOpen && (
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-2 text-xs">
-              <div>
-                <label className="block font-medium text-slate-400 mb-0.5">Hãng</label>
-                <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
-              </div>
-              <div>
-                <label className="block font-medium text-slate-400 mb-0.5">Xuất xứ</label>
-                <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-              </div>
-              <div className="col-span-2 sm:col-span-2 lg:col-span-3">
-                <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
-                <input
-                  className="input-field py-1.5"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  placeholder="Mua từ đâu"
-                />
-              </div>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
               <div>
                 <label className="block font-medium text-slate-400 mb-0.5">Ngày đặt hàng</label>
                 <ErpDateInput
@@ -427,7 +405,7 @@ export function ProductEditor({
                   ]}
                 />
               </div>
-              <div className="col-span-2 sm:col-span-3 lg:col-span-3">
+              <div className="col-span-2 sm:col-span-2 lg:col-span-2">
                 <label className="block font-medium text-slate-400 mb-0.5">Ảnh (URL)</label>
                 <input
                   className="input-field py-1.5"
@@ -436,19 +414,17 @@ export function ProductEditor({
                   placeholder="https://…"
                 />
               </div>
-              <div className="col-span-2 sm:col-span-3 lg:col-span-3 flex items-center justify-center bg-white/5 rounded-lg border border-white/10 min-h-[72px] p-2">
+              <div className="col-span-2 sm:col-span-2 lg:col-span-2 flex items-center justify-center bg-white/5 rounded-lg border border-white/10 min-h-[56px] p-2">
                 {imageUrl.trim() ? (
                   /* eslint-disable-next-line @next/next/no-img-element -- URL tùy ý từ ERP */
-                  <img src={imageUrl.trim()} alt="" className="max-h-20 max-w-full object-contain rounded" />
+                  <img src={imageUrl.trim()} alt="" className="max-h-16 max-w-full object-contain rounded" />
                 ) : (
                   <span className="text-slate-500 text-[11px]">Xem trước ảnh</span>
                 )}
               </div>
-              <div className="col-span-2 sm:col-span-3 lg:col-span-6">
-                <label className="block font-medium text-slate-400 mb-0.5">Ghi chú</label>
-                <textarea className="input-field py-1.5 text-xs" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
             </div>
+
+            <ExpandableTextarea label="Ghi chú" value={notes} onChange={setNotes} rows={3} previewChars={100} />
 
             <div className="space-y-4 pt-2 border-t border-white/10">
               <div>

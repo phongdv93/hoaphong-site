@@ -281,6 +281,15 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
     ownerDepartmentId: "ke-toan",
     items: [
       {
+        id: "dat-hang",
+        title: "Đơn đặt hàng",
+        description: "PO mua hàng kế toán — tìm SP theo tên, NCC, hãng, nguyên liệu",
+        href: "/erp/ke-toan/dat-hang",
+        status: "active",
+        icon: ShoppingCart,
+        plannedFeatures: ["Gắn dự án", "Đối soát NCC", "In PO"],
+      },
+      {
         id: "hoa-don-dien-tu",
         title: "Hóa đơn điện tử",
         description: "Đồng bộ HĐ bán ra từ MobiFone Invoice theo MST công ty",
