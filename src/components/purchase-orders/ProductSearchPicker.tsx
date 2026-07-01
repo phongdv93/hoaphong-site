@@ -49,7 +49,7 @@ export function ProductSearchPicker({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [supplierId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

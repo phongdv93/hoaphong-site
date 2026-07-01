@@ -259,8 +259,8 @@ async function lineFromCatalog(
   const p = await getFactoryProduct(factoryProductId);
   if (!p) throw new Error("Không tìm thấy sản phẩm");
   let unitPrice = p.price;
-  let brand = p.brand;
-  let origin = p.origin || DEFAULT_PRODUCT_ORIGIN;
+  const brand = p.brand;
+  const origin = p.origin || DEFAULT_PRODUCT_ORIGIN;
   if (supplierId) {
     const offer = await tenantQueryOne<Record<string, unknown>>(
       `SELECT unit_price FROM factory_product_suppliers WHERE product_id = $1 AND supplier_id = $2`,
