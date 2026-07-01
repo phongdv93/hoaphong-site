@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Settings } from "lucide-react";
+import { CalendarRange, RefreshCw, Settings } from "lucide-react";
+import { ErpDateInput } from "@/components/erp/ErpDateInput";
+import { AppSelect } from "@/components/ui/AppSelect";
 import type { EInvoiceRecord } from "@/lib/einvoice/types";
 import { INVOICE_DIRECTION_LABELS } from "@/lib/einvoice/constants";
 import { formatVnMoney } from "@/lib/quote/calc";
+
+const DIRECTION_OPTIONS = [
+  { value: "out", label: INVOICE_DIRECTION_LABELS.out },
+  { value: "in", label: INVOICE_DIRECTION_LABELS.in },
+] as const;
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -26,6 +33,15 @@ function defaultRange() {
   };
 }
 
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block text-xs min-w-[9.5rem]">
+      <span className="text-slate-400 mb-1 block font-medium">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function EinvoiceListClient() {
   const range = useMemo(() => defaultRange(), []);
   const [items, setItems] = useState<EInvoiceRecord[]>([]);
@@ -36,7 +52,7 @@ export function EinvoiceListClient() {
   const [syncMessage, setSyncMessage] = useState("");
   const [fromDate, setFromDate] = useState(range.from);
   const [toDate, setToDate] = useState(range.to);
-  const [direction, setDirection] = useState<"out" | "in" | "">("out");
+  const [direction, setDirection] = useState<"out" | "in">("out");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,11 +60,11 @@ export function EinvoiceListClient() {
     try {
       const [profileRes, listRes] = await Promise.all([
         fetch("/api/einvoice/profile"),
-        fetch(`/api/einvoice/invoices?direction=${direction || "out"}`),
+        fetch(`/api/einvoice/invoices?direction=${direction}`),
       ]);
       const profileJ = await profileRes.json().catch(() => ({}));
       const listJ = await listRes.json().catch(() => ({}));
-      if (!profileRes.ok) throw new Error(profileJ.error || "Không tải cấu hình");
+      if (!profileRes.ok) throw new Error(profileJ.error || "Không tải được cấu hình");
       if (!listRes.ok) throw new Error(listJ.error || "Không tải danh sách");
       setConfigured(Boolean(profileJ.configured));
       setItems((listJ.items ?? []) as EInvoiceRecord[]);
@@ -120,36 +136,27 @@ export function EinvoiceListClient() {
         </div>
       </div>
 
-      <div className="shrink-0 flex flex-wrap items-end gap-3 mb-3">
-        <label className="text-sm">
-          <span className="text-slate-400 block mb-1">Từ ngày</span>
-          <input
-            type="date"
-            className="input-field"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="text-slate-400 block mb-1">Đến ngày</span>
-          <input
-            type="date"
-            className="input-field"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="text-slate-400 block mb-1">Loại</span>
-          <select
-            className="input-field"
-            value={direction}
-            onChange={(e) => setDirection(e.target.value as "out" | "in" | "")}
-          >
-            <option value="out">{INVOICE_DIRECTION_LABELS.out}</option>
-            <option value="in">{INVOICE_DIRECTION_LABELS.in}</option>
-          </select>
-        </label>
+      <div className="erp-card shrink-0 p-3 mb-3">
+        <div className="flex items-center gap-2 text-slate-300 text-xs font-medium mb-3">
+          <CalendarRange size={15} className="text-sky-light shrink-0" />
+          Khoảng thời gian đồng bộ
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <FilterField label="Từ ngày">
+            <ErpDateInput value={fromDate} onChange={setFromDate} className="text-sm" />
+          </FilterField>
+          <FilterField label="Đến ngày">
+            <ErpDateInput value={toDate} onChange={setToDate} className="text-sm" />
+          </FilterField>
+          <FilterField label="Loại hóa đơn">
+            <AppSelect
+              value={direction}
+              options={[...DIRECTION_OPTIONS]}
+              onChange={(v) => setDirection(v as "out" | "in")}
+              variant="dark"
+            />
+          </FilterField>
+        </div>
       </div>
 
       {syncMessage && (

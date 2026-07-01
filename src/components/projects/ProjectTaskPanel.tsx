@@ -355,21 +355,21 @@ export function ProjectTaskPanel({
 
   return (
     <div
-      className="flex flex-1 min-h-0 h-full w-full overflow-hidden"
+      className="flex flex-1 min-h-0 h-full w-full overflow-hidden border-l border-white/15"
       style={{
-        background: "#0a1120",
-        color: "#e2e8f0",
+        background: "linear-gradient(180deg, #0e172b 0%, #0a1120 100%)",
+        color: "#f1f5f9",
       }}
     >
       {/* Icon rail */}
       <div
-        className="flex flex-col items-center py-2 gap-0.5 shrink-0 self-stretch min-h-0"
-        style={{ width: PROJECT_PANEL_RAIL_W, background: "#0e172b" }}
+        className="flex flex-col items-center py-2 gap-0.5 shrink-0 self-stretch min-h-0 border-r border-white/12"
+        style={{ width: PROJECT_PANEL_RAIL_W, background: "#131f38" }}
       >
         <button
           type="button"
           onClick={onClose}
-          className="p-2 rounded-lg hover:bg-white/10 text-slate-400 mb-1"
+          className="p-2 rounded-lg hover:bg-white/12 text-slate-300 hover:text-white mb-1"
           title="Đóng panel"
         >
           <X size={16} />
@@ -382,10 +382,10 @@ export function ProjectTaskPanel({
               key={t.id}
               type="button"
               onClick={() => pickTab(t.id)}
-              className={`p-2 rounded-lg w-10 h-10 flex items-center justify-center ${
+              className={`p-2 rounded-lg w-10 h-10 flex items-center justify-center transition-colors ${
                 active
-                  ? "bg-sky/25 text-sky-light"
-                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+                  ? "bg-sky/35 text-sky-light ring-1 ring-sky/50 shadow-sm shadow-sky/20"
+                  : "text-slate-300 hover:bg-white/12 hover:text-white"
               }`}
               title={t.label}
             >
@@ -397,7 +397,7 @@ export function ProjectTaskPanel({
         <button
           type="button"
           onClick={toggleCollapsed}
-          className="p-2 rounded-lg hover:bg-white/10 text-slate-400 mb-1"
+          className="p-2 rounded-lg hover:bg-white/12 text-slate-300 hover:text-white mb-1"
           title={collapsed ? "Mở rộng panel" : "Thu gọn (chỉ icon)"}
         >
           {collapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -419,14 +419,14 @@ export function ProjectTaskPanel({
         >
           {/* Header */}
           <div
-            className="shrink-0 px-3 py-2.5 border-b border-white/10"
-            style={{ borderTop: `3px solid ${accentColor}` }}
+            className="shrink-0 px-3 py-2.5 border-b border-white/15 bg-[#0f1a2e]/90"
+            style={{ borderTop: `4px solid ${accentColor}` }}
           >
             {loading ? (
-              <div className="text-xs text-slate-400">Đang tải…</div>
+              <div className="text-xs text-slate-300">Đang tải…</div>
             ) : p ? (
               <>
-                <div className="text-[10px] font-mono text-slate-400 truncate">
+                <div className="text-[10px] font-mono text-slate-300 truncate">
                   {p.code || "—"}
                   {p.customerName ? ` · ${p.customerName}` : ""}
                 </div>
@@ -435,11 +435,11 @@ export function ProjectTaskPanel({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${PROJECT_STATUS_TONES[p.status]}`}
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PROJECT_STATUS_TONES[p.status]}`}
                   >
                     {PROJECT_STATUS_LABELS[p.status]}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/12 text-slate-200 border border-white/10">
                     {PROJECT_TEMPLATE_LABELS[p.template ?? "project"]}
                   </span>
                   <button
@@ -670,7 +670,7 @@ export function ProjectTaskPanel({
 }
 
 const PANEL_FIELD_CLS =
-  "w-full h-[30px] rounded-md border border-white/15 bg-[#0f1a2e] px-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-sky/40";
+  "w-full h-[30px] rounded-md border border-white/20 bg-[#162236] px-2 text-[11px] text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky/40 focus:border-sky/60";
 
 function PanelSection({
   id,
@@ -694,10 +694,10 @@ function PanelSection({
       id={`section-${id}`}
       ref={setRef}
       style={style}
-      className={`py-3 border-b border-white/10 scroll-mt-0 ${className}`}
+      className={`py-3 border-b border-white/15 scroll-mt-0 ${className}`}
     >
-      <div className="flex items-center gap-2 mb-2 sticky top-0 z-[2] bg-[#0a1120]/95 backdrop-blur-sm py-1 -mx-1 px-1">
-        <h3 className="text-[10px] uppercase tracking-wide text-sky-light/90 font-semibold">
+      <div className="flex items-center gap-2 mb-2 sticky top-0 z-[2] bg-[#0e172b]/98 backdrop-blur-sm py-1.5 -mx-1 px-1 border-b border-white/10">
+        <h3 className="text-[11px] uppercase tracking-wide text-sky-light font-bold">
           {label}
         </h3>
         {extra}
@@ -820,17 +820,17 @@ function OverviewTab({
       )}
 
       {phases.length > 0 && (
-      <div className="rounded-lg bg-white/5 border border-white/10 p-2.5">
+      <div className="rounded-lg bg-[#121d33] border border-white/15 p-2.5 shadow-sm shadow-black/20">
         <div className="flex justify-between text-[11px] mb-1.5">
-          <span className="text-slate-400">Tiến độ tổng (công đoạn)</span>
-          <span className="text-white font-medium tabular-nums">{progress}%</span>
+          <span className="text-slate-300 font-medium">Tiến độ tổng (công đoạn)</span>
+          <span className="text-sky-light font-semibold tabular-nums">{progress}%</span>
         </div>
-        <div className="h-1.5 bg-white/10 rounded overflow-hidden">
-          <div className="h-full bg-sky transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-2 bg-white/12 rounded overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-sky to-sky-light transition-all" style={{ width: `${progress}%` }} />
         </div>
         {!compact && (
-          <p className="text-[10px] text-slate-500 mt-1.5">
-            Cập nhật % từng công đoạn ở tab <strong className="text-slate-300">Tiến độ</strong>.
+          <p className="text-[10px] text-slate-400 mt-1.5">
+            Cập nhật % từng công đoạn ở tab <strong className="text-slate-200">Tiến độ</strong>.
           </p>
         )}
       </div>
@@ -989,11 +989,11 @@ function ChatTab({
       </p>
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2 mb-3 pr-0.5">
         {messages.length === 0 ? (
-          <p className="text-slate-400">Chưa có tin nhắn. Gửi tin đầu tiên bên dưới.</p>
+          <p className="text-slate-300">Chưa có tin nhắn. Gửi tin đầu tiên bên dưới.</p>
         ) : (
           messages.map((m) => (
-            <div key={m.id} className="bg-white/5 rounded-lg px-2.5 py-2">
-              <div className="flex justify-between gap-2 text-[10px] text-slate-500 mb-0.5">
+            <div key={m.id} className="bg-[#121d33] border border-white/12 rounded-lg px-2.5 py-2">
+              <div className="flex justify-between gap-2 text-[10px] text-slate-400 mb-0.5">
                 <span className="font-medium text-slate-300">
                   {m.userName || "Hệ thống"}
                 </span>
@@ -1022,7 +1022,7 @@ function ChatTab({
           }}
           rows={2}
           placeholder="Nhập tin nhắn…"
-          className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-slate-100 resize-none outline-none focus:border-sky/50"
+          className="flex-1 bg-[#162236] border border-white/15 rounded px-2 py-1.5 text-slate-100 resize-none outline-none focus:border-sky/60 focus:ring-2 focus:ring-sky/30"
         />
         <button
           type="button"
@@ -1071,7 +1071,7 @@ function EditableInfo({
   }
   return (
     <div className={className}>
-      <dt className="text-[10px] uppercase text-slate-500">{label}</dt>
+      <dt className="text-[10px] uppercase text-slate-400 font-medium tracking-wide">{label}</dt>
       <dd className="mt-0.5">
         <input
           key={`${label}-${value}`}
@@ -1104,7 +1104,7 @@ function EditableDate({
   }
   return (
     <div>
-      <dt className="text-[10px] uppercase text-slate-500">{label}</dt>
+      <dt className="text-[10px] uppercase text-slate-400 font-medium tracking-wide">{label}</dt>
       <dd className="mt-0.5">
         <ErpDateInput
           value={value ?? ""}
@@ -1130,8 +1130,8 @@ function Info({
 }) {
   return (
     <div className={className}>
-      <dt className="text-[10px] uppercase text-slate-500">{label}</dt>
-      <dd className="text-slate-100 mt-0.5">{value || "—"}</dd>
+      <dt className="text-[10px] uppercase text-slate-400 font-medium tracking-wide">{label}</dt>
+      <dd className="text-white mt-0.5 font-medium">{value || "—"}</dd>
     </div>
   );
 }
