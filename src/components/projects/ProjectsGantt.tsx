@@ -809,11 +809,12 @@ function ProjectBar({
           height: labelH,
           maxHeight: labelH,
           maxWidth: w,
-          paddingLeft: labels.padX + 6,
+          paddingLeft: isTask ? labels.padX + 4 : labels.padX + 6,
           paddingRight: 8,
           borderRadius: `${pillR}px 0 0 ${pillR}px`,
         }}
       >
+        {!isTask && (
         <span
           className="shrink-0 w-2 h-2 rounded-full"
           style={{
@@ -822,6 +823,7 @@ function ProjectBar({
           }}
           aria-hidden
         />
+        )}
         {!isTask && (
         <button
           type="button"
