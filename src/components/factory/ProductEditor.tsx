@@ -54,6 +54,21 @@ function computeCbmMm(lengthMm: number, depthMm: number, heightMm: number): numb
   return (lengthMm * depthMm * heightMm) / 1e9;
 }
 
+/** Gỡ ĐVT cũ lưu trong notes (import báo giá trước khi có cột unit). */
+function splitLegacyUnit(notes: string, unitFromDb: string): { unit: string; notes: string } {
+  let unit = unitFromDb.trim();
+  let cleanNotes = notes;
+  const m = notes.match(/ĐVT:\s*([^·]+)/);
+  if (m && !unit) unit = m[1].trim();
+  if (m) {
+    cleanNotes = notes
+      .replace(/\s*ĐVT:\s*[^·]+/, "")
+      .replace(/^[ ·]+|[ ·]+$/g, "")
+      .trim();
+  }
+  return { unit: unit || "cái", notes: cleanNotes };
+}
+
 export function ProductEditor({
   productId,
   defaultBrand = "",
@@ -83,6 +98,7 @@ export function ProductEditor({
   const [depthMm, setDepthMm] = useState(0);
   const [heightMm, setHeightMm] = useState(0);
   const [price, setPrice] = useState("");
+  const [unit, setUnit] = useState("cái");
   const [cbmM3, setCbmM3] = useState(0);
   const [weightKg, setWeightKg] = useState(0);
   const [imageUrl, setImageUrl] = useState("");
@@ -95,7 +111,7 @@ export function ProductEditor({
   const [supplierOffers, setSupplierOffers] = useState<
     Array<ProductSupplierOfferInput & { supplierName?: string }>
   >([]);
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (isNew) {
@@ -130,10 +146,12 @@ export function ProductEditor({
       setDepthMm(p.depthMm);
       setHeightMm(p.heightMm);
       setPrice(p.price);
+      const legacy = splitLegacyUnit(p.notes, p.unit || "");
+      setUnit(legacy.unit);
+      setNotes(legacy.notes);
       setCbmM3(p.cbmM3);
       setWeightKg(p.weightKg);
       setImageUrl(p.imageUrl || "");
-      setNotes(p.notes);
       setStatus(p.status);
       setSourceProjectId(p.sourceProjectId);
       setBomWood(linesToDraft(data.lines, "wood"));
@@ -208,6 +226,7 @@ export function ProductEditor({
       depthMm,
       heightMm,
       price,
+      unit,
       cbmM3,
       weightKg,
       imageUrl,
@@ -233,6 +252,7 @@ export function ProductEditor({
     depthMm,
     heightMm,
     price,
+    unit,
     cbmM3,
     weightKg,
     imageUrl,
@@ -316,144 +336,169 @@ export function ProductEditor({
   }
 
   if (loading) {
-    return <p className="text-slate-400">Đang tải...</p>;
+    return <p className="text-slate-400 px-4 py-2">Đang tải...</p>;
   }
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="flex flex-col flex-1 min-h-0 w-full gap-2 px-4 pb-4">
       {error && (
-        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-200 text-sm px-4 py-2">
+        <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-200 text-sm px-4 py-2 shrink-0">
           {error}
         </div>
       )}
 
-      <div className="erp-card divide-y divide-white/10">
-        <div className="p-4 space-y-2">
-          <input
-            className="input-field py-2.5 text-base font-medium"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tên sản phẩm *"
-          />
-          {sourceProjectId ? (
-            <Link
-              href={`/erp/du-an?p=${sourceProjectId}`}
-              className="inline-block text-xs text-sky/90 hover:underline"
-            >
-              ← Dự án #{sourceProjectId}
-            </Link>
-          ) : null}
+      {detailsOpen ? (
+        <div className="erp-card px-4 py-2.5 shrink-0">
+          <p className="text-sm font-semibold text-white truncate">{name.trim() || "Chưa đặt tên"}</p>
         </div>
+      ) : (
+        <div className="erp-card flex-1 min-h-0 flex flex-col divide-y divide-white/10 overflow-hidden">
+          <div className="p-4 shrink-0 space-y-2">
+            <input
+              className="input-field py-2.5 text-base font-medium"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Tên sản phẩm *"
+            />
+            {sourceProjectId ? (
+              <Link
+                href={`/erp/du-an?p=${sourceProjectId}`}
+                className="inline-block text-xs text-sky/90 hover:underline"
+              >
+                ← Dự án #{sourceProjectId}
+              </Link>
+            ) : null}
+          </div>
 
-        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Hãng</label>
-            <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Xuất xứ</label>
-            <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Kích thước (mm)</label>
-            <div className="flex items-center gap-1.5">
+          <div className="p-4 shrink-0 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Hãng</label>
+              <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Xuất xứ</label>
+              <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Giá</label>
+              <input className="input-field py-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">ĐVT</label>
               <input
-                type="number"
-                className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
-                value={lengthMm || ""}
-                onChange={(e) => setLengthMm(Number(e.target.value) || 0)}
-                placeholder="Dài"
+                className="input-field py-1.5"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="cái, bộ, m²…"
               />
-              <span className="text-slate-600 text-xs shrink-0">×</span>
-              <input
-                type="number"
-                className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
-                value={depthMm || ""}
-                onChange={(e) => setDepthMm(Number(e.target.value) || 0)}
-                placeholder="Sâu"
-              />
-              <span className="text-slate-600 text-xs shrink-0">×</span>
-              <input
-                type="number"
-                className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
-                value={heightMm || ""}
-                onChange={(e) => setHeightMm(Number(e.target.value) || 0)}
-                placeholder="Cao"
-              />
-              {hasDimensions ? (
-                <span className="text-[10px] text-slate-500 ml-1 truncate">{sizePreview}</span>
-              ) : null}
             </div>
           </div>
-        </div>
 
-        <div className="px-4 py-3">
-          <p className="text-[11px] font-medium text-slate-400 mb-2">Mã sản phẩm</p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <label className="inline-flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 w-9 shrink-0">Range</span>
-              <input
-                className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                value={rangeCode}
-                onChange={(e) => setRangeCode(e.target.value)}
-              />
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 w-9 shrink-0">Gỗ</span>
-              <input
-                className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                value={woodCode}
-                onChange={(e) => setWoodCode(e.target.value)}
-              />
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 w-9 shrink-0">Sơn</span>
-              <input
-                className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                value={paintCode}
-                onChange={(e) => setPaintCode(e.target.value)}
-              />
-            </label>
-            <label className="inline-flex items-center gap-2 flex-1 min-w-[10rem]">
-              <span className="text-[10px] text-slate-500 shrink-0">Mã KH</span>
-              <input
-                className="input-field py-1 text-xs min-w-0 flex-1"
-                value={customerBranchCode}
-                onChange={(e) => setCustomerBranchCode(e.target.value)}
-                placeholder="Chi nhánh / mã khách"
-              />
-            </label>
+          <div className="p-4 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Kích thước (mm)</label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <input
+                    type="number"
+                    className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
+                    value={lengthMm || ""}
+                    onChange={(e) => setLengthMm(Number(e.target.value) || 0)}
+                    placeholder="Dài"
+                  />
+                  <span className="text-slate-600 text-xs shrink-0">×</span>
+                  <input
+                    type="number"
+                    className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
+                    value={depthMm || ""}
+                    onChange={(e) => setDepthMm(Number(e.target.value) || 0)}
+                    placeholder="Sâu"
+                  />
+                  <span className="text-slate-600 text-xs shrink-0">×</span>
+                  <input
+                    type="number"
+                    className="input-field py-1.5 !w-[4.25rem] shrink-0 text-center tabular-nums"
+                    value={heightMm || ""}
+                    onChange={(e) => setHeightMm(Number(e.target.value) || 0)}
+                    placeholder="Cao"
+                  />
+                  {hasDimensions ? (
+                    <span className="text-[10px] text-slate-500 ml-1">{sizePreview}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Ghi chú nội bộ</label>
+                <input
+                  className="input-field py-1.5 text-xs"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Chỉ dùng trong ERP"
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium text-slate-400 mb-2">Mã sản phẩm</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="inline-flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Range</span>
+                  <input
+                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
+                    value={rangeCode}
+                    onChange={(e) => setRangeCode(e.target.value)}
+                  />
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Gỗ</span>
+                  <input
+                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
+                    value={woodCode}
+                    onChange={(e) => setWoodCode(e.target.value)}
+                  />
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Sơn</span>
+                  <input
+                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
+                    value={paintCode}
+                    onChange={(e) => setPaintCode(e.target.value)}
+                  />
+                </label>
+                <label className="inline-flex items-center gap-2 flex-1 min-w-[8rem]">
+                  <span className="text-[10px] text-slate-500 shrink-0">Mã KH</span>
+                  <input
+                    className="input-field py-1 text-xs min-w-0 flex-1"
+                    value={customerBranchCode}
+                    onChange={(e) => setCustomerBranchCode(e.target.value)}
+                    placeholder="Chi nhánh / mã khách"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="p-4 space-y-3">
-          <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">Mô tả</label>
+          <div className="p-4 flex-1 min-h-0 flex flex-col">
+            <label className="block text-[11px] font-medium text-slate-400 mb-1 shrink-0">Mô tả</label>
             <textarea
-              className="input-field py-2 text-sm min-h-[9rem] resize-y leading-relaxed"
+              className="input-field py-2 text-sm flex-1 min-h-[6rem] resize-none leading-relaxed"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={7}
-              placeholder="Thông số kỹ thuật, quy cách, đơn vị tính…"
+              placeholder="Thông số kỹ thuật, quy cách…"
             />
           </div>
-          <label className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-            <span className="text-[11px] font-medium text-slate-400 shrink-0 sm:w-28">Ghi chú nội bộ</span>
-            <input
-              className="input-field py-1.5 text-xs flex-1"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Chỉ dùng trong ERP"
-            />
-          </label>
         </div>
-      </div>
+      )}
 
-      <div className="erp-card overflow-hidden">
+      <div
+        className={`erp-card flex flex-col overflow-hidden shrink-0 ${
+          detailsOpen ? "flex-1 min-h-0" : ""
+        }`}
+      >
         <button
           type="button"
           onClick={() => setDetailsOpen((v) => !v)}
-          className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.03] border-b border-white/5"
+          className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.03] border-b border-white/5 shrink-0"
         >
           {detailsOpen ? (
             <ChevronDown size={16} className="text-slate-500 shrink-0" />
@@ -464,14 +509,14 @@ export function ProductEditor({
         </button>
 
         {detailsOpen && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
             <ProductSupplierOffersEditor
               offers={supplierOffers}
               onChange={setSupplierOffers}
               disabled={saving}
             />
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs border-t border-white/10 pt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-white/10 pt-4">
               <div>
                 <label className="block font-medium text-slate-400 mb-1">Ngày đặt hàng</label>
                 <ErpDateInput
@@ -510,10 +555,6 @@ export function ProductEditor({
                   value={weightKg || ""}
                   onChange={(e) => setWeightKg(Number(e.target.value) || 0)}
                 />
-              </div>
-              <div>
-                <label className="block font-medium text-slate-400 mb-1">Giá tham chiếu</label>
-                <input className="input-field py-1.5 w-full" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div>
                 <label className="block font-medium text-slate-400 mb-1">Trạng thái</label>
@@ -580,7 +621,7 @@ export function ProductEditor({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 shrink-0 pt-1">
         <button type="button" onClick={save} disabled={saving} className="btn-primary text-sm py-2">
           <Save size={16} className="inline mr-1" />
           {saving ? "Đang lưu…" : "Lưu sản phẩm & BOM"}

@@ -8,7 +8,7 @@ export default async function EditFactoryProductPage({ params }: { params: Promi
   if (!Number.isFinite(num) || num < 1) notFound();
 
   return (
-    <ErpShell title="Sản phẩm" groupId="san-pham">
+    <ErpShell title="Sản phẩm" groupId="san-pham" fillHeight contentBleed>
       <ProductEditor productId={num} />
     </ErpShell>
   );

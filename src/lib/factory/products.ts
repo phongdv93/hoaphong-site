@@ -27,6 +27,7 @@ function mapProduct(row: Record<string, unknown>): FactoryProduct {
     depthMm: Number(row.depth_mm),
     heightMm: Number(row.height_mm),
     price: row.price as string,
+    unit: String(row.unit ?? "cái"),
     supplier: (row.supplier as string) ?? "",
     orderedAt: row.ordered_at ? toLocalDateString(row.ordered_at) : null,
     sourceProjectId:
@@ -295,6 +296,7 @@ export async function createCatalogProduct(input: {
   supplier?: string;
   orderedAt?: string | null;
   price?: string;
+  unit?: string;
   sourceProjectId?: number;
   sourceQuoteRef?: string;
   notes?: string;
@@ -302,8 +304,8 @@ export async function createCatalogProduct(input: {
   if (!input.name?.trim()) throw new Error("Tên sản phẩm bắt buộc");
   const row = await tenantQueryOne<{ id: number }>(
     `INSERT INTO factory_products (
-       name, description, brand, origin, supplier, ordered_at, price, notes, status, source_project_id, source_quote_ref
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9, $10) RETURNING id`,
+       name, description, brand, origin, supplier, ordered_at, price, unit, notes, status, source_project_id, source_quote_ref
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10, $11) RETURNING id`,
     [
       input.name.trim(),
       input.description?.trim() ?? "",
@@ -312,6 +314,7 @@ export async function createCatalogProduct(input: {
       input.supplier?.trim() ?? "",
       input.orderedAt ?? null,
       input.price?.trim() ?? "",
+      input.unit?.trim() || "cái",
       input.notes?.trim() ?? "",
       input.sourceProjectId ?? null,
       input.sourceQuoteRef?.trim() ?? "",
@@ -351,11 +354,11 @@ export async function importQuoteLinesToCatalog(
     const description = line.description?.trim() ?? "";
     const price = line.price?.trim() ?? "";
     const noteParts = [
-      line.unit?.trim() ? `ĐVT: ${line.unit.trim()}` : "",
       line.quantity?.trim() && line.quantity.trim() !== "1"
         ? `SL: ${line.quantity.trim()}`
         : "",
     ].filter(Boolean);
+    const unit = line.unit?.trim() || "cái";
 
     const existing = ref
       ? await tenantQueryOne<{ id: number }>(
@@ -375,9 +378,9 @@ export async function importQuoteLinesToCatalog(
     if (existing) {
       await tenantExecute(
         `UPDATE factory_products SET
-           description = $1, price = $2, notes = $3, source_quote_ref = $4, updated_at = NOW()
-         WHERE id = $5`,
-        [description, price, noteParts.join(" · "), ref, existing.id]
+           description = $1, price = $2, unit = $3, notes = $4, source_quote_ref = $5, updated_at = NOW()
+         WHERE id = $6`,
+        [description, price, unit, noteParts.join(" · "), ref, existing.id]
       );
       ids.push(existing.id);
       updated++;
@@ -386,6 +389,7 @@ export async function importQuoteLinesToCatalog(
         name,
         description,
         price,
+        unit,
         sourceQuoteRef: ref,
         notes: noteParts.join(" · "),
       });
@@ -438,8 +442,8 @@ export async function createFactoryProduct(payload: FactoryProductPayload): Prom
       `INSERT INTO factory_products (
         name, description, brand, origin, supplier, ordered_at, source_project_id,
         range_code, wood_code, paint_code, customer_branch_code,
-        length_mm, depth_mm, height_mm, price, cbm_m3, weight_kg, image_url, notes, status
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
+        length_mm, depth_mm, height_mm, price, unit, cbm_m3, weight_kg, image_url, notes, status
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`,
       [
         payload.name.trim(),
         payload.description ?? "",
@@ -456,6 +460,7 @@ export async function createFactoryProduct(payload: FactoryProductPayload): Prom
         payload.depthMm ?? 0,
         payload.heightMm ?? 0,
         payload.price ?? "",
+        payload.unit?.trim() || "cái",
         payload.cbmM3 ?? 0,
         payload.weightKg ?? 0,
         payload.imageUrl ?? "",
@@ -480,8 +485,8 @@ export async function updateFactoryProduct(id: number, payload: FactoryProductPa
       `UPDATE factory_products SET
         name=$1, description=$2, brand=$3, origin=$4, supplier=$5, ordered_at=$6, source_project_id=$7,
         range_code=$8, wood_code=$9, paint_code=$10, customer_branch_code=$11,
-        length_mm=$12, depth_mm=$13, height_mm=$14, price=$15, cbm_m3=$16, weight_kg=$17, image_url=$18, notes=$19, status=$20, updated_at=NOW()
-      WHERE id=$21`,
+        length_mm=$12, depth_mm=$13, height_mm=$14, price=$15, unit=$16, cbm_m3=$17, weight_kg=$18, image_url=$19, notes=$20, status=$21, updated_at=NOW()
+      WHERE id=$22`,
       [
         payload.name.trim(),
         payload.description ?? "",
@@ -498,6 +503,7 @@ export async function updateFactoryProduct(id: number, payload: FactoryProductPa
         payload.depthMm ?? 0,
         payload.heightMm ?? 0,
         payload.price ?? "",
+        payload.unit?.trim() || "cái",
         payload.cbmM3 ?? 0,
         payload.weightKg ?? 0,
         payload.imageUrl ?? "",

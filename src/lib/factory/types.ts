@@ -25,6 +25,7 @@ export interface FactoryProduct {
   depthMm: number;
   heightMm: number;
   price: string;
+  unit: string;
   supplier: string;
   orderedAt: string | null;
   sourceProjectId: number | null;
@@ -96,6 +97,7 @@ export interface FactoryProductPayload {
   depthMm?: number;
   heightMm?: number;
   price?: string;
+  unit?: string;
   cbmM3?: number;
   weightKg?: number;
   imageUrl?: string;

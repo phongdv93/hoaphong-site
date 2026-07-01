@@ -12,7 +12,7 @@ export default async function NewFactoryProductPage() {
   }
 
   return (
-    <ErpShell title="Sản phẩm mới" groupId="san-pham">
+    <ErpShell title="Sản phẩm mới" groupId="san-pham" fillHeight contentBleed>
       <ProductEditor productId={null} defaultBrand={defaultBrand} />
     </ErpShell>
   );

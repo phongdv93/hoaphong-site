@@ -563,6 +563,7 @@ CREATE INDEX IF NOT EXISTS idx_e_invoices_direction ON e_invoices(company_id, di
 
 ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
 ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'Việt Nam';
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT 'cái';
 ALTER TABLE mobifone_invoice_profiles ADD COLUMN IF NOT EXISTS api_base_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE e_invoices ADD COLUMN IF NOT EXISTS lookup_code TEXT NOT NULL DEFAULT '';
 
