@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarRange, RefreshCw, Settings } from "lucide-react";
+import { CalendarRange, FileText, RefreshCw, Settings, X } from "lucide-react";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { AppSelect } from "@/components/ui/AppSelect";
 import type { EInvoiceRecord } from "@/lib/einvoice/types";
@@ -13,6 +13,18 @@ const DIRECTION_OPTIONS = [
   { value: "out", label: INVOICE_DIRECTION_LABELS.out },
   { value: "in", label: INVOICE_DIRECTION_LABELS.in },
 ] as const;
+
+type InvoiceLine = {
+  stt?: string;
+  ma?: string;
+  ten?: string;
+  dvtinh?: string;
+  sluong?: number;
+  dgia?: number;
+  thtien?: number;
+  tsuat?: string;
+  tthue?: number;
+};
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -42,17 +54,161 @@ function FilterField({ label, children }: { label: string; children: React.React
   );
 }
 
+function parseInvoiceLines(raw?: Record<string, unknown>): InvoiceLine[] {
+  if (!raw) return [];
+  const details = raw.details;
+  if (Array.isArray(details)) return details as InvoiceLine[];
+  if (typeof details === "string" && details.trim()) {
+    try {
+      const parsed = JSON.parse(details) as unknown;
+      return Array.isArray(parsed) ? (parsed as InvoiceLine[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function InvoiceDetailPanel({
+  invoiceId,
+  onClose,
+}: {
+  invoiceId: number;
+  onClose: () => void;
+}) {
+  const [invoice, setInvoice] = useState<EInvoiceRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (refresh = false) => {
+    setLoading(true);
+    setError("");
+    const res = await fetch(`/api/einvoice/invoices/${invoiceId}${refresh ? "?refresh=1" : ""}`);
+    const j = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(j.error || "Không tải được chi tiết");
+      setInvoice(null);
+      return;
+    }
+    setInvoice(j.invoice as EInvoiceRecord);
+  }, [invoiceId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const lines = useMemo(() => parseInvoiceLines(invoice?.rawJson), [invoice?.rawJson]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
+      <div
+        className="w-full max-w-lg h-full bg-[#0c1524] border-l border-white/10 shadow-2xl overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 bg-[#0c1524]">
+          <h2 className="font-semibold text-slate-100 text-sm">Chi tiết hóa đơn</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {loading ? (
+            <p className="text-sm text-slate-500">Đang tải…</p>
+          ) : error ? (
+            <p className="text-sm text-rose-300">{error}</p>
+          ) : invoice ? (
+            <>
+              <div className="space-y-1 text-sm">
+                <p className="text-lg font-medium text-white">
+                  {invoice.invoiceSeries} / {invoice.invoiceNo}
+                </p>
+                <p className="text-slate-400">Ngày: {formatDate(invoice.invoiceDate)}</p>
+                <p className="text-slate-300">{invoice.counterpartyName || "—"}</p>
+                <p className="text-slate-500">MST: {invoice.counterpartyTaxCode || "—"}</p>
+                <p className="text-slate-400 text-xs">Trạng thái: {invoice.statusText || "—"}</p>
+                {invoice.taxAuthorityCode ? (
+                  <p className="text-slate-500 text-xs">Mã CQT: {invoice.taxAuthorityCode}</p>
+                ) : null}
+                {invoice.lookupCode ? (
+                  <p className="text-slate-500 text-xs">Mã tra cứu: {invoice.lookupCode}</p>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="erp-card p-2">
+                  <p className="text-slate-500">Trước thuế</p>
+                  <p className="text-slate-200 font-medium">{formatVnMoney(invoice.totalBeforeTax)}</p>
+                </div>
+                <div className="erp-card p-2">
+                  <p className="text-slate-500">Thuế</p>
+                  <p className="text-slate-200 font-medium">{formatVnMoney(invoice.totalTax)}</p>
+                </div>
+                <div className="erp-card p-2">
+                  <p className="text-slate-500">Tổng</p>
+                  <p className="text-slate-100 font-semibold">{formatVnMoney(invoice.totalAmount)}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/api/einvoice/invoices/${invoice.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="quote-tool-btn text-sm !py-2"
+                >
+                  <FileText size={14} /> Tải PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void load(true)}
+                  className="quote-tool-btn text-sm !py-2"
+                >
+                  <RefreshCw size={14} /> Làm mới từ MobiFone
+                </button>
+              </div>
+
+              {lines.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-medium text-slate-400 mb-2">Dòng hàng</h3>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {lines.map((ln, i) => (
+                      <div
+                        key={`${ln.stt ?? i}-${ln.ma ?? ""}`}
+                        className="rounded border border-white/8 bg-white/[0.02] px-2 py-1.5 text-xs"
+                      >
+                        <div className="text-slate-200">{ln.ten || "—"}</div>
+                        <div className="text-slate-500">
+                          SL {ln.sluong ?? "—"} × {formatVnMoney(Number(ln.dgia ?? 0))}
+                          {ln.tsuat ? ` · ${ln.tsuat}%` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EinvoiceListClient() {
   const range = useMemo(() => defaultRange(), []);
   const [items, setItems] = useState<EInvoiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [configured, setConfigured] = useState(false);
+  const [resolvedBaseUrl, setResolvedBaseUrl] = useState("");
   const [error, setError] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
   const [fromDate, setFromDate] = useState(range.from);
   const [toDate, setToDate] = useState(range.to);
   const [direction, setDirection] = useState<"out" | "in">("out");
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +223,7 @@ export function EinvoiceListClient() {
       if (!profileRes.ok) throw new Error(profileJ.error || "Không tải được cấu hình");
       if (!listRes.ok) throw new Error(listJ.error || "Không tải danh sách");
       setConfigured(Boolean(profileJ.configured));
+      setResolvedBaseUrl(String(profileJ.profile?.resolvedBaseUrl ?? ""));
       setItems((listJ.items ?? []) as EInvoiceRecord[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Lỗi tải");
@@ -81,13 +238,19 @@ export function EinvoiceListClient() {
   }, [load]);
 
   async function sync() {
+    if (direction === "in") {
+      setError(
+        "Hóa đơn mua vào chưa có API đồng bộ trong tài liệu MobiFone v4.7 — liên hệ MobiFone để bật module HĐ đầu vào hoặc tra cứu trên cổng TCT."
+      );
+      return;
+    }
     setSyncing(true);
     setSyncMessage("");
     setError("");
     const res = await fetch("/api/einvoice/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromDate, toDate }),
+      body: JSON.stringify({ fromDate, toDate, direction }),
     });
     const j = await res.json();
     setSyncing(false);
@@ -104,9 +267,12 @@ export function EinvoiceListClient() {
       <div className="shrink-0 flex flex-wrap items-end justify-between gap-3 py-4">
         <div>
           <p className="text-sm text-slate-400 max-w-2xl">
-            Đồng bộ <strong className="text-slate-200">hóa đơn bán ra</strong> từ MobiFone Invoice.
-            MST người bán lấy từ hồ sơ công ty — không nhập tay.
+            Đồng bộ <strong className="text-slate-200">hóa đơn bán ra</strong> từ MobiFone Invoice API
+            (đăng nhập + lấy danh sách theo ngày). MST lấy từ hồ sơ công ty.
           </p>
+          {resolvedBaseUrl && (
+            <p className="text-xs text-slate-500 mt-1 font-mono break-all">API: {resolvedBaseUrl}</p>
+          )}
           {!configured && (
             <p className="text-sm text-amber-200 mt-2">
               Chưa cấu hình MobiFone —{" "}
@@ -127,7 +293,7 @@ export function EinvoiceListClient() {
           <button
             type="button"
             onClick={() => void sync()}
-            disabled={syncing || !configured}
+            disabled={syncing || !configured || direction === "in"}
             className="quote-tool-btn quote-tool-btn-primary text-sm !py-2"
           >
             <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
@@ -157,11 +323,14 @@ export function EinvoiceListClient() {
             />
           </FilterField>
         </div>
+        {direction === "in" && (
+          <p className="text-xs text-amber-200/90 mt-2">
+            Hóa đơn mua vào: xem danh sách đã lưu; đồng bộ tự động cần module riêng từ MobiFone/TCT.
+          </p>
+        )}
       </div>
 
-      {syncMessage && (
-        <p className="text-sm text-emerald-300 mb-3">{syncMessage}</p>
-      )}
+      {syncMessage && <p className="text-sm text-emerald-300 mb-3">{syncMessage}</p>}
       {error && (
         <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-3">
           {error}
@@ -176,23 +345,22 @@ export function EinvoiceListClient() {
               <th className="py-2 pr-3">Ngày</th>
               <th className="py-2 pr-3">Đối tác</th>
               <th className="py-2 pr-3">MST đối tác</th>
-              <th className="py-2 pr-3 text-right">Tiền trước thuế</th>
-              <th className="py-2 pr-3 text-right">Thuế</th>
               <th className="py-2 pr-3 text-right">Tổng</th>
-              <th className="py-2">Trạng thái</th>
+              <th className="py-2 pr-3">Trạng thái</th>
+              <th className="py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-500">
+                <td colSpan={7} className="py-8 text-center text-slate-500">
                   Đang tải…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-500">
-                  Chưa có hóa đơn — bấm Đồng bộ MobiFone sau khi cấu hình tài khoản.
+                <td colSpan={7} className="py-8 text-center text-slate-500">
+                  Chưa có hóa đơn — cấu hình tài khoản MobiFone rồi bấm Đồng bộ.
                 </td>
               </tr>
             ) : (
@@ -206,22 +374,29 @@ export function EinvoiceListClient() {
                     {inv.counterpartyName || "—"}
                   </td>
                   <td className="py-2 pr-3 text-slate-400">{inv.counterpartyTaxCode || "—"}</td>
-                  <td className="py-2 pr-3 text-right text-slate-300">
-                    {formatVnMoney(inv.totalBeforeTax)}
-                  </td>
-                  <td className="py-2 pr-3 text-right text-slate-300">
-                    {formatVnMoney(inv.totalTax)}
-                  </td>
                   <td className="py-2 pr-3 text-right font-medium text-slate-100">
                     {formatVnMoney(inv.totalAmount)}
                   </td>
-                  <td className="py-2 text-slate-400 text-xs">{inv.statusText || "—"}</td>
+                  <td className="py-2 pr-3 text-slate-400 text-xs">{inv.statusText || "—"}</td>
+                  <td className="py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setDetailId(inv.id)}
+                      className="text-sky text-xs hover:underline"
+                    >
+                      Chi tiết
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {detailId != null && (
+        <InvoiceDetailPanel invoiceId={detailId} onClose={() => setDetailId(null)} />
+      )}
     </div>
   );
 }

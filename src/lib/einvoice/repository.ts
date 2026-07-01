@@ -4,6 +4,8 @@ import { decryptSecret, encryptSecret } from "@/lib/customs/credentials-crypto";
 import { getCompany } from "@/lib/projects/companies";
 import {
   getMobifoneBaseUrl,
+  mobifoneDownloadInvoicePdf,
+  mobifoneGetInvoiceById,
   mobifoneListInvoices,
   mobifoneLogin,
   testMobifoneConnection,
@@ -17,14 +19,21 @@ import type {
   MobifoneProfileInput,
 } from "./types";
 
-function mapProfile(row: Record<string, unknown>): MobifoneInvoiceProfile {
+function mapProfile(
+  row: Record<string, unknown>,
+  taxCode: string
+): MobifoneInvoiceProfile {
+  const isTestMode = Boolean(row.is_test_mode);
+  const apiBaseUrl = String(row.api_base_url ?? "");
   return {
     id: row.id as number,
     companyId: row.company_id as number,
     apiUsername: String(row.api_username ?? ""),
     hasApiPassword: Boolean(row.api_password_enc),
+    apiBaseUrl,
+    resolvedBaseUrl: getMobifoneBaseUrl(isTestMode, taxCode, apiBaseUrl),
     maDvcs: String(row.ma_dvcs ?? ""),
-    isTestMode: Boolean(row.is_test_mode),
+    isTestMode,
     lastConnectionOk: row.last_connection_ok == null ? null : Boolean(row.last_connection_ok),
     lastConnectionAt: row.last_connection_at ? String(row.last_connection_at) : null,
     lastConnectionMessage: String(row.last_connection_message ?? ""),
@@ -51,9 +60,19 @@ function mapInvoice(row: Record<string, unknown>): EInvoiceRecord {
     currency: String(row.currency ?? "VND"),
     statusText: String(row.status_text ?? ""),
     taxAuthorityCode: String(row.tax_authority_code ?? ""),
+    lookupCode: String(row.lookup_code ?? ""),
     syncedAt: String(row.synced_at),
     updatedAt: String(row.updated_at),
   };
+}
+
+function mapInvoiceDetail(row: Record<string, unknown>): EInvoiceRecord {
+  const base = mapInvoice(row);
+  const raw = row.raw_json;
+  if (raw && typeof raw === "object") {
+    base.rawJson = raw as Record<string, unknown>;
+  }
+  return base;
 }
 
 function parseInvoiceDate(raw: MobifoneInvoiceRaw): string | null {
@@ -88,6 +107,7 @@ function mapRawToUpsert(
       String(raw.dvtte ?? "VND"),
       String(raw.tthai ?? ""),
       String(raw.mccqthue ?? ""),
+      String(raw.sbmat ?? ""),
       JSON.stringify(raw),
     ],
   };
@@ -122,7 +142,7 @@ async function loadClientSecrets(companyId: number): Promise<{
   const company = await getCompany(companyId);
   if (!company?.taxCode?.trim()) return null;
   return {
-    profile: mapProfile(row),
+    profile: mapProfile(row, company.taxCode.trim()),
     password: row.api_password_enc ? decryptSecret(String(row.api_password_enc)) : "",
     taxCode: company.taxCode.trim(),
   };
@@ -134,12 +154,23 @@ function buildClientConfig(
   taxCode: string
 ) {
   return {
-    baseUrl: getMobifoneBaseUrl(profile.isTestMode),
+    baseUrl: profile.resolvedBaseUrl || getMobifoneBaseUrl(profile.isTestMode, taxCode, profile.apiBaseUrl),
     username: profile.apiUsername,
     password,
     taxCode,
     maDvcs: profile.maDvcs,
   };
+}
+
+async function loginClient(companyId: number) {
+  const secrets = await loadClientSecrets(companyId);
+  if (!secrets || !isMobifoneProfileConfigured(secrets.profile)) {
+    throw new Error("Chưa cấu hình MobiFone Invoice — vào Cấu hình trước.");
+  }
+  const config = buildClientConfig(secrets.profile, secrets.password, secrets.taxCode);
+  const login = await mobifoneLogin(config);
+  if (!login.ok) throw new Error(login.message);
+  return { secrets, config, login };
 }
 
 export async function getMobifoneProfile(
@@ -150,7 +181,9 @@ export async function getMobifoneProfile(
     [companyId],
     companyId
   );
-  return row ? mapProfile(row) : null;
+  if (!row) return null;
+  const company = await getCompany(companyId);
+  return mapProfile(row, company?.taxCode?.trim() ?? "");
 }
 
 export async function upsertMobifoneProfile(
@@ -188,13 +221,15 @@ export async function upsertMobifoneProfile(
       `UPDATE mobifone_invoice_profiles SET
          api_username = $1,
          api_password_enc = COALESCE($2, api_password_enc),
-         ma_dvcs = CASE WHEN $3 <> '' THEN $3 ELSE ma_dvcs END,
-         is_test_mode = $4,
+         api_base_url = $3,
+         ma_dvcs = CASE WHEN $4 <> '' THEN $4 ELSE ma_dvcs END,
+         is_test_mode = $5,
          updated_at = NOW()
-       WHERE company_id = $5`,
+       WHERE company_id = $6`,
       [
         input.apiUsername.trim(),
         pwdEnc ?? null,
+        (input.apiBaseUrl ?? "").trim(),
         maDvcs,
         input.isTestMode ?? false,
         companyId,
@@ -204,12 +239,13 @@ export async function upsertMobifoneProfile(
   } else {
     await tenantExecute(
       `INSERT INTO mobifone_invoice_profiles
-       (company_id, api_username, api_password_enc, ma_dvcs, is_test_mode)
-       VALUES ($1, $2, $3, $4, $5)`,
+       (company_id, api_username, api_password_enc, api_base_url, ma_dvcs, is_test_mode)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         companyId,
         input.apiUsername.trim(),
         encryptSecret(input.apiPassword!.trim()),
+        (input.apiBaseUrl ?? "").trim(),
         maDvcs,
         input.isTestMode ?? true,
       ],
@@ -233,13 +269,14 @@ export async function testMobifoneProfileConnection(
   const username = (draft?.apiUsername ?? stored?.profile.apiUsername ?? "").trim();
   const password = draft?.apiPassword?.trim() || stored?.password || "";
   const isTestMode = draft?.isTestMode ?? stored?.profile?.isTestMode ?? true;
+  const apiBaseUrl = (draft?.apiBaseUrl ?? stored?.profile?.apiBaseUrl ?? "").trim();
 
   if (!username || !password) {
     return { ok: false, message: "Nhập tài khoản và mật khẩu MobiFone." };
   }
 
   const result = await testMobifoneConnection({
-    baseUrl: getMobifoneBaseUrl(isTestMode),
+    baseUrl: getMobifoneBaseUrl(isTestMode, company.taxCode.trim(), apiBaseUrl),
     username,
     password,
     taxCode: company.taxCode.trim(),
@@ -268,21 +305,13 @@ export async function syncMobifoneOutInvoices(
   fromDate: string,
   toDate: string
 ): Promise<{ synced: number; message: string }> {
-  const secrets = await loadClientSecrets(companyId);
-  if (!secrets || !isMobifoneProfileConfigured(secrets.profile)) {
-    throw new Error("Chưa cấu hình MobiFone Invoice — vào Cấu hình trước.");
-  }
-
-  const login = await mobifoneLogin(buildClientConfig(secrets.profile, secrets.password, secrets.taxCode));
-  if (!login.ok) {
-    throw new Error(login.message);
-  }
+  const { config, login } = await loginClient(companyId);
 
   const list = await mobifoneListInvoices(
     {
-      ...buildClientConfig(secrets.profile, secrets.password, secrets.taxCode),
+      ...config,
       token: login.data.token,
-      maDvcs: login.data.maDvcs || secrets.profile.maDvcs,
+      maDvcs: login.data.maDvcs || config.maDvcs || "",
     },
     fromDate,
     toDate
@@ -299,8 +328,8 @@ export async function syncMobifoneOutInvoices(
       `INSERT INTO e_invoices
        (company_id, direction, mobifone_id, invoice_series, invoice_no, invoice_date,
         counterparty_name, counterparty_tax_code, total_before_tax, total_tax, total_amount,
-        currency, status_text, tax_authority_code, raw_json, synced_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,NOW(),NOW())
+        currency, status_text, tax_authority_code, lookup_code, raw_json, synced_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,NOW(),NOW())
        ON CONFLICT (company_id, mobifone_id) DO UPDATE SET
          invoice_series = EXCLUDED.invoice_series,
          invoice_no = EXCLUDED.invoice_no,
@@ -313,6 +342,7 @@ export async function syncMobifoneOutInvoices(
          currency = EXCLUDED.currency,
          status_text = EXCLUDED.status_text,
          tax_authority_code = EXCLUDED.tax_authority_code,
+         lookup_code = EXCLUDED.lookup_code,
          raw_json = EXCLUDED.raw_json,
          synced_at = NOW(),
          updated_at = NOW()`,
@@ -361,4 +391,88 @@ export async function listEInvoices(
     companyId
   );
   return rows.map(mapInvoice);
+}
+
+export async function getEInvoice(
+  companyId: number,
+  id: number
+): Promise<EInvoiceRecord | null> {
+  const row = await tenantQueryOne<Record<string, unknown>>(
+    `SELECT * FROM e_invoices WHERE company_id = $1 AND id = $2`,
+    [companyId, id],
+    companyId
+  );
+  return row ? mapInvoiceDetail(row) : null;
+}
+
+export async function refreshEInvoiceFromMobifone(
+  companyId: number,
+  id: number
+): Promise<EInvoiceRecord> {
+  const existing = await getEInvoice(companyId, id);
+  if (!existing) throw new Error("Không tìm thấy hóa đơn");
+
+  const { config, login } = await loginClient(companyId);
+  const remote = await mobifoneGetInvoiceById(
+    {
+      ...config,
+      token: login.data.token,
+      maDvcs: login.data.maDvcs || config.maDvcs || "",
+    },
+    existing.mobifoneId
+  );
+  if (!remote.ok) throw new Error(remote.message);
+
+  const mapped = mapRawToUpsert(companyId, remote.invoice);
+  if (!mapped) throw new Error("Dữ liệu hóa đơn không hợp lệ");
+
+  await tenantExecute(
+    `INSERT INTO e_invoices
+     (company_id, direction, mobifone_id, invoice_series, invoice_no, invoice_date,
+      counterparty_name, counterparty_tax_code, total_before_tax, total_tax, total_amount,
+      currency, status_text, tax_authority_code, lookup_code, raw_json, synced_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,NOW(),NOW())
+     ON CONFLICT (company_id, mobifone_id) DO UPDATE SET
+       invoice_series = EXCLUDED.invoice_series,
+       invoice_no = EXCLUDED.invoice_no,
+       invoice_date = EXCLUDED.invoice_date,
+       counterparty_name = EXCLUDED.counterparty_name,
+       counterparty_tax_code = EXCLUDED.counterparty_tax_code,
+       total_before_tax = EXCLUDED.total_before_tax,
+       total_tax = EXCLUDED.total_tax,
+       total_amount = EXCLUDED.total_amount,
+       currency = EXCLUDED.currency,
+       status_text = EXCLUDED.status_text,
+       tax_authority_code = EXCLUDED.tax_authority_code,
+       lookup_code = EXCLUDED.lookup_code,
+       raw_json = EXCLUDED.raw_json,
+       synced_at = NOW(),
+       updated_at = NOW()`,
+    mapped.values,
+    companyId
+  );
+
+  return (await getEInvoice(companyId, id))!;
+}
+
+export async function downloadEInvoicePdf(
+  companyId: number,
+  id: number
+): Promise<{ data: ArrayBuffer; contentType: string; filename: string }> {
+  const inv = await getEInvoice(companyId, id);
+  if (!inv) throw new Error("Không tìm thấy hóa đơn");
+
+  const { config, login } = await loginClient(companyId);
+  const pdf = await mobifoneDownloadInvoicePdf(
+    {
+      ...config,
+      token: login.data.token,
+      maDvcs: login.data.maDvcs || config.maDvcs || "",
+    },
+    inv.mobifoneId
+  );
+  if (!pdf.ok) throw new Error(pdf.message);
+
+  const filename = `HĐ-${inv.invoiceSeries}-${inv.invoiceNo}.pdf`.replace(/[^\w.\-]+/g, "_");
+  return { data: pdf.data, contentType: pdf.contentType, filename };
 }

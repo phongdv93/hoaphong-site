@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Pencil, Radio, Building2 } from "lucide-react";
 import type { CompanyEinvoiceContext, MobifoneInvoiceProfile } from "@/lib/einvoice/types";
+import { MOBIFONE_TEST_DEFAULT_BASE } from "@/lib/einvoice/config";
 
 export function MobifoneInvoiceProfileForm() {
   const [loading, setLoading] = useState(true);
@@ -14,6 +15,7 @@ export function MobifoneInvoiceProfileForm() {
   const [editing, setEditing] = useState(true);
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [isTestMode, setIsTestMode] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +24,7 @@ export function MobifoneInvoiceProfileForm() {
     ok: boolean;
     message: string;
     simulated?: boolean;
+    baseUrl?: string;
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -39,6 +42,7 @@ export function MobifoneInvoiceProfileForm() {
       const p = j.profile as MobifoneInvoiceProfile;
       setProfile(p);
       setApiUsername(p.apiUsername);
+      setApiBaseUrl(p.apiBaseUrl ?? "");
       setIsTestMode(p.isTestMode);
       setConfigured(Boolean(j.configured));
       setEditing(!j.configured);
@@ -54,6 +58,12 @@ export function MobifoneInvoiceProfileForm() {
     void load();
   }, [load]);
 
+  const suggestedUrl = company?.taxCode
+    ? isTestMode
+      ? MOBIFONE_TEST_DEFAULT_BASE
+      : `https://${company.taxCode.replace(/\D/g, "")}.minvoice.com.vn`
+    : "";
+
   async function testConnection() {
     setTesting(true);
     setTestResult(null);
@@ -64,6 +74,7 @@ export function MobifoneInvoiceProfileForm() {
       body: JSON.stringify({
         apiUsername,
         apiPassword: apiPassword || undefined,
+        apiBaseUrl: apiBaseUrl || undefined,
         isTestMode,
       }),
     });
@@ -83,6 +94,7 @@ export function MobifoneInvoiceProfileForm() {
       body: JSON.stringify({
         apiUsername,
         apiPassword: apiPassword || undefined,
+        apiBaseUrl: apiBaseUrl || undefined,
         isTestMode,
       }),
     });
@@ -127,13 +139,9 @@ export function MobifoneInvoiceProfileForm() {
             {company.address && (
               <p className="text-sm text-slate-400 mt-0.5">{company.address}</p>
             )}
-            {(company.phone || company.email) && (
-              <p className="text-sm text-slate-400">
-                {[company.phone, company.email].filter(Boolean).join(" · ")}
-              </p>
-            )}
             <p className="text-xs text-slate-500 mt-2">
-              MST và tên công ty dùng khi đăng nhập API — không nhập lại ở đây để tránh sai.
+              API đăng nhập dùng MST này. URL mặc định:{" "}
+              <span className="font-mono text-slate-400">{suggestedUrl || "—"}</span>
             </p>
           </div>
         </div>
@@ -163,6 +171,12 @@ export function MobifoneInvoiceProfileForm() {
               <dt className="text-slate-500">Mã đơn vị (ma_dvcs)</dt>
               <dd className="text-slate-200">{profile.maDvcs || "—"}</dd>
             </div>
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">URL API đang dùng</dt>
+              <dd className="text-slate-200 font-mono text-xs break-all">
+                {profile.resolvedBaseUrl || "—"}
+              </dd>
+            </div>
             <div>
               <dt className="text-slate-500">Môi trường</dt>
               <dd className="text-slate-200">{profile.isTestMode ? "Kiểm thử" : "Chính thức"}</dd>
@@ -188,8 +202,8 @@ export function MobifoneInvoiceProfileForm() {
       {editing && (
         <div className="erp-card p-4 space-y-4">
           <p className="text-sm text-slate-400">
-            Chỉ cần tài khoản MobiFone Invoice do nhà cung cấp cấp. Mật khẩu được mã hóa lưu theo
-            công ty.
+            Nhập tài khoản MobiFone Invoice. Hệ thống gọi API thật — không còn chế độ demo trừ khi
+            server bật <code className="text-slate-300">MOBIFONE_INVOICE_FORCE_SIMULATE=1</code>.
           </p>
 
           <label className="block">
@@ -215,6 +229,20 @@ export function MobifoneInvoiceProfileForm() {
             />
           </label>
 
+          <label className="block">
+            <span className="text-sm text-slate-300">URL API (tùy chọn)</span>
+            <input
+              className="input-field mt-1 w-full font-mono text-xs"
+              value={apiBaseUrl}
+              onChange={(e) => setApiBaseUrl(e.target.value)}
+              placeholder={suggestedUrl || "https://…"}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Để trống = dùng URL MobiFone cấp hoặc mặc định theo MST (
+              <span className="font-mono">{suggestedUrl}</span>).
+            </p>
+          </label>
+
           <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
             <input
               type="checkbox"
@@ -222,7 +250,7 @@ export function MobifoneInvoiceProfileForm() {
               onChange={(e) => setIsTestMode(e.target.checked)}
               className="rounded border-white/20"
             />
-            Môi trường kiểm thử (dùng URL test trên server)
+            Môi trường kiểm thử ({MOBIFONE_TEST_DEFAULT_BASE})
           </label>
 
           <div className="flex flex-wrap gap-2">
@@ -258,17 +286,30 @@ export function MobifoneInvoiceProfileForm() {
           </div>
 
           {testResult && (
-            <p
+            <div
               className={`text-sm rounded-lg px-3 py-2 border ${
                 testResult.ok
                   ? "text-emerald-200 bg-emerald-500/10 border-emerald-500/30"
                   : "text-rose-200 bg-rose-500/10 border-rose-500/30"
               }`}
             >
-              {testResult.message}
-              {testResult.simulated ? " (mô phỏng)" : ""}
-            </p>
+              <p>{testResult.message}</p>
+              {testResult.baseUrl && (
+                <p className="text-xs mt-1 font-mono opacity-80">URL: {testResult.baseUrl}</p>
+              )}
+              {testResult.simulated ? (
+                <p className="text-xs mt-1 text-amber-200">Chế độ mô phỏng trên server.</p>
+              ) : null}
+            </div>
           )}
+
+          <p className="text-xs text-slate-500">
+            Hỗ trợ:{" "}
+            <a href="mailto:support.minvoice@mobifone.vn" className="text-sky hover:underline">
+              support.minvoice@mobifone.vn
+            </a>{" "}
+            · 18001290
+          </p>
         </div>
       )}
 

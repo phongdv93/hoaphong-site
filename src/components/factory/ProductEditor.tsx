@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Save, Calculator } from "lucide-react";
+import { Save, Calculator, ChevronDown, ChevronRight } from "lucide-react";
 import type { BomLineInput, BomSection, FactoryBomLine, FactoryProduct, FactoryProductPayload, FactoryProductStatus } from "@/lib/factory/types";
+import { DEFAULT_PRODUCT_ORIGIN, formatDimensionsMm, formatProductPrimaryCode, shortDescription } from "@/lib/factory/display";
 import { BomBlock } from "./BomBlock";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
@@ -44,7 +45,15 @@ function computeCbmMm(lengthMm: number, depthMm: number, heightMm: number): numb
   return (lengthMm * depthMm * heightMm) / 1e9;
 }
 
-export function ProductEditor({ productId }: { productId: number | null }) {
+export function ProductEditor({
+  productId,
+  defaultBrand = "",
+  defaultOrigin = DEFAULT_PRODUCT_ORIGIN,
+}: {
+  productId: number | null;
+  defaultBrand?: string;
+  defaultOrigin?: string;
+}) {
   const router = useRouter();
   const isNew = productId === null;
   const [loading, setLoading] = useState(!isNew);
@@ -53,6 +62,8 @@ export function ProductEditor({ productId }: { productId: number | null }) {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [brand, setBrand] = useState(defaultBrand);
+  const [origin, setOrigin] = useState(defaultOrigin);
   const [supplier, setSupplier] = useState("");
   const [orderedAt, setOrderedAt] = useState("");
   const [rangeCode, setRangeCode] = useState("");
@@ -72,6 +83,14 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   const [bomWood, setBomWood] = useState<BomLineInput[]>([emptyRow()]);
   const [bomHardware, setBomHardware] = useState<BomLineInput[]>([emptyRow()]);
   const [bomPackaging, setBomPackaging] = useState<BomLineInput[]>([emptyRow()]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isNew) {
+      setBrand(defaultBrand);
+      setOrigin(defaultOrigin);
+    }
+  }, [isNew, defaultBrand, defaultOrigin]);
 
   const load = useCallback(async () => {
     if (productId === null) return;
@@ -87,6 +106,8 @@ export function ProductEditor({ productId }: { productId: number | null }) {
       const p = data.product;
       setName(p.name);
       setDescription(p.description || "");
+      setBrand(p.brand || defaultBrand);
+      setOrigin(p.origin || DEFAULT_PRODUCT_ORIGIN);
       setSupplier(p.supplier || "");
       setOrderedAt(p.orderedAt || "");
       setRangeCode(p.rangeCode);
@@ -111,7 +132,23 @@ export function ProductEditor({ productId }: { productId: number | null }) {
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, defaultBrand]);
+
+  const codePreview = useMemo(
+    () =>
+      formatProductPrimaryCode({
+        rangeCode,
+        woodCode,
+        paintCode,
+        customerBranchCode,
+      }),
+    [rangeCode, woodCode, paintCode, customerBranchCode]
+  );
+
+  const sizePreview = useMemo(
+    () => formatDimensionsMm(lengthMm, depthMm, heightMm),
+    [lengthMm, depthMm, heightMm]
+  );
 
   useEffect(() => {
     load();
@@ -121,6 +158,8 @@ export function ProductEditor({ productId }: { productId: number | null }) {
     return {
       name,
       description,
+      brand,
+      origin,
       supplier,
       orderedAt: orderedAt || null,
       rangeCode,
@@ -143,6 +182,8 @@ export function ProductEditor({ productId }: { productId: number | null }) {
   }, [
     name,
     description,
+    brand,
+    origin,
     supplier,
     orderedAt,
     rangeCode,
@@ -229,14 +270,56 @@ export function ProductEditor({ productId }: { productId: number | null }) {
         </div>
       )}
 
-      <div className="erp-card p-4">
-        <h2 className="font-semibold text-slate-200 text-sm mb-3">Thông tin sản phẩm</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-2 text-xs">
-          <div className="col-span-2 sm:col-span-3 lg:col-span-6">
+      <div className="erp-card p-4 space-y-3">
+        <h2 className="font-semibold text-slate-200 text-sm">Thông tin chính</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-xs">
+          <div className="sm:col-span-2">
             <label className="block font-medium text-slate-400 mb-0.5">Tên sản phẩm *</label>
             <input className="input-field py-1.5 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="col-span-2 sm:col-span-3 lg:col-span-6">
+          <div>
+            <label className="block font-medium text-slate-400 mb-0.5">Mã (range · gỗ · sơn · KH)</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              <input className="input-field py-1.5" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} placeholder="Range" />
+              <input className="input-field py-1.5" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} placeholder="Gỗ" />
+              <input className="input-field py-1.5" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} placeholder="Sơn" />
+              <input
+                className="input-field py-1.5"
+                value={customerBranchCode}
+                onChange={(e) => setCustomerBranchCode(e.target.value)}
+                placeholder="Mã KH"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1 font-mono">{codePreview}</p>
+          </div>
+          <div>
+            <label className="block font-medium text-slate-400 mb-0.5">Kích thước (mm)</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              <input
+                type="number"
+                className="input-field py-1.5"
+                value={lengthMm || ""}
+                onChange={(e) => setLengthMm(Number(e.target.value) || 0)}
+                placeholder="Dài"
+              />
+              <input
+                type="number"
+                className="input-field py-1.5"
+                value={depthMm || ""}
+                onChange={(e) => setDepthMm(Number(e.target.value) || 0)}
+                placeholder="Sâu"
+              />
+              <input
+                type="number"
+                className="input-field py-1.5"
+                value={heightMm || ""}
+                onChange={(e) => setHeightMm(Number(e.target.value) || 0)}
+                placeholder="Cao"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">{sizePreview}</p>
+          </div>
+          <div className="sm:col-span-2">
             <label className="block font-medium text-slate-400 mb-0.5">Mô tả</label>
             <textarea
               className="input-field py-1.5 text-sm min-h-[52px] resize-y"
@@ -244,169 +327,157 @@ export function ProductEditor({ productId }: { productId: number | null }) {
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
             />
-          </div>
-          <div className="col-span-2 sm:col-span-2 lg:col-span-3">
-            <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
-            <input
-              className="input-field py-1.5"
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="Mua từ đâu"
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Ngày đặt hàng</label>
-            <ErpDateInput
-              value={orderedAt}
-              onChange={setOrderedAt}
-              onCommit={setOrderedAt}
-              className="input-field py-1.5"
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Mã range</label>
-            <input className="input-field py-1.5" value={rangeCode} onChange={(e) => setRangeCode(e.target.value)} />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Mã gỗ</label>
-            <input className="input-field py-1.5" value={woodCode} onChange={(e) => setWoodCode(e.target.value)} />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Mã sơn</label>
-            <input className="input-field py-1.5" value={paintCode} onChange={(e) => setPaintCode(e.target.value)} />
-          </div>
-          <div className="col-span-2 sm:col-span-1 lg:col-span-3">
-            <label className="block font-medium text-slate-400 mb-0.5">Mã KH / phiên bản nhánh</label>
-            <input
-              className="input-field py-1.5"
-              value={customerBranchCode}
-              onChange={(e) => setCustomerBranchCode(e.target.value)}
-              placeholder="Mã khách hoặc nhánh"
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Dài (mm)</label>
-            <input
-              type="number"
-              className="input-field py-1.5"
-              value={lengthMm || ""}
-              onChange={(e) => setLengthMm(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Sâu (mm)</label>
-            <input
-              type="number"
-              className="input-field py-1.5"
-              value={depthMm || ""}
-              onChange={(e) => setDepthMm(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Cao (mm)</label>
-            <input
-              type="number"
-              className="input-field py-1.5"
-              value={heightMm || ""}
-              onChange={(e) => setHeightMm(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div className="flex gap-1 items-end">
-            <div className="flex-1 min-w-0">
-              <label className="block font-medium text-slate-400 mb-0.5">CBM (m³)</label>
-              <input
-                type="number"
-                step="0.000001"
-                className="input-field py-1.5"
-                value={cbmM3 || ""}
-                onChange={(e) => setCbmM3(Number(e.target.value) || 0)}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn-outline text-[11px] py-1.5 px-2 shrink-0 mb-px"
-              title="Dài×Sâu×Cao (mm)"
-              onClick={() => setCbmM3(Number(computeCbmMm(lengthMm, depthMm, heightMm).toFixed(6)))}
-            >
-              <Calculator size={12} />
-            </button>
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Cân (kg)</label>
-            <input
-              type="number"
-              step="0.01"
-              className="input-field py-1.5"
-              value={weightKg || ""}
-              onChange={(e) => setWeightKg(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Giá</label>
-            <input className="input-field py-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
-          <div>
-            <label className="block font-medium text-slate-400 mb-0.5">Trạng thái</label>
-            <AppSelect
-              className="py-1.5"
-              value={status}
-              onChange={(v) => setStatus(v as FactoryProductStatus)}
-              options={[
-                { value: "draft", label: "Nháp" },
-                { value: "active", label: "Hiệu lực" },
-                { value: "archived", label: "Lưu trữ" },
-              ]}
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-3 lg:col-span-3">
-            <label className="block font-medium text-slate-400 mb-0.5">Ảnh (URL)</label>
-            <input
-              className="input-field py-1.5"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://…"
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-3 lg:col-span-3 flex items-center justify-center bg-white/5 rounded-lg border border-white/10 min-h-[72px] p-2">
-            {imageUrl.trim() ? (
-              /* eslint-disable-next-line @next/next/no-img-element -- URL tùy ý từ ERP */
-              <img src={imageUrl.trim()} alt="" className="max-h-20 max-w-full object-contain rounded" />
-            ) : (
-              <span className="text-slate-500 text-[11px]">Xem trước ảnh</span>
-            )}
-          </div>
-          <div className="col-span-2 sm:col-span-3 lg:col-span-6">
-            <label className="block font-medium text-slate-400 mb-0.5">Ghi chú</label>
-            <textarea className="input-field py-1.5 text-xs" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            {description.trim() ? (
+              <p className="text-[10px] text-slate-500 mt-1">
+                Rút gọn: {shortDescription(description, 96)}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="erp-card p-4 space-y-4">
-        <div>
-          <h2 className="font-semibold text-slate-200 text-sm">BOM — 3 phần</h2>
-          <p className="text-[11px] text-slate-500 mt-1">
-            Gỗ: kích thước mm + gợi ý <strong>wood_species</strong>. Hardware: không lưu 3 cạnh (kích thước trong tên), tìm <strong>kho vật tư</strong>. Bao bì: chọn loại Âm dương / Nắp mở.
-          </p>
-        </div>
-        <BomBlock
-          section="wood"
-          hint="Chọn loại gỗ từ kho loại gỗ; kích thước mm cho từng chi tiết."
-          rows={bomWood}
-          setRows={setBomWood}
-        />
-        <BomBlock
-          section="hardware"
-          hint="Kích thước ghi trong tên (VD Vít 4x15). Gõ tên → gợi ý kho; nút Kho = thêm mới."
-          rows={bomHardware}
-          setRows={setBomHardware}
-        />
-        <BomBlock
-          section="packaging"
-          hint="Loại bao bì: Âm dương hoặc Nắp mở."
-          rows={bomPackaging}
-          setRows={setBomPackaging}
-        />
+      <div className="erp-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.03] border-b border-white/5"
+        >
+          {detailsOpen ? (
+            <ChevronDown size={16} className="text-slate-500 shrink-0" />
+          ) : (
+            <ChevronRight size={16} className="text-slate-500 shrink-0" />
+          )}
+          <span className="font-semibold text-slate-200 text-sm">Chi tiết, hãng, BOM</span>
+          <span className="text-[10px] text-slate-500 ml-auto">Cấp 2</span>
+        </button>
+
+        {detailsOpen && (
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-2 text-xs">
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Hãng</label>
+                <input className="input-field py-1.5" value={brand} onChange={(e) => setBrand(e.target.value)} />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Xuất xứ</label>
+                <input className="input-field py-1.5" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+              </div>
+              <div className="col-span-2 sm:col-span-2 lg:col-span-3">
+                <label className="block font-medium text-slate-400 mb-0.5">Nhà cung cấp</label>
+                <input
+                  className="input-field py-1.5"
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                  placeholder="Mua từ đâu"
+                />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Ngày đặt hàng</label>
+                <ErpDateInput
+                  value={orderedAt}
+                  onChange={setOrderedAt}
+                  onCommit={setOrderedAt}
+                  className="input-field py-1.5"
+                />
+              </div>
+              <div className="flex gap-1 items-end">
+                <div className="flex-1 min-w-0">
+                  <label className="block font-medium text-slate-400 mb-0.5">CBM (m³)</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    className="input-field py-1.5"
+                    value={cbmM3 || ""}
+                    onChange={(e) => setCbmM3(Number(e.target.value) || 0)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-outline text-[11px] py-1.5 px-2 shrink-0 mb-px"
+                  title="Dài×Sâu×Cao (mm)"
+                  onClick={() => setCbmM3(Number(computeCbmMm(lengthMm, depthMm, heightMm).toFixed(6)))}
+                >
+                  <Calculator size={12} />
+                </button>
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Cân (kg)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input-field py-1.5"
+                  value={weightKg || ""}
+                  onChange={(e) => setWeightKg(Number(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Giá</label>
+                <input className="input-field py-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </div>
+              <div>
+                <label className="block font-medium text-slate-400 mb-0.5">Trạng thái</label>
+                <AppSelect
+                  className="py-1.5"
+                  value={status}
+                  onChange={(v) => setStatus(v as FactoryProductStatus)}
+                  options={[
+                    { value: "draft", label: "Nháp" },
+                    { value: "active", label: "Hiệu lực" },
+                    { value: "archived", label: "Lưu trữ" },
+                  ]}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-3 lg:col-span-3">
+                <label className="block font-medium text-slate-400 mb-0.5">Ảnh (URL)</label>
+                <input
+                  className="input-field py-1.5"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://…"
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-3 lg:col-span-3 flex items-center justify-center bg-white/5 rounded-lg border border-white/10 min-h-[72px] p-2">
+                {imageUrl.trim() ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- URL tùy ý từ ERP */
+                  <img src={imageUrl.trim()} alt="" className="max-h-20 max-w-full object-contain rounded" />
+                ) : (
+                  <span className="text-slate-500 text-[11px]">Xem trước ảnh</span>
+                )}
+              </div>
+              <div className="col-span-2 sm:col-span-3 lg:col-span-6">
+                <label className="block font-medium text-slate-400 mb-0.5">Ghi chú</label>
+                <textarea className="input-field py-1.5 text-xs" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-2 border-t border-white/10">
+              <div>
+                <h3 className="font-semibold text-slate-200 text-sm">BOM — 3 phần</h3>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Gỗ: kích thước mm + gợi ý <strong>wood_species</strong>. Hardware: không lưu 3 cạnh (kích thước trong tên), tìm <strong>kho vật tư</strong>. Bao bì: chọn loại Âm dương / Nắp mở.
+                </p>
+              </div>
+              <BomBlock
+                section="wood"
+                hint="Chọn loại gỗ từ kho loại gỗ; kích thước mm cho từng chi tiết."
+                rows={bomWood}
+                setRows={setBomWood}
+              />
+              <BomBlock
+                section="hardware"
+                hint="Kích thước ghi trong tên (VD Vít 4x15). Gõ tên → gợi ý kho; nút Kho = thêm mới."
+                rows={bomHardware}
+                setRows={setBomHardware}
+              />
+              <BomBlock
+                section="packaging"
+                hint="Loại bao bì: Âm dương hoặc Nắp mở."
+                rows={bomPackaging}
+                setRows={setBomPackaging}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">

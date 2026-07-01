@@ -522,6 +522,7 @@ CREATE TABLE IF NOT EXISTS mobifone_invoice_profiles (
   company_id INTEGER NOT NULL UNIQUE,
   api_username TEXT NOT NULL DEFAULT '',
   api_password_enc TEXT NOT NULL DEFAULT '',
+  api_base_url TEXT NOT NULL DEFAULT '',
   ma_dvcs TEXT NOT NULL DEFAULT '',
   is_test_mode BOOLEAN NOT NULL DEFAULT TRUE,
   last_connection_ok BOOLEAN,
@@ -549,6 +550,7 @@ CREATE TABLE IF NOT EXISTS e_invoices (
   currency TEXT NOT NULL DEFAULT 'VND',
   status_text TEXT NOT NULL DEFAULT '',
   tax_authority_code TEXT NOT NULL DEFAULT '',
+  lookup_code TEXT NOT NULL DEFAULT '',
   raw_json JSONB NOT NULL DEFAULT '{}',
   synced_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -558,3 +560,48 @@ CREATE TABLE IF NOT EXISTS e_invoices (
 
 CREATE INDEX IF NOT EXISTS idx_e_invoices_company_date ON e_invoices(company_id, invoice_date DESC);
 CREATE INDEX IF NOT EXISTS idx_e_invoices_direction ON e_invoices(company_id, direction, updated_at DESC);
+
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
+ALTER TABLE factory_products ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'Việt Nam';
+ALTER TABLE mobifone_invoice_profiles ADD COLUMN IF NOT EXISTS api_base_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE e_invoices ADD COLUMN IF NOT EXISTS lookup_code TEXT NOT NULL DEFAULT '';
+
+-- Đơn đặt hàng mua (1 dự án → nhiều PO, mỗi PO = 1 NCC)
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  po_number TEXT NOT NULL DEFAULT '',
+  supplier_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft',
+  ordered_at DATE,
+  expected_at DATE,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_project ON purchase_orders(project_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS purchase_order_lines (
+  id SERIAL PRIMARY KEY,
+  purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  line_no INTEGER NOT NULL DEFAULT 1,
+  project_item_id INTEGER REFERENCES project_items(id) ON DELETE SET NULL,
+  factory_product_id INTEGER REFERENCES factory_products(id) ON DELETE SET NULL,
+  name TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  product_code TEXT NOT NULL DEFAULT '',
+  length_mm DOUBLE PRECISION NOT NULL DEFAULT 0,
+  depth_mm DOUBLE PRECISION NOT NULL DEFAULT 0,
+  height_mm DOUBLE PRECISION NOT NULL DEFAULT 0,
+  quantity NUMERIC(18, 4) NOT NULL DEFAULT 1,
+  unit TEXT NOT NULL DEFAULT 'cái',
+  unit_price TEXT NOT NULL DEFAULT '',
+  brand TEXT NOT NULL DEFAULT '',
+  origin TEXT NOT NULL DEFAULT '',
+  remark TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_po_lines_order ON purchase_order_lines(purchase_order_id, line_no);

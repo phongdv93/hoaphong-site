@@ -5,6 +5,8 @@ export interface MobifoneInvoiceProfile {
   companyId: number;
   apiUsername: string;
   hasApiPassword: boolean;
+  apiBaseUrl: string;
+  resolvedBaseUrl: string;
   maDvcs: string;
   isTestMode: boolean;
   lastConnectionOk: boolean | null;
@@ -18,6 +20,7 @@ export interface MobifoneInvoiceProfile {
 export interface MobifoneProfileInput {
   apiUsername: string;
   apiPassword?: string;
+  apiBaseUrl?: string;
   isTestMode?: boolean;
 }
 
@@ -46,8 +49,10 @@ export interface EInvoiceRecord {
   currency: string;
   statusText: string;
   taxAuthorityCode: string;
+  lookupCode: string;
   syncedAt: string;
   updatedAt: string;
+  rawJson?: Record<string, unknown>;
 }
 
 export interface MobifoneLoginResult {
@@ -70,5 +75,7 @@ export interface MobifoneInvoiceRaw {
   dvtte?: string;
   tthai?: string;
   mccqthue?: string;
+  sbmat?: string;
+  details?: string | unknown[];
   [key: string]: unknown;
 }

@@ -15,6 +15,8 @@ export interface FactoryProduct {
   id: number;
   name: string;
   description: string;
+  brand: string;
+  origin: string;
   rangeCode: string;
   woodCode: string;
   paintCode: string;
@@ -81,6 +83,8 @@ export interface BomLineInput {
 export interface FactoryProductPayload {
   name: string;
   description?: string;
+  brand?: string;
+  origin?: string;
   supplier?: string;
   orderedAt?: string | null;
   sourceProjectId?: number | null;

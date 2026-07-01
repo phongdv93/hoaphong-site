@@ -8,6 +8,7 @@ export type ProjectPanelTabId =
   | "progress"
   | "submissions"
   | "items"
+  | "purchaseOrders"
   | "chat"
   | "files"
   | "members"
@@ -31,6 +32,7 @@ export const TEMPLATE_PANEL_TABS: Record<ProjectTemplate, ProjectPanelTabId[]> =
     "progress",
     "submissions",
     "items",
+    "purchaseOrders",
     "files",
     "members",
     "chat",
@@ -41,6 +43,7 @@ export const TEMPLATE_PANEL_TABS: Record<ProjectTemplate, ProjectPanelTabId[]> =
     "progress",
     "submissions",
     "items",
+    "purchaseOrders",
     "contracts",
     "files",
     "members",

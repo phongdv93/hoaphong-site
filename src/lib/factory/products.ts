@@ -1,4 +1,5 @@
 import { toLocalDateString } from "@/lib/dates";
+import { DEFAULT_PRODUCT_ORIGIN } from "@/lib/factory/display";
 import { randomUUID } from "crypto";
 import type { PoolClient } from "pg";
 import { tenantExecute, tenantQuery, tenantQueryOne, tenantWithTransaction } from "@/lib/db/tenant";
@@ -16,6 +17,8 @@ function mapProduct(row: Record<string, unknown>): FactoryProduct {
     id: row.id as number,
     name: row.name as string,
     description: (row.description as string) ?? "",
+    brand: String(row.brand ?? ""),
+    origin: String(row.origin ?? DEFAULT_PRODUCT_ORIGIN),
     rangeCode: row.range_code as string,
     woodCode: row.wood_code as string,
     paintCode: row.paint_code as string,
@@ -230,6 +233,8 @@ async function saveBomLines(client: PoolClient, productId: number, payload: Fact
 export async function createCatalogProduct(input: {
   name: string;
   description?: string;
+  brand?: string;
+  origin?: string;
   supplier?: string;
   orderedAt?: string | null;
   price?: string;
@@ -240,11 +245,13 @@ export async function createCatalogProduct(input: {
   if (!input.name?.trim()) throw new Error("Tên sản phẩm bắt buộc");
   const row = await tenantQueryOne<{ id: number }>(
     `INSERT INTO factory_products (
-       name, description, supplier, ordered_at, price, notes, status, source_project_id, source_quote_ref
-     ) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8) RETURNING id`,
+       name, description, brand, origin, supplier, ordered_at, price, notes, status, source_project_id, source_quote_ref
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9, $10) RETURNING id`,
     [
       input.name.trim(),
       input.description?.trim() ?? "",
+      input.brand?.trim() ?? "",
+      input.origin?.trim() || DEFAULT_PRODUCT_ORIGIN,
       input.supplier?.trim() ?? "",
       input.orderedAt ?? null,
       input.price?.trim() ?? "",
@@ -372,13 +379,15 @@ export async function createFactoryProduct(payload: FactoryProductPayload): Prom
   return tenantWithTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(
       `INSERT INTO factory_products (
-        name, description, supplier, ordered_at, source_project_id,
+        name, description, brand, origin, supplier, ordered_at, source_project_id,
         range_code, wood_code, paint_code, customer_branch_code,
         length_mm, depth_mm, height_mm, price, cbm_m3, weight_kg, image_url, notes, status
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
       [
         payload.name.trim(),
         payload.description ?? "",
+        payload.brand?.trim() ?? "",
+        payload.origin?.trim() || DEFAULT_PRODUCT_ORIGIN,
         payload.supplier ?? "",
         payload.orderedAt ?? null,
         payload.sourceProjectId ?? null,
@@ -412,13 +421,15 @@ export async function updateFactoryProduct(id: number, payload: FactoryProductPa
 
     await client.query(
       `UPDATE factory_products SET
-        name=$1, description=$2, supplier=$3, ordered_at=$4, source_project_id=$5,
-        range_code=$6, wood_code=$7, paint_code=$8, customer_branch_code=$9,
-        length_mm=$10, depth_mm=$11, height_mm=$12, price=$13, cbm_m3=$14, weight_kg=$15, image_url=$16, notes=$17, status=$18, updated_at=NOW()
-      WHERE id=$19`,
+        name=$1, description=$2, brand=$3, origin=$4, supplier=$5, ordered_at=$6, source_project_id=$7,
+        range_code=$8, wood_code=$9, paint_code=$10, customer_branch_code=$11,
+        length_mm=$12, depth_mm=$13, height_mm=$14, price=$15, cbm_m3=$16, weight_kg=$17, image_url=$18, notes=$19, status=$20, updated_at=NOW()
+      WHERE id=$21`,
       [
         payload.name.trim(),
         payload.description ?? "",
+        payload.brand?.trim() ?? "",
+        payload.origin?.trim() || DEFAULT_PRODUCT_ORIGIN,
         payload.supplier ?? "",
         payload.orderedAt ?? null,
         payload.sourceProjectId ?? null,

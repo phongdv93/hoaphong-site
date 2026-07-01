@@ -21,6 +21,7 @@ import {
   FileSignature,
   LayoutList,
   Maximize2,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { ProjectPhasesTab } from "./tabs/ProjectPhasesTab";
@@ -28,6 +29,7 @@ import { ProjectMembersTab } from "./tabs/ProjectMembersTab";
 import { ProjectFilesTab } from "./tabs/ProjectFilesTab";
 import { ProjectContractsTab } from "./tabs/ProjectContractsTab";
 import { ProjectItemsTab, ProjectItemsSearch, filterProjectItems } from "./tabs/ProjectItemsTab";
+import { ProjectPurchaseOrdersTab } from "./tabs/ProjectPurchaseOrdersTab";
 import {
   ProgressTab,
   SubmissionsTab,
@@ -82,6 +84,7 @@ const ALL_TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "progress", label: "Tiến độ", icon: Gauge },
   { id: "submissions", label: "Yêu cầu", icon: Inbox },
   { id: "items", label: "Hạng mục", icon: ListChecks },
+  { id: "purchaseOrders", label: "Đặt hàng", icon: ShoppingCart },
   { id: "contracts", label: "Hợp đồng", icon: FileSignature },
   { id: "files", label: "Tệp", icon: Paperclip },
   { id: "members", label: "Thành viên", icon: Users },
@@ -580,6 +583,21 @@ export function ProjectTaskPanel({
                     searchQuery={itemsSearch}
                     linkedPhases={data.phases.filter((p) => p.progressFromItems)}
                     onChanged={() => load({ silent: true })}
+                  />
+                </PanelSection>
+                )}
+                {activeTabs.some((t) => t.id === "purchaseOrders") && (
+                <PanelSection
+                  id="purchaseOrders"
+                  label="Đặt hàng"
+                  setRef={(el) => {
+                    sectionRefs.current.purchaseOrders = el;
+                  }}
+                >
+                  <ProjectPurchaseOrdersTab
+                    projectId={projectId}
+                    items={data.items}
+                    canEdit={canEdit}
                   />
                 </PanelSection>
                 )}
