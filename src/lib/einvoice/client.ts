@@ -4,6 +4,7 @@ import {
   normalizeMobifoneBaseUrl,
   resolveMobifoneBaseUrl,
 } from "./config";
+import { mobifoneFetch as mobifoneHttpsFetch } from "./mobifone-fetch";
 import type { MobifoneInvoiceRaw, MobifoneLoginResult } from "./types";
 
 export interface MobifoneClientConfig {
@@ -51,7 +52,7 @@ function extractInvoiceList(body: unknown): MobifoneInvoiceRaw[] {
 async function mobifoneFetch(
   url: string,
   init: RequestInit & { taxCode?: string } = {}
-): Promise<Response> {
+): Promise<Awaited<ReturnType<typeof mobifoneHttpsFetch>>> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) {
     headers.set("Content-Type", "application/json");
@@ -61,7 +62,7 @@ async function mobifoneFetch(
     const sep = finalUrl.includes("?") ? "&" : "?";
     finalUrl += `${sep}tax_code=${encodeURIComponent(init.taxCode)}`;
   }
-  return fetch(finalUrl, {
+  return mobifoneHttpsFetch(finalUrl, {
     ...init,
     headers,
     signal: init.signal ?? AbortSignal.timeout(60000),

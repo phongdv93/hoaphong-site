@@ -1,9 +1,14 @@
-/** URL mặc định theo tài liệu M-Invoice / MobiFone Invoice (subdomain theo MST). */
+/** URL mặc định MobiFone Invoice — subdomain theo MST (vd. https://0318313318.mobifoneinvoice.vn). */
 
-export const MOBIFONE_TEST_DEFAULT_BASE = "https://hoadon.minvoice.com.vn";
+export const MOBIFONE_INVOICE_DOMAIN = "mobifoneinvoice.vn";
+
+export const MOBIFONE_TEST_DEFAULT_BASE = `https://hoadon.${MOBIFONE_INVOICE_DOMAIN}`;
 
 export function normalizeMobifoneBaseUrl(url: string): string {
-  return url.trim().replace(/\/$/, "");
+  const trimmed = url.trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  // Profile cũ lưu nhầm domain minvoice.com.vn → mobifoneinvoice.vn
+  return trimmed.replace(/\.minvoice\.com\.vn$/i, `.${MOBIFONE_INVOICE_DOMAIN}`);
 }
 
 export function mobifoneTaxSubdomain(taxCode: string): string {
@@ -29,7 +34,7 @@ export function resolveMobifoneBaseUrl(opts: {
 
   const mst = mobifoneTaxSubdomain(opts.taxCode);
   if (opts.testMode) return MOBIFONE_TEST_DEFAULT_BASE;
-  if (mst) return `https://${mst}.minvoice.com.vn`;
+  if (mst) return `https://${mst}.${MOBIFONE_INVOICE_DOMAIN}`;
   return "";
 }
 
@@ -40,6 +45,6 @@ export function isMobifoneSimulatedMode(): boolean {
 export function mobifoneApiMissingMessage(): string {
   return (
     "Chưa xác định URL API MobiFone. Nhập URL do MobiFone cấp trong Cấu hình, " +
-    "hoặc đặt MOBIFONE_INVOICE_BASE_URL trên server (mặc định: https://{MST}.minvoice.com.vn)."
+    `hoặc đặt MOBIFONE_INVOICE_BASE_URL trên server (mặc định: https://{MST}.${MOBIFONE_INVOICE_DOMAIN}).`
   );
 }

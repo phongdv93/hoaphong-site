@@ -61,7 +61,7 @@ export function MobifoneInvoiceProfileForm() {
   const suggestedUrl = company?.taxCode
     ? isTestMode
       ? MOBIFONE_TEST_DEFAULT_BASE
-      : `https://${company.taxCode.replace(/\D/g, "")}.minvoice.com.vn`
+      : `https://${company.taxCode.replace(/\D/g, "")}.mobifoneinvoice.vn`
     : "";
 
   async function testConnection() {
