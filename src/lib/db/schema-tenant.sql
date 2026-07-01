@@ -514,3 +514,47 @@ CREATE TABLE IF NOT EXISTS marketing_quotes (
 
 CREATE INDEX IF NOT EXISTS idx_marketing_quotes_company ON marketing_quotes(company_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_marketing_quotes_number ON marketing_quotes(company_id, quote_number);
+
+-- ============ HÓA ĐƠN ĐIỆN TỬ (MobiFone Invoice) ============
+
+CREATE TABLE IF NOT EXISTS mobifone_invoice_profiles (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL UNIQUE,
+  api_username TEXT NOT NULL DEFAULT '',
+  api_password_enc TEXT NOT NULL DEFAULT '',
+  ma_dvcs TEXT NOT NULL DEFAULT '',
+  is_test_mode BOOLEAN NOT NULL DEFAULT TRUE,
+  last_connection_ok BOOLEAN,
+  last_connection_at TIMESTAMPTZ,
+  last_connection_message TEXT NOT NULL DEFAULT '',
+  last_sync_at TIMESTAMPTZ,
+  last_sync_message TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS e_invoices (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  direction TEXT NOT NULL DEFAULT 'out',
+  mobifone_id TEXT NOT NULL,
+  invoice_series TEXT NOT NULL DEFAULT '',
+  invoice_no TEXT NOT NULL DEFAULT '',
+  invoice_date DATE,
+  counterparty_name TEXT NOT NULL DEFAULT '',
+  counterparty_tax_code TEXT NOT NULL DEFAULT '',
+  total_before_tax NUMERIC(18, 2) NOT NULL DEFAULT 0,
+  total_tax NUMERIC(18, 2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(18, 2) NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'VND',
+  status_text TEXT NOT NULL DEFAULT '',
+  tax_authority_code TEXT NOT NULL DEFAULT '',
+  raw_json JSONB NOT NULL DEFAULT '{}',
+  synced_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (company_id, mobifone_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_e_invoices_company_date ON e_invoices(company_id, invoice_date DESC);
+CREATE INDEX IF NOT EXISTS idx_e_invoices_direction ON e_invoices(company_id, direction, updated_at DESC);

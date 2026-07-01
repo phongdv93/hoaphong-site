@@ -146,3 +146,11 @@ export async function canManageCustoms(
   const role = await getEffectiveCompanyRole(companyId, userId);
   return role === "admin" || role === "manager";
 }
+
+/** Cấu hình HĐĐT MobiFone / đồng bộ */
+export async function canManageEinvoice(
+  companyId: number,
+  userId: number
+): Promise<boolean> {
+  return canManageCustoms(companyId, userId);
+}

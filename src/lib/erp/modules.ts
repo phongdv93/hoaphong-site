@@ -281,6 +281,15 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
     ownerDepartmentId: "ke-toan",
     items: [
       {
+        id: "hoa-don-dien-tu",
+        title: "Hóa đơn điện tử",
+        description: "Đồng bộ HĐ bán ra từ MobiFone Invoice theo MST công ty",
+        href: "/erp/ke-toan/hoa-don-dien-tu",
+        status: "active",
+        icon: FileText,
+        plannedFeatures: ["Đồng bộ bán ra", "Ký USB token", "Tạo HĐ từ báo giá"],
+      },
+      {
         id: "phieu-thu",
         title: "Phiếu thu",
         description: "Ghi nhận thu tiền từ khách / nguồn khác",
