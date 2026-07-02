@@ -48,7 +48,7 @@ export function ProjectPurchaseOrdersPageClient({ projectId }: { projectId: numb
         projectId={projectId}
         projectItems={items}
         canEdit
-        hint="Mỗi đơn một NCC từ danh mục. «Đề xuất đơn» tách hạng mục dự án theo NCC trên sản phẩm."
+        hint="Cùng danh sách đơn với kế toán — lọc theo dự án này. Mỗi đơn một NCC."
       />
     </div>
   );

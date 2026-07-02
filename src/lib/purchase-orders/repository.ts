@@ -88,7 +88,7 @@ export async function listPurchaseOrders(
 ): Promise<PurchaseOrder[]> {
   const filter =
     projectId == null
-      ? "po.company_id = $1 AND po.project_id IS NULL"
+      ? "po.company_id = $1"
       : "po.company_id = $1 AND po.project_id = $2";
   const params = projectId == null ? [companyId] : [companyId, projectId];
   const rows = await tenantQuery<Record<string, unknown>>(
@@ -103,20 +103,47 @@ export async function listPurchaseOrders(
   return rows.map((r) => mapOrder(r));
 }
 
+/** Mọi đơn của công ty — dùng cho kế toán (gồm đơn gắn dự án). */
+export async function listAllPurchaseOrders(companyId: number): Promise<PurchaseOrder[]> {
+  return listPurchaseOrders(companyId, null);
+}
+
+export async function getPurchaseOrderById(
+  companyId: number,
+  id: number
+): Promise<PurchaseOrder | null> {
+  const row = await tenantQueryOne<Record<string, unknown>>(
+    `SELECT * FROM purchase_orders WHERE id = $1 AND company_id = $2`,
+    [id, companyId],
+    companyId
+  );
+  if (!row) return null;
+  const lines = await loadLines(id, companyId);
+  return mapOrder(row, lines);
+}
+
+async function resolvePurchaseOrderScope(
+  companyId: number,
+  id: number
+): Promise<PurchaseOrderScope> {
+  const row = await tenantQueryOne<{ project_id: number | null }>(
+    `SELECT project_id FROM purchase_orders WHERE id = $1 AND company_id = $2`,
+    [id, companyId],
+    companyId
+  );
+  if (!row) throw new Error("Không tìm thấy đơn đặt hàng");
+  return row.project_id != null ? Number(row.project_id) : null;
+}
+
 export async function getPurchaseOrder(
   companyId: number,
   projectId: PurchaseOrderScope,
   id: number
 ): Promise<PurchaseOrder | null> {
-  const filter =
-    projectId == null
-      ? "id = $1 AND company_id = $2 AND project_id IS NULL"
-      : "id = $1 AND company_id = $2 AND project_id = $3";
-  const params = projectId == null ? [id, companyId] : [id, companyId, projectId];
-  const row = await tenantQueryOne<Record<string, unknown>>(`SELECT * FROM purchase_orders WHERE ${filter}`, params, companyId);
-  if (!row) return null;
-  const lines = await loadLines(id, companyId);
-  return mapOrder(row, lines);
+  const po = await getPurchaseOrderById(companyId, id);
+  if (!po) return null;
+  if (projectId != null && po.projectId !== projectId) return null;
+  return po;
 }
 
 export async function createPurchaseOrder(
@@ -155,14 +182,15 @@ export async function updatePurchaseOrder(
   id: number,
   input: Partial<PurchaseOrderInput>
 ): Promise<PurchaseOrder> {
-  const cur = await getPurchaseOrder(companyId, projectId, id);
+  const scope = projectId ?? (await resolvePurchaseOrderScope(companyId, id));
+  const cur = await getPurchaseOrder(companyId, scope, id);
   if (!cur) throw new Error("Không tìm thấy đơn đặt hàng");
   const filter =
-    projectId == null
-      ? "id = $6 AND company_id = $7 AND project_id IS NULL"
+    scope == null
+      ? "id = $6 AND company_id = $7"
       : "id = $6 AND company_id = $7 AND project_id = $8";
   const params =
-    projectId == null
+    scope == null
       ? [
           input.supplierName?.trim() ?? cur.supplierName,
           input.status ?? cur.status,
@@ -180,7 +208,7 @@ export async function updatePurchaseOrder(
           input.notes === undefined ? cur.notes : input.notes.trim(),
           id,
           companyId,
-          projectId,
+          scope,
         ];
   await tenantExecute(
     `UPDATE purchase_orders SET
@@ -194,7 +222,7 @@ export async function updatePurchaseOrder(
     params,
     companyId
   );
-  return (await getPurchaseOrder(companyId, projectId, id))!;
+  return (await getPurchaseOrder(companyId, scope, id))!;
 }
 
 export async function deletePurchaseOrder(
@@ -202,11 +230,12 @@ export async function deletePurchaseOrder(
   projectId: PurchaseOrderScope,
   id: number
 ): Promise<void> {
+  const scope = projectId ?? (await resolvePurchaseOrderScope(companyId, id));
   const filter =
-    projectId == null
-      ? "id = $1 AND company_id = $2 AND project_id IS NULL"
+    scope == null
+      ? "id = $1 AND company_id = $2"
       : "id = $1 AND company_id = $2 AND project_id = $3";
-  const params = projectId == null ? [id, companyId] : [id, companyId, projectId];
+  const params = scope == null ? [id, companyId] : [id, companyId, scope];
   await tenantExecute(`DELETE FROM purchase_orders WHERE ${filter}`, params, companyId);
 }
 
@@ -295,7 +324,8 @@ export async function addPurchaseOrderLines(
     | { source: "manual"; line: PurchaseOrderLineInput }
   >
 ): Promise<PurchaseOrder> {
-  const po = await getPurchaseOrder(companyId, projectId, purchaseOrderId);
+  const scope = projectId ?? (await resolvePurchaseOrderScope(companyId, purchaseOrderId));
+  const po = await getPurchaseOrder(companyId, scope, purchaseOrderId);
   if (!po) throw new Error("Không tìm thấy đơn đặt hàng");
 
   await tenantWithTransaction(async (client) => {
@@ -349,7 +379,7 @@ export async function addPurchaseOrderLines(
     await client.query(`UPDATE purchase_orders SET updated_at = NOW() WHERE id = $1`, [purchaseOrderId]);
   }, companyId);
 
-  return (await getPurchaseOrder(companyId, projectId, purchaseOrderId))!;
+  return (await getPurchaseOrder(companyId, scope, purchaseOrderId))!;
 }
 
 export async function removePurchaseOrderLine(
@@ -358,7 +388,8 @@ export async function removePurchaseOrderLine(
   purchaseOrderId: number,
   lineId: number
 ): Promise<void> {
-  const po = await getPurchaseOrder(companyId, projectId, purchaseOrderId);
+  const scope = projectId ?? (await resolvePurchaseOrderScope(companyId, purchaseOrderId));
+  const po = await getPurchaseOrder(companyId, scope, purchaseOrderId);
   if (!po) throw new Error("Không tìm thấy đơn đặt hàng");
   await tenantExecute(
     `DELETE FROM purchase_order_lines WHERE id = $1 AND purchase_order_id = $2`,

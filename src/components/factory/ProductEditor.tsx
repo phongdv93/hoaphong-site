@@ -441,30 +441,30 @@ export function ProductEditor({
             <div>
               <p className="text-[11px] font-medium text-slate-400 mb-2">Mã sản phẩm</p>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <label className="inline-flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Range</span>
-                  <input
-                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                    value={rangeCode}
-                    onChange={(e) => setRangeCode(e.target.value)}
-                  />
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Gỗ</span>
-                  <input
-                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                    value={woodCode}
-                    onChange={(e) => setWoodCode(e.target.value)}
-                  />
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 w-9 shrink-0">Sơn</span>
-                  <input
-                    className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
-                    value={paintCode}
-                    onChange={(e) => setPaintCode(e.target.value)}
-                  />
-                </label>
+            <label className="inline-flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-12 shrink-0">Range</span>
+              <input
+                className="input-field py-1 px-2 text-xs text-center !w-24 shrink-0"
+                value={rangeCode}
+                onChange={(e) => setRangeCode(e.target.value)}
+              />
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-14 shrink-0">Vật liệu</span>
+              <input
+                className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
+                value={woodCode}
+                onChange={(e) => setWoodCode(e.target.value)}
+              />
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 w-9 shrink-0">Màu</span>
+              <input
+                className="input-field py-1 px-2 text-xs text-center !w-14 shrink-0"
+                value={paintCode}
+                onChange={(e) => setPaintCode(e.target.value)}
+              />
+            </label>
                 <label className="inline-flex items-center gap-2 flex-1 min-w-[8rem]">
                   <span className="text-[10px] text-slate-500 shrink-0">Mã KH</span>
                   <input

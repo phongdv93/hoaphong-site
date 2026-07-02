@@ -3,7 +3,7 @@ import { requireActiveTenant } from "@/lib/api/with-tenant";
 import {
   addPurchaseOrderLines,
   deletePurchaseOrder,
-  getPurchaseOrder,
+  getPurchaseOrderById,
   removePurchaseOrderLine,
   updatePurchaseOrder,
 } from "@/lib/purchase-orders/repository";
@@ -21,7 +21,7 @@ export async function GET(
   }
 
   return ctx.run(async () => {
-    const order = await getPurchaseOrder(ctx.companyId, null, orderId);
+    const order = await getPurchaseOrderById(ctx.companyId, orderId);
     if (!order) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
     return NextResponse.json({ order });
   });
@@ -56,7 +56,7 @@ export async function PUT(
       if (body.addLines?.length) {
         await addPurchaseOrderLines(ctx.companyId, null, orderId, body.addLines);
       }
-      const order = await getPurchaseOrder(ctx.companyId, null, orderId);
+      const order = await getPurchaseOrderById(ctx.companyId, orderId);
       return NextResponse.json({ order });
     } catch (e) {
       return NextResponse.json(

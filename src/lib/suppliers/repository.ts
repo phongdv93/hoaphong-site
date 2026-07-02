@@ -58,6 +58,41 @@ export async function getSupplier(companyId: number, id: number): Promise<Suppli
   return row ? mapSupplier(row) : null;
 }
 
+export async function updateSupplier(
+  companyId: number,
+  id: number,
+  input: Partial<Pick<Supplier, "name" | "contactName" | "phone" | "email" | "address" | "notes">>
+): Promise<Supplier> {
+  const cur = await getSupplier(companyId, id);
+  if (!cur) throw new Error("Không tìm thấy nhà cung cấp");
+  const name = input.name?.trim() ?? cur.name;
+  if (!name) throw new Error("Tên nhà cung cấp bắt buộc");
+  const row = await tenantQueryOne<Record<string, unknown>>(
+    `UPDATE suppliers SET
+       name = $1,
+       contact_name = $2,
+       phone = $3,
+       email = $4,
+       address = $5,
+       notes = $6,
+       updated_at = NOW()
+     WHERE id = $7 AND company_id = $8
+     RETURNING *`,
+    [
+      name,
+      input.contactName?.trim() ?? cur.contactName,
+      input.phone?.trim() ?? cur.phone,
+      input.email?.trim() ?? cur.email,
+      input.address?.trim() ?? cur.address,
+      input.notes?.trim() ?? cur.notes,
+      id,
+      companyId,
+    ],
+    companyId
+  );
+  return mapSupplier(row!);
+}
+
 export async function createSupplier(companyId: number, name: string): Promise<Supplier> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Tên nhà cung cấp bắt buộc");

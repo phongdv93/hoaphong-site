@@ -127,6 +127,14 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
         icon: Puzzle,
         plannedFeatures: ["Mã chi tiết, bản vẽ, kích thước", "Quy trình gia công", "Ảnh & file SolidWorks"],
       },
+      {
+        id: "ncc",
+        title: "Nhà cung cấp",
+        description: "Danh mục NCC — đơn đặt hàng và giá mua sản phẩm",
+        href: "/erp/san-pham/ncc",
+        status: "active",
+        icon: ShoppingCart,
+      },
     ],
   },
   {
@@ -283,11 +291,11 @@ export const ERP_MODULE_GROUPS: ErpModuleGroup[] = [
       {
         id: "dat-hang",
         title: "Đơn đặt hàng",
-        description: "PO mua hàng kế toán — tìm SP theo tên, NCC, hãng, nguyên liệu",
+        description: "Đơn mua toàn công ty — gồm đơn từ dự án, một danh sách thống nhất",
         href: "/erp/ke-toan/dat-hang",
         status: "active",
         icon: ShoppingCart,
-        plannedFeatures: ["Gắn dự án", "Đối soát NCC", "In PO"],
+        plannedFeatures: ["Đối soát NCC", "In PO"],
       },
       {
         id: "hoa-don-dien-tu",

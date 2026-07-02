@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronRight, Plus, ShoppingCart, Sparkles, Trash2 } from "lucide-react";
 import { ErpDateInput } from "@/components/erp/ErpDateInput";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -223,7 +224,12 @@ export function PurchaseOrdersWorkspace({
 
   return (
     <div className="space-y-3">
-      <p className="text-[10px] text-slate-500">{hint}</p>
+      <p className="text-[10px] text-slate-500">
+        {hint}{" "}
+        <Link href="/erp/san-pham/ncc" className="text-sky/90 hover:underline">
+          Danh mục NCC →
+        </Link>
+      </p>
 
       {error && <p className="text-xs text-rose-400">{error}</p>}
       {suggestMsg && <p className="text-xs text-emerald-400/90">{suggestMsg}</p>}
@@ -332,6 +338,20 @@ export function PurchaseOrdersWorkspace({
                     </div>
                     <div className="text-[10px] text-slate-500">
                       {po.poNumber} · {PO_STATUS_LABELS[po.status]}
+                      {po.projectId ? (
+                        <>
+                          {" · "}
+                          <Link
+                            href={`/erp/du-an/dat-hang?project=${po.projectId}`}
+                            className="text-sky/80 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Dự án #{po.projectId}
+                          </Link>
+                        </>
+                      ) : (
+                        <span className="text-slate-600"> · Kế toán</span>
+                      )}
                     </div>
                   </div>
                 </button>

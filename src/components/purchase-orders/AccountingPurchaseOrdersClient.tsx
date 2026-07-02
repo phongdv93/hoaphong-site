@@ -8,7 +8,7 @@ export function AccountingPurchaseOrdersClient() {
       listUrl="/api/purchase-orders"
       detailUrlPrefix="/api/purchase-orders"
       canEdit
-      hint="Đơn mua hàng kế toán — không gắn dự án. Chọn NCC từ danh mục, sau đó thêm sản phẩm của NCC đó."
+      hint="Một danh sách đơn mua cho toàn công ty — gồm đơn từ dự án. Chọn NCC từ danh mục nhà cung cấp."
     />
   );
 }
